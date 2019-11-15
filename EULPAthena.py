@@ -1,3 +1,12 @@
+"""
+# EULPAthena
+- - - - - - - - -
+A class to run AWS Athena queries for the EULP project using  built-in query functions. New query use cases for the
+EULP project should be implemented as member function of this class.
+
+:author: Rajendra.Adhikari@nrel.gov
+"""
+
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import logging
 from typing import List, Any
@@ -100,6 +109,7 @@ class EULPAthena(ResStockAthena):
             get_query_only: If set to true, returns the query instead of the result
 
         Returns:
+            Pandas dataframe with the units counts
         """
 
         group_by = [] if group_by is None else group_by
@@ -176,6 +186,16 @@ class EULPAthena(ResStockAthena):
         return self.execute(query)
 
     def get_buildings_by_locations(self, locations: List[str], get_query_only: bool = False):
+        """
+        Returns the list of buildings belonging to given list of locations.
+        Args:
+            locations: list of `build_existing_model.location' strings
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        """
         locations_str = ','.join([f"'{l}'" for l in locations])
         query = f'''select building_id from {self.baseline_table_name} where "build_existing_model.location" in \
                  ({locations_str}) order by building_id'''
@@ -185,6 +205,16 @@ class EULPAthena(ResStockAthena):
         return res
 
     def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        """
+        Returns the list of buildings belonging to the given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
+
+        """
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
         query = f'''select distinct(building_id) from {self.baseline_table_name} join eiaid_weights on \
                   "build_existing_model.location" = "location" where eiaid in ({eiaid_str}) and weight > 0 order by 1'''
@@ -194,6 +224,16 @@ class EULPAthena(ResStockAthena):
         return res
 
     def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        """
+        Returns the list of locations belonging to a given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the locations belonging to the provided list of utilities.
+
+        """
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
         query = f"select distinct(location) from eiaid_weights where weight > 0 and eiaid in ({eiaid_str}) order by 1"
         if get_query_only:

@@ -444,8 +444,9 @@ class ResStockAthena:
 
 
         Returns:
-                if run_async is True, it returns a tuple of (`query_execution_id`, query_string)
-                if run_async is False, it returns a tuple of (`result_dataframe`, query_string)
+                if get_query_only is True, returns the query_string, otherwise,
+                    if run_async is True, it returns a query_execution_id.
+                    if run_async is False, it returns the result_dataframe
 
         """
 
@@ -550,8 +551,9 @@ class ResStockAthena:
                             submitting multiple queries or debugging
 
         Returns:
-                if run_async is True, it returns a tuple of (`query_execution_id`, query_string)
-                if run_async is False, it returns a tuple of (`result_dataframe`, query_string)
+                if get_query_only is True, returns the query_string, otherwise,
+                    if run_async is True, it returns a query_execution_id.
+                    if run_async is False, it returns the result_dataframe
 
         """
 
