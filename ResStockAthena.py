@@ -47,7 +47,7 @@ class ResStockAthena:
         self.region_name = region_name
         self.timestamp_column_name = timestamp_column_name
 
-        if type(table_name) is str:
+        if isinstance(table_name, str):
             self.ts_table_name = f'{table_name}_timeseries'
             self.baseline_table_name = f'{table_name}_baseline'
         else:
@@ -363,9 +363,9 @@ class ResStockAthena:
 
     @staticmethod
     def dress_literal(l):
-        if type(l) == float or type(l) == int:
+        if isinstance(l, float) or isinstance(l, int):
             return f"{l}"
-        elif type(l) == str:
+        elif isinstance(l, str):
             return f"'{l}'"
         else:
             raise TypeError(f'Unsupported Type: {type(l)}')
