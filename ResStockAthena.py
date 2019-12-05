@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class ResStockAthena:
     def __init__(self, db_name: str,
-                 table_name: Union[str, Tuple[str, str]],
+                 table_name: Union[str, Tuple[str, str]] = None,
                  region_name: str = 'us-west-2',
                  timestamp_column_name='time',
                  execution_history=None) -> None:
@@ -40,6 +40,7 @@ class ResStockAthena:
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                                use .execution_history if not supplied.
         """
+
         self.py_thena = pythena.Athena(db_name, region_name)
         self.aws_athena = boto3.client('athena', region_name=region_name)
         self.aws_glue = boto3.client('glue', region_name=region_name)
@@ -50,12 +51,18 @@ class ResStockAthena:
         if isinstance(table_name, str):
             self.ts_table_name = f'{table_name}_timeseries'
             self.baseline_table_name = f'{table_name}_baseline'
-        else:
+        elif isinstance(table_name, tuple):
             self.baseline_table_name = f'{table_name[0]}'
             self.ts_table_name = f'{table_name[1]}'
+        else:
+            self.baseline_table_name = None
+            self.ts_table_name = None
 
-        self.ts_table = self.aws_glue.get_table(DatabaseName=self.db_name, Name=self.ts_table_name)['Table']
-        self.baseline_table = self.aws_glue.get_table(DatabaseName=self.db_name, Name=self.baseline_table_name)['Table']
+        if self.baseline_table_name and self.ts_table_name:
+            self.ts_table = self.aws_glue.get_table(DatabaseName=self.db_name, Name=self.ts_table_name)['Table']
+            self.baseline_table = self.aws_glue.get_table(DatabaseName=self.db_name,
+                                                          Name=self.baseline_table_name)['Table']
+
         self.tables = {}
         self.join_list = {}
 
@@ -202,13 +209,14 @@ class ResStockAthena:
         else:
             return True
 
-    def get_batch_query_result(self, batch_id, no_block=False):
+    def get_batch_query_result(self, batch_id, combine=True, no_block=False):
         """
         Concatenates and returns the results of all the queries of a batchquery
         Args:
             batch_id (int): The batch_id for the batch_query
             no_block (bool): Whether to wait until all queries have completed or return immediately. If you use
                             no_block = true and the batch hasn't completed, it will throw BatchStillRunning exception.
+            combine: Whether to combine the individual query result into a single dataframe
 
         Returns:
             The concatenated dataframe of the results of all the queries in a batch query.
@@ -222,7 +230,10 @@ class ResStockAthena:
                 res_df_array = []
                 for index, exe_id in enumerate(query_exe_ids):
                     res_df_array.append(self.get_query_result(exe_id))
-                return pd.concat(res_df_array)
+                if combine:
+                    return pd.concat(res_df_array)
+                else:
+                    return res_df_array
             else:
                 if no_block:
                     raise Exception('Batch query not completed yet.')
@@ -349,7 +360,7 @@ class ResStockAthena:
         elif table == 'baseline':
             cols = self.baseline_table['StorageDescriptor']['Columns']
             cols = [c['Name'] for c in cols]
-            if not fuel_type:
+            if fuel_type:
                 cols = [c for c in cols if 'simulation_output_report' in c]
                 cols = [c for c in cols if fuel_type in c]
             return cols
@@ -413,6 +424,7 @@ class ResStockAthena:
                          join_list: List[Tuple[str, str, str]] = [],
                          weights: List[str] = [],
                          restrict: List[Tuple[str, List]] = [],
+                         custom_sample_weight: float = None,
                          run_async: bool = False,
                          get_query_only: bool = False):
         """
@@ -434,6 +446,9 @@ class ResStockAthena:
 
             weights: The additional column to use as weight. The "build_existing_model.sample_weight" is already used.
 
+            custom_sample_weight: If the sample weight is different from build_existing_model.sample_weight, use
+                                  this parameter to provide a different weight
+
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
 
@@ -454,7 +469,11 @@ class ResStockAthena:
         if enduses is None:
             enduses = self.get_cols(table='baseline', fuel_type='electricity')
 
-        sample_weight = C("build_existing_model.sample_weight")
+        if custom_sample_weight:
+            sample_weight = str(custom_sample_weight)
+        else:
+            sample_weight = C("build_existing_model.sample_weight")
+
         n_units_col = C("build_existing_model.units_represented")
 
         total_weight = f'{sample_weight}'
@@ -473,11 +492,12 @@ class ResStockAthena:
                 select_cols += ", " + enduse_cols
 
             query = f"select {select_cols} from {C(self.baseline_table_name)}"
-            join_clause = ''
-            for new_table_name, baseline_column_name, new_column_name in join_list:
-                join_clause += f''' join {C(new_table_name)} on {C(baseline_column_name)} =\
-                                {C(new_table_name)}.{C(new_column_name)}'''
-            query += join_clause
+
+        join_clause = ''
+        for new_table_name, baseline_column_name, new_column_name in join_list:
+            join_clause += f''' join {C(new_table_name)} on {C(baseline_column_name)} =\
+                            {C(new_table_name)}.{C(new_column_name)}'''
+        query += join_clause
 
         if restrict:
             query += f" where "
@@ -520,6 +540,7 @@ class ResStockAthena:
                              order_by: List[str] = None,
                              join_list: List[Tuple[str, str, str]] = [],
                              weights: List[str] = [],
+                             custom_sample_weight: float = None,
                              restrict: [Tuple[str, List]] = [],
                              run_async: bool = False,
                              get_query_only: bool = False):
@@ -542,6 +563,9 @@ class ResStockAthena:
 
             weights: The additional column to use as weight. The "build_existing_model.sample_weight" is already used.
 
+            custom_sample_weight: If the sample weight is different from build_existing_model.sample_weight, use
+                                  this parameter to provide a different weight
+
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
 
@@ -561,7 +585,10 @@ class ResStockAthena:
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
 
-        sample_weight = C("build_existing_model.sample_weight")
+        if custom_sample_weight:
+            sample_weight = str(custom_sample_weight)
+        else:
+            sample_weight = C("build_existing_model.sample_weight")
         n_units_col = C("build_existing_model.units_represented")
 
         total_weight = f'{sample_weight}'
@@ -580,12 +607,13 @@ class ResStockAthena:
             if enduse_cols:
                 select_cols += ", " + enduse_cols
             query = f"select {select_cols} from {C(self.ts_table_name)}"
-            join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" =\
-                             {C(self.baseline_table_name)}."building_id" '''
-            for new_table_name, baseline_column_name, new_column_name in join_list:
-                join_clause += f''' join {C(new_table_name)} on\
-                {C(self.baseline_table_name)}.{C(baseline_column_name)} = {C(new_table_name)}.{C(new_column_name)}'''
-            query += join_clause
+
+        join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" =\
+                         {C(self.baseline_table_name)}."building_id" '''
+        for new_table_name, baseline_column_name, new_column_name in join_list:
+            join_clause += f''' join {C(new_table_name)} on\
+            {C(self.baseline_table_name)}.{C(baseline_column_name)} = {C(new_table_name)}.{C(new_column_name)}'''
+        query += join_clause
 
         if restrict:
             query += f" where "
