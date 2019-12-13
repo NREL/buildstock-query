@@ -260,7 +260,9 @@ class ResStockAthena:
         Submit multiple related queries
         Args:
             queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
-                    functions is easiest way to obtain queries.
+                    functions is easiest way to obtain queries. The queries in the list can either be a string in or a
+                    tuple of (database_name, query_string). When just a string is used, the database defaults to the one
+                    supplied during init.
 
         Returns:
             An integer representing the batch_query id. The id can be used with other batch_query functions.
