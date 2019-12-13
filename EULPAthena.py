@@ -40,7 +40,7 @@ class EULPAthena(ResStockAthena):
                                               join_list=join_list,
                                               weights=['weight'],
                                               order_by=[id_column, 'time'],
-                                              restrict=[(id_column, [current_id])],
+                                              restrict=[(id_column, current_id)],
                                               run_async=True,
                                               get_query_only=True)
             batch_queries_to_submit.append(query)

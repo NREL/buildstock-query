@@ -104,11 +104,13 @@ class ResStockAthena:
         with open(self.execution_history_file, 'a') as f:
             f.write(f'{time.time()},{execution_id}\n')
 
-    def execute(self, query, run_async=False):
+    def execute(self, query, db=None, run_async=False):
         """
         Executes a query
         Args:
             query: The SQL query to run in Athena
+            db: Optionally specify the database on which to run the query. Defaults to the database supplied during
+                initialization
             run_async: Whether to wait until the query completes (run_async=False) or return immediately
             (run_async=True).
 
@@ -117,7 +119,13 @@ class ResStockAthena:
             if run_async is  True, returns the query_execution_id. Use `get_query_result` to get the result after
             the query is completed. Use :get_status: to check the status of the query.
         """
+        if not db:
+            db = self.db_name
+
+        self.py_thena._Athena__database = db  # override the DB in pythena
         res = self.py_thena.execute(query, save_results=True, run_async=run_async)
+        self.py_thena._Athena__database = self.db_name  # restore the DB name
+
         if run_async:
             # in case of asynchronous run, you get the execution id only. Save it before returning
             self._save_execution_id(res)
@@ -229,7 +237,9 @@ class ResStockAthena:
                 query_exe_ids = self.batch_query_status_map[batch_id]['submitted_execution_ids']
                 res_df_array = []
                 for index, exe_id in enumerate(query_exe_ids):
-                    res_df_array.append(self.get_query_result(exe_id))
+                    df = self.get_query_result(exe_id)
+                    df['query_id'] = index
+                    res_df_array.append(df)
                 if combine:
                     return pd.concat(res_df_array)
                 else:
@@ -272,13 +282,17 @@ class ResStockAthena:
 
         def run_queries():
             while to_submit_ids:
-                current_id = to_submit_ids[-1]  # get the last one
-                current_query = queries[-1]
+                current_id = to_submit_ids[0]  # get the first one
+                current_query = queries[0]
+                if isinstance(current_query, tuple):
+                    db, current_query = current_query
+                else:
+                    db = self.db_name
                 try:
-                    execution_id = self.execute(current_query, run_async=True)
+                    execution_id = self.execute(current_query, db=db, run_async=True)
                     logger.info(f"Submitted queries[{current_id}]")
-                    to_submit_ids.pop()  # if query queued successfully, remove it from the list
-                    queries.pop()
+                    to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
+                    queries.pop(0)
                     submitted_ids.append(current_id)
                     submitted_execution_ids.append(execution_id)
                     submitted_queries.append(current_query)
@@ -388,9 +402,27 @@ class ResStockAthena:
         else:
             return c
 
+    @classmethod
+    def _get_restrict_string(cls, restrict):
+        query = ''
+        C = cls.make_column_string
+        if restrict:
+            query += f" where "
+            condition_strs = []
+            for column, vals in restrict:
+                if isinstance(vals, list) or isinstance(vals, tuple):
+                    vals = [cls.dress_literal(v) for v in vals]
+                    condition_strs.append(f'''({C(column)} in ({', '.join(vals)}))''')
+                elif isinstance(vals, str) or isinstance(vals, int):
+                    vals = cls.dress_literal(vals)
+                    condition_strs.append(f'''({C(column)} = {vals})''')
+
+            query += " and ".join(condition_strs)
+        return query
+
     def get_distinct_vals(self, column: str, table_name: str = None, get_query_only: bool = False):
         table_name = self.baseline_table_name if table_name is None else table_name
-        C = ResStockAthena.make_column_string
+        C = self.make_column_string
         query = f"select distinct {C(column)} from {C(table_name)}"
 
         if get_query_only:
@@ -416,6 +448,46 @@ class ResStockAthena:
 
         r = self.execute(query, run_async=False)
         return r
+
+    def get_successful_simulation_count(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+        """
+        Returns the results_csv table for the resstock run
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas integer counting the number of successful simulation
+        """
+        query = f'''select count(*) as count from {self.baseline_table_name}'''
+        restrict = list(restrict)
+        restrict.insert(0, ('completed_status', 'Success'))
+        query += self._get_restrict_string(restrict)
+        if get_query_only:
+            return query
+
+        return self.execute(query)
+
+    def get_results_csv(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+        """
+        Returns the results_csv table for the resstock run
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        """
+
+        query = f'''select * from {self.baseline_table_name} '''
+        query += self._get_restrict_string(restrict)
+
+        if get_query_only:
+            return query
+
+        return self.execute(query)
 
     def aggregate_annual(self,
                          enduses: List[str] = None,
@@ -499,17 +571,7 @@ class ResStockAthena:
                             {C(new_table_name)}.{C(new_column_name)}'''
         query += join_clause
 
-        if restrict:
-            query += f" where "
-            condition_strs = []
-            for column, vals in restrict:
-                vals = [self.dress_literal(v) for v in vals]
-                if len(vals) == 1:
-                    condition_strs.append(f'''({C(column)} = {vals[0]})''')
-                else:
-                    condition_strs.append(f'''({C(column)} in ({', '.join(vals)}))''')
-
-            query += " and ".join(condition_strs)
+        query += self._get_restrict_string(restrict)
 
         if group_by:
             query += f" group by " + ", ".join([f'{C(g)}' for g in group_by])
@@ -615,17 +677,7 @@ class ResStockAthena:
             {C(self.baseline_table_name)}.{C(baseline_column_name)} = {C(new_table_name)}.{C(new_column_name)}'''
         query += join_clause
 
-        if restrict:
-            query += f" where "
-            condition_strs = []
-            for column, vals in restrict:
-                vals = [self.dress_literal(v) for v in vals]
-                if len(vals) == 1:
-                    condition_strs.append(f'''({C(column)} = {vals[0]})''')
-                else:
-                    condition_strs.append(f'''({C(column)} in ({', '.join(vals)}))''')
-
-            query += " and ".join(condition_strs)
+        query += self._get_restrict_string(restrict)
 
         if group_by:
             query += f" group by " + ", ".join([f'''{C(g)}''' for g in group_by])
