@@ -17,6 +17,8 @@ import logging
 from threading import Thread
 from botocore.exceptions import ClientError
 import pandas as pd
+import datetime
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -394,6 +396,8 @@ class ResStockAthena:
             return f"{l}"
         elif isinstance(l, str):
             return f"'{l}'"
+        elif isinstance(l, datetime.datetime):
+            return f"timestamp '{str(l)}'"
         else:
             raise TypeError(f'Unsupported Type: {type(l)}')
 
@@ -703,3 +707,73 @@ class ResStockAthena:
                     time.sleep(10)
 
             raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
+
+    def _get_simulation_info(self):
+        C = self.make_column_string
+        # find the simulation time interval
+        two_times = self.execute(f"SELECT distinct(time) from {C(self.ts_table_name)} limit 2")
+        two_times['time'] = pd.to_datetime(two_times['time'])
+        sim_year = two_times.iloc[0]['time'].year
+        sim_interval_seconds = (two_times.iloc[1]['time'] - two_times.iloc[0]['time']).total_seconds()
+        return sim_year, sim_interval_seconds
+
+    def get_building_average_kws_at(self, at_hour, at_days, enduses=None, custom_sample_weight=None, get_query_only=False):
+        C = self.make_column_string
+        if custom_sample_weight:
+            sample_weight = str(custom_sample_weight)
+        else:
+            sample_weight = C("build_existing_model.sample_weight")
+        total_weight = f'{sample_weight}'
+        n_units_col = C("build_existing_model.units_represented")
+        enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} / {n_units_col}) as {self.simple_label(c)}"
+                                 for c in enduses])
+        grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
+
+        sim_year, sim_interval_seconds = self._get_simulation_info()
+
+        def get_upper_timestamps(day):
+            new_dt = datetime.datetime(year=sim_year, month=1, day=1)
+            upper_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds *
+                                                   (int(at_hour * 3600 / sim_interval_seconds) + 1))
+            if upper_dt.year > sim_year:
+                upper_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds *
+                                                       (int(at_hour * 3600 / sim_interval_seconds)))
+            return upper_dt
+
+        def get_lower_timestamps(day):
+            new_dt = datetime.datetime(year=sim_year, month=1, day=1)
+            lower_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds * int(at_hour * 3600 /
+                                                   sim_interval_seconds))
+            return lower_dt
+
+        lower_timestamps = [get_lower_timestamps(d-1) for d in at_days]
+        upper_timestamps = [get_upper_timestamps(d-1) for d in at_days]
+        query_str = f'''select {C(self.ts_table_name)}."building_id" as building_id, '''
+        query_str += grouping_metrics_cols
+        query_str += f''', {enduse_cols} from {C(self.ts_table_name)}'''
+
+        join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" =\
+                                 {C(self.baseline_table_name)}."building_id" '''
+        query_str += join_clause
+
+        lower_val_query = query_str + self._get_restrict_string([('time', lower_timestamps)])
+        upper_val_query = query_str + self._get_restrict_string([('time', upper_timestamps)])
+        lower_val_query += " group by 1 order by 1"
+        upper_val_query += " group by 1 order by 1"
+
+        queries = [lower_val_query, upper_val_query]
+
+        if get_query_only:
+            return queries
+
+        batch_id = self.submit_batch_query(queries)
+        lower_vals, upper_vals = self.get_batch_query_result(batch_id, combine=False)
+        upper_weight = (at_hour * 3600 % sim_interval_seconds) / sim_interval_seconds
+        lower_weight = 1 - upper_weight
+
+        # modify the lower vals to make it weighted average of upper and lower vals
+        lower_vals[enduses] = lower_vals[enduses] * lower_weight + upper_vals[enduses]*upper_weight
+        kw_factor = 3600 / sim_interval_seconds
+        lower_vals[enduses] *= kw_factor
+        lower_vals.drop(columns=['query_id'], inplace=True)
+        return lower_vals
