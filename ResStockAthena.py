@@ -717,19 +717,50 @@ class ResStockAthena:
         sim_interval_seconds = (two_times.iloc[1]['time'] - two_times.iloc[0]['time']).total_seconds()
         return sim_year, sim_interval_seconds
 
-    def get_building_average_kws_at(self, at_hour, at_days, enduses=None, custom_sample_weight=None, get_query_only=False):
+    def get_building_average_kws_at(self, at_hour, at_days, enduses=None, custom_sample_weight=None,
+                                    get_query_only=False):
+
+        """
+        Aggregates the timeseries result on select enduses.
+        Check the argument description below to learn about additional features and options.
+        Args:
+            at_hour: The list of enduses to aggregate. Defaults to all electricity enduses
+
+            at_days: The list of columns to group the aggregation by.
+
+            enduses: The columns by which to sort the result.
+
+            custom_sample_weight: If you want to override the build_existing_model.sample_weight, provide a custom
+                                  sample weight.
+            get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
+                            submitting multiple queries or debugging
+
+        Returns:
+                if get_query_only is True, returns two queries that gets the KW at two timestamps that are to immediate
+                    left and right of the the supplied hour.
+                if get_query_only is False, returns the average KW of each building at the given hour across the supplied days
+
+        """
+
+
         C = self.make_column_string
+
+        if not enduses:
+            enduses = self.get_cols(table='timeseries', fuel_type='electricity')
+
+        sim_year, sim_interval_seconds = self._get_simulation_info()
+        kw_factor = 3600.0 / sim_interval_seconds
+
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
         else:
             sample_weight = C("build_existing_model.sample_weight")
+
         total_weight = f'{sample_weight}'
         n_units_col = C("build_existing_model.units_represented")
-        enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} / {n_units_col}) as {self.simple_label(c)}"
-                                 for c in enduses])
+        enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} * '{kw_factor}' / {n_units_col}) as"
+                                 f" {self.simple_label(c)}" for c in enduses])
         grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
-
-        sim_year, sim_interval_seconds = self._get_simulation_info()
 
         def get_upper_timestamps(day):
             new_dt = datetime.datetime(year=sim_year, month=1, day=1)
@@ -768,12 +799,11 @@ class ResStockAthena:
 
         batch_id = self.submit_batch_query(queries)
         lower_vals, upper_vals = self.get_batch_query_result(batch_id, combine=False)
+
         upper_weight = (at_hour * 3600 % sim_interval_seconds) / sim_interval_seconds
         lower_weight = 1 - upper_weight
-
         # modify the lower vals to make it weighted average of upper and lower vals
         lower_vals[enduses] = lower_vals[enduses] * lower_weight + upper_vals[enduses]*upper_weight
-        kw_factor = 3600 / sim_interval_seconds
-        lower_vals[enduses] *= kw_factor
+
         lower_vals.drop(columns=['query_id'], inplace=True)
         return lower_vals
