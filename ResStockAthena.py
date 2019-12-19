@@ -758,7 +758,7 @@ class ResStockAthena:
 
         total_weight = f'{sample_weight}'
         n_units_col = C("build_existing_model.units_represented")
-        enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} * '{kw_factor}' / {n_units_col}) as"
+        enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} * {kw_factor:.3f} / {n_units_col}) as"
                                  f" {self.simple_label(c)}" for c in enduses])
         grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
 
