@@ -184,6 +184,7 @@ class ResStockAthena:
             success_count = 0
             fail_count = 0
             running_count = 0
+            other = 0
             for exe_id in stats['submitted_execution_ids']:
                 completion_stat = self.get_query_status(exe_id)
                 if completion_stat == 'RUNNING':
@@ -192,10 +193,12 @@ class ResStockAthena:
                     success_count += 1
                 elif completion_stat in ['FAILED', 'CANCELLED']:
                     fail_count += 1
+                else:
+                    other += 1
 
             result = {'Submitted': len(stats['submitted_ids']),
                       'Running': running_count,
-                      'Pending': len(stats['to_submit_ids']),
+                      'Pending': len(stats['to_submit_ids']) + other,
                       'Completed': success_count,
                       'Failed': fail_count
                       }
@@ -594,11 +597,13 @@ class ResStockAthena:
         else:
             time.sleep(1)
             while time.time() - t < 30 * 60:
-                if self.py_thena.get_query_status(res).lower() != 'running':
+                stat = self.py_thena.get_query_status(res)
+                if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
                 else:
-                    time.sleep(10)
+                    logger.info(f'Query status is {stat}')
+                    time.sleep(30)
 
             raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
 
@@ -700,11 +705,13 @@ class ResStockAthena:
         else:
             time.sleep(1)
             while time.time() - t < 30 * 60:
-                if self.py_thena.get_query_status(res).lower() != 'running':
+                stat = self.py_thena.get_query_status(res)
+                if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
                 else:
-                    time.sleep(10)
+                    logger.info(f"Query status is {stat}")
+                    time.sleep(30)
 
             raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
 
