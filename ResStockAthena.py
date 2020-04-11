@@ -601,6 +601,9 @@ class ResStockAthena:
                 if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
+                elif stat.upper() == 'FAILED':
+                    error = self.get_query_error(res)
+                    raise Exception(error)
                 else:
                     logger.info(f'Query status is {stat}')
                     time.sleep(30)
@@ -709,6 +712,9 @@ class ResStockAthena:
                 if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
+                elif stat.upper() == 'FAILED':
+                    error = self.get_query_error(res)
+                    raise Exception(error)
                 else:
                     logger.info(f"Query status is {stat}")
                     time.sleep(30)
