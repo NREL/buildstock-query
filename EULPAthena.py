@@ -140,29 +140,6 @@ class EULPAthena(ResStockAthena):
                                        get_query_only=get_query_only)
         return result
 
-    def aggregate_annual_by_states(self, enduses: List[str], group_by: List[str] = None, get_query_only: bool = False):
-        """
-        Aggregates the annual consumption in the baseline table, grouping by all the states
-        Args:
-            enduses: The list of enduses to aggregate
-            group_by: Additional columns to group the aggregation by
-            get_query_only: If set to true, returns the list of queries to run instead of the result.
-        Returns:
-            Pandas dataframe with the annual sum of the requested enduses, grouped by states
-        """
-        baseline_column = 'build_existing_model.location'
-        new_table = 'state_weights'
-        new_column = 'location'
-        join_list = [(new_table, baseline_column, new_column)]
-        group_by = [] if group_by is None else group_by
-        result = self.aggregate_annual(enduses=enduses, group_by=['states'] + group_by,
-                                       join_list=join_list,
-                                       weights=['weight'],
-                                       order_by=['states'],
-                                       get_query_only=get_query_only)
-
-        return result
-
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
                                   mapping_version=2, get_query_only: bool = False):
         """
