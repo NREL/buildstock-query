@@ -178,7 +178,7 @@ class EULPAthena(ResStockAthena):
 
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f'''select * from {self.baseline_table_name} join {eiaid_map_table_name} on "{map_baseline_column}" =
+        query = f'''select * from "{self.baseline_table_name}" join {eiaid_map_table_name} on "{map_baseline_column}" =
                  "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 order by 1'''
         if get_query_only:
             return query
@@ -196,7 +196,7 @@ class EULPAthena(ResStockAthena):
 
         """
         locations_str = ','.join([f"'{l}'" for l in locations])
-        query = f'''select building_id from {self.baseline_table_name} where "build_existing_model.location" in \
+        query = f'''select building_id from "{self.baseline_table_name}" where "build_existing_model.location" in \
                  ({locations_str}) order by building_id'''
         if get_query_only:
             return query
@@ -218,7 +218,7 @@ class EULPAthena(ResStockAthena):
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f'''select distinct(building_id) from {self.baseline_table_name} join {eiaid_map_table_name} on \
+        query = f'''select distinct(building_id) from "{self.baseline_table_name}" join {eiaid_map_table_name} on \
                   "{map_baseline_column}" = "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 order by 1
                  '''
         if get_query_only:
