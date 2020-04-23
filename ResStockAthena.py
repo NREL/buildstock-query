@@ -432,7 +432,7 @@ class ResStockAthena:
     def get_distinct_vals(self, column: str, table_name: str = None, get_query_only: bool = False):
         table_name = self.baseline_table_name if table_name is None else table_name
         C = self.make_column_string
-        query = f"select distinct {C(column)} from {C(table_name)}"
+        query = f"select distinct {C(column)} from ""{C(table_name)}"""
 
         if get_query_only:
             return query
@@ -469,7 +469,7 @@ class ResStockAthena:
         Returns:
             Pandas integer counting the number of successful simulation
         """
-        query = f'''select count(*) as count from {self.baseline_table_name}'''
+        query = f'''select count(*) as count from "{self.baseline_table_name}"'''
         restrict = list(restrict)
         restrict.insert(0, ('completed_status', 'Success'))
         query += self._get_restrict_string(restrict)
