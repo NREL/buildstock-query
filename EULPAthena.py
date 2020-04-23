@@ -90,29 +90,6 @@ class EULPAthena(ResStockAthena):
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
                                          eiaid_list, enduses, group_by, get_query_only)
 
-    def aggregate_ts_by_state(self, state_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
-                              get_query_only: bool = False):
-        """
-        Aggregates the timeseries result, grouping by the states.
-        Args:
-            state_list: The list of states to group
-            enduses: The list of enduses to aggregate
-            group_by: Additional columns to group the aggregation by
-            get_query_only: If set to true, returns the list of queries to run instead of the result.
-
-        Returns:
-            Pandas dataframe with the aggregated timeseries and the requested enduses grouped by states
-        """
-        map_table_name = 'state_weights'
-        baseline_column = 'build_existing_model.location'
-        map_column = 'location'
-        if not enduses:
-            enduses = ['net_site_electricity_kwh']
-        id_column = 'states'
-
-        return self._aggregate_ts_by_map(map_table_name, baseline_column, map_column, id_column, state_list,
-                                         enduses, group_by, get_query_only)
-
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
                                        mapping_version=2, get_query_only: bool = False):
         """
