@@ -25,8 +25,14 @@ class EULPAthena(ResStockAthena):
         self.query_list = []
         self.batch_query_status_map = {}
 
-    def _aggregate_ts_by_map(self, map_table_name: str, baseline_column: str, map_column: str,
-                             id_column: str, id_list: List[Any], enduses: List[str], group_by: List[str],
+    def _aggregate_ts_by_map(self,
+                             map_table_name: str,
+                             baseline_column: str,
+                             map_column: str,
+                             id_column: str,
+                             id_list: List[Any],
+                             enduses: List[str],
+                             group_by: List[str],
                              get_query_only: bool = False):
 
         group_by = [] if group_by is None else group_by
@@ -180,7 +186,7 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_buildings_by_eiaids(self, eiaids: List[str],  mapping_version=2, get_query_only: bool = False):
+    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=2, get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
         Args:
@@ -203,7 +209,7 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_locations_by_eiaids(self, eiaids: List[str],  mapping_version=2, get_query_only: bool = False):
+    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=2, get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
         Args:

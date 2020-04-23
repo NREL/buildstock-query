@@ -730,9 +730,12 @@ class ResStockAthena:
         sim_interval_seconds = (two_times.iloc[1]['time'] - two_times.iloc[0]['time']).total_seconds()
         return sim_year, sim_interval_seconds
 
-    def get_building_average_kws_at(self, at_hour, at_days, enduses=None, custom_sample_weight=None,
+    def get_building_average_kws_at(self,
+                                    at_hour,
+                                    at_days,
+                                    enduses=None,
+                                    custom_sample_weight=None,
                                     get_query_only=False):
-
         """
         Aggregates the timeseries result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -787,11 +790,11 @@ class ResStockAthena:
         def get_lower_timestamps(day):
             new_dt = datetime.datetime(year=sim_year, month=1, day=1)
             lower_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds * int(at_hour * 3600 /
-                                                   sim_interval_seconds))
+                                                                                                sim_interval_seconds))
             return lower_dt
 
-        lower_timestamps = [get_lower_timestamps(d-1) for d in at_days]
-        upper_timestamps = [get_upper_timestamps(d-1) for d in at_days]
+        lower_timestamps = [get_lower_timestamps(d - 1) for d in at_days]
+        upper_timestamps = [get_upper_timestamps(d - 1) for d in at_days]
         query_str = f'''select {C(self.ts_table_name)}."building_id" as building_id, '''
         query_str += grouping_metrics_cols
         query_str += f''', {enduse_cols} from {C(self.ts_table_name)}'''
@@ -816,7 +819,7 @@ class ResStockAthena:
         upper_weight = (at_hour * 3600 % sim_interval_seconds) / sim_interval_seconds
         lower_weight = 1 - upper_weight
         # modify the lower vals to make it weighted average of upper and lower vals
-        lower_vals[enduses] = lower_vals[enduses] * lower_weight + upper_vals[enduses]*upper_weight
+        lower_vals[enduses] = lower_vals[enduses] * lower_weight + upper_vals[enduses] * upper_weight
 
         lower_vals.drop(columns=['query_id'], inplace=True)
         return lower_vals
