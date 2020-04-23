@@ -84,7 +84,7 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_list = [str(e) for e in eiaid_list]
         if not enduses:
-            enduses = ['net_site_electricity_kwh']
+            enduses = ['total_site_electricity_kwh']
         id_column = 'eiaid'
 
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
