@@ -158,11 +158,12 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
-
+        C = ResStockAthena.make_column_string
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f'''select * from "{self.baseline_table_name}" join {eiaid_map_table_name} on "{map_baseline_column}" =
-                 "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 order by 1'''
+        query = f'''select * from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)} on '''\
+                f'''{C(map_baseline_column)} = "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 '''\
+                f'''order by 1'''
         if get_query_only:
             return query
         return self.execute(query)
@@ -178,9 +179,10 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe consisting of the building ids belonging to the provided list of locations.
 
         """
+        C = ResStockAthena.make_column_string
         locations_str = ','.join([f"'{l}'" for l in locations])
-        query = f'''select building_id from "{self.baseline_table_name}" where "build_existing_model.location" in \
-                 ({locations_str}) order by building_id'''
+        query = f'''select building_id from {C(self.baseline_table_name)} where "build_existing_model.location" in ''' \
+                f'''({locations_str}) order by building_id'''
         if get_query_only:
             return query
         res = self.execute(query)
@@ -199,11 +201,12 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
 
         """
+        C = ResStockAthena.make_column_string
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f'''select distinct(building_id) from "{self.baseline_table_name}" join {eiaid_map_table_name} on \
-                  "{map_baseline_column}" = "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 order by 1
-                 '''
+        query = f"select distinct(building_id) from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)}" \
+                f" on {C(map_baseline_column)} = {C(map_eiaid_column)} where eiaid in ({eiaid_str}) and " \
+                f" weight > 0 order by 1 "
         if get_query_only:
             return query
         res = self.execute(query)
@@ -223,10 +226,11 @@ class EULPAthena(ResStockAthena):
             provided list of utilities.
 
         """
+        C = ResStockAthena.make_column_string
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f"select distinct({map_eiaid_column}) from {eiaid_map_table_name} where weight > 0 and eiaid in" \
-            f" ({eiaid_str}) order by 1"
+        query = f"select distinct({C(map_eiaid_column)}) from {C(eiaid_map_table_name)} where weight > 0 and eiaid in" \
+                f" ({eiaid_str}) order by 1"
         if get_query_only:
             return query
         res = self.execute(query)
