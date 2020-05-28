@@ -18,6 +18,7 @@ from threading import Thread
 from botocore.exceptions import ClientError
 import pandas as pd
 import datetime
+from dateutil import parser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,14 +26,17 @@ logger = logging.getLogger(__name__)
 
 class ResStockAthena:
     def __init__(self, db_name: str,
+                 buildstock_type: str = None,
                  table_name: Union[str, Tuple[str, str]] = None,
                  region_name: str = 'us-west-2',
                  timestamp_column_name='time',
+                 sample_weight_column="build_existing_model.sample_weight",
                  execution_history=None) -> None:
         """
         A class to run common Athena queries for ResStock runs and download results as pandas dataFrame
         Args:
             db_name: The athena database name
+            buildstock_type: 'resstock' or 'comstock' runs
             table_name: If a single string is provided, say, 'mfm_run', then it must correspond to two tables in athena
                         named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
                         as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and a
@@ -42,14 +46,17 @@ class ResStockAthena:
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                                use .execution_history if not supplied.
         """
-
+        self.buildstock_type = buildstock_type
         self.py_thena = pythena.Athena(db_name, region_name)
         self.aws_athena = boto3.client('athena', region_name=region_name)
         self.aws_glue = boto3.client('glue', region_name=region_name)
         self.db_name = db_name
         self.region_name = region_name
-        self.timestamp_column_name = timestamp_column_name
-
+        self.timestamp_column_name = self.make_column_string(timestamp_column_name)
+        if sample_weight_column:
+            self.sample_weight_column = self.make_column_string(sample_weight_column)
+        else:
+            self.sample_weight_column = 1
         if isinstance(table_name, str):
             self.ts_table_name = f'{table_name}_timeseries'
             self.baseline_table_name = f'{table_name}_baseline'
@@ -445,7 +452,7 @@ class ResStockAthena:
         C = ResStockAthena.make_column_string
         if table_name is None:
             table_name = self.baseline_table_name if table_name is None else table_name
-            weight = C("build_existing_model.sample_weight")
+            weight = self.sample_weight_column
         else:
             weight = C(weight_column) if weight_column else 1
 
@@ -554,7 +561,7 @@ class ResStockAthena:
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
         else:
-            sample_weight = C("build_existing_model.sample_weight")
+            sample_weight = self.sample_weight_column
 
         n_units_col = C("build_existing_model.units_represented")
 
@@ -562,7 +569,7 @@ class ResStockAthena:
         for weight in weights:
             total_weight += f' * {C(weight)} '
 
-        enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {self.simple_label(c)}"
+        enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
                                  for c in enduses])
         if not group_by:
             query = f"select {enduse_cols} from {C(self.baseline_table_name)}"
@@ -665,14 +672,14 @@ class ResStockAthena:
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
         else:
-            sample_weight = C("build_existing_model.sample_weight")
+            sample_weight = self.sample_weight_column
         n_units_col = C("build_existing_model.units_represented")
 
         total_weight = f'{sample_weight}'
         for weight in weights:
             total_weight += f' * {C(weight)} '
 
-        enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {self.simple_label(c)}"
+        enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
                                  for c in enduses])
 
         if not group_by:
@@ -725,10 +732,12 @@ class ResStockAthena:
     def _get_simulation_info(self):
         C = self.make_column_string
         # find the simulation time interval
-        two_times = self.execute(f"SELECT distinct(time) from {C(self.ts_table_name)} limit 2")
-        two_times['time'] = pd.to_datetime(two_times['time'])
-        sim_year = two_times.iloc[0]['time'].year
-        sim_interval_seconds = (two_times.iloc[1]['time'] - two_times.iloc[0]['time']).total_seconds()
+        two_times = self.execute(f"SELECT distinct({self.timestamp_column_name}) as time"
+                                 f" from {C(self.ts_table_name)} limit 2")
+        time1 = parser.parse(two_times['time'].iloc[0])
+        time2 = parser.parse(two_times['time'].iloc[1])
+        sim_year = time1.year
+        sim_interval_seconds = (time2 - time1).total_seconds()
         return sim_year, sim_interval_seconds
 
     def get_building_average_kws_at(self,
@@ -771,12 +780,12 @@ class ResStockAthena:
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
         else:
-            sample_weight = C("build_existing_model.sample_weight")
+            sample_weight = self.sample_weight_column
 
         total_weight = f'{sample_weight}'
         n_units_col = C("build_existing_model.units_represented")
         enduse_cols = ', '.join([f"avg({C(c)} * {total_weight} * {kw_factor:.3f} / {n_units_col}) as"
-                                 f" {self.simple_label(c)}" for c in enduses])
+                                 f" {C(self.simple_label(c))}" for c in enduses])
         grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
 
         def get_upper_timestamps(day):
@@ -804,8 +813,8 @@ class ResStockAthena:
                                  {C(self.baseline_table_name)}."building_id" '''
         query_str += join_clause
 
-        lower_val_query = query_str + self._get_restrict_string([('time', lower_timestamps)])
-        upper_val_query = query_str + self._get_restrict_string([('time', upper_timestamps)])
+        lower_val_query = query_str + self._get_restrict_string([(self.timestamp_column_name, lower_timestamps)])
+        upper_val_query = query_str + self._get_restrict_string([(self.timestamp_column_name, upper_timestamps)])
         lower_val_query += " group by 1 order by 1"
         upper_val_query += " group by 1 order by 1"
 
