@@ -180,7 +180,7 @@ class EULPAthena(ResStockAthena):
 
         """
         C = ResStockAthena.make_column_string
-        locations_str = ','.join([f"'{l}'" for l in locations])
+        locations_str = ','.join([f"'{a}'" for a in locations])
         query = f'''select building_id from {C(self.baseline_table_name)} where "build_existing_model.location" in ''' \
                 f'''({locations_str}) order by building_id'''
         if get_query_only:

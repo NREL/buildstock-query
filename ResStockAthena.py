@@ -401,15 +401,15 @@ class ResStockAthena:
             return label
 
     @staticmethod
-    def dress_literal(l):
-        if isinstance(l, float) or isinstance(l, int):
-            return f"{l}"
-        elif isinstance(l, str):
-            return f"'{l}'"
-        elif isinstance(l, datetime.datetime):
-            return f"timestamp '{str(l)}'"
+    def dress_literal(a):
+        if isinstance(a, float) or isinstance(a, int):
+            return f"{a}"
+        elif isinstance(a, str):
+            return f"'{a}'"
+        elif isinstance(a, datetime.datetime):
+            return f"timestamp '{str(a)}'"
         else:
-            raise TypeError(f'Unsupported Type: {type(l)}')
+            raise TypeError(f'Unsupported Type: {type(a)}')
 
     @staticmethod
     def make_column_string(c):
@@ -423,7 +423,7 @@ class ResStockAthena:
         query = ''
         C = cls.make_column_string
         if restrict:
-            query += f" where "
+            query += " where "
             condition_strs = []
             for column, vals in restrict:
                 if isinstance(vals, list) or isinstance(vals, tuple):
@@ -591,9 +591,9 @@ class ResStockAthena:
         query += self._get_restrict_string(restrict)
 
         if group_by:
-            query += f" group by " + ", ".join([f'{C(g)}' for g in group_by])
+            query += " group by " + ", ".join([f'{C(g)}' for g in group_by])
         if order_by:
-            query += f" order by " + ", ".join([f'{C(o)}' for o in order_by])
+            query += " order by " + ", ".join([f'{C(o)}' for o in order_by])
 
         if get_query_only:
             return query
@@ -702,9 +702,9 @@ class ResStockAthena:
         query += self._get_restrict_string(restrict)
 
         if group_by:
-            query += f" group by " + ", ".join([f'''{C(g)}''' for g in group_by])
+            query += " group by " + ", ".join([f'''{C(g)}''' for g in group_by])
         if order_by:
-            query += f" order by " + ", ".join([f'''{C(o)}''' for o in order_by])
+            query += " order by " + ", ".join([f'''{C(o)}''' for o in order_by])
 
         if get_query_only:
             return query
