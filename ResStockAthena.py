@@ -19,6 +19,7 @@ from botocore.exceptions import ClientError
 import pandas as pd
 import datetime
 from dateutil import parser
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -747,24 +748,33 @@ class ResStockAthena:
                                     custom_sample_weight=None,
                                     get_query_only=False):
         """
-        Aggregates the timeseries result on select enduses.
+        Aggregates the timeseries result on select enduses, for the given days and hours.
+        If all of the hour(s) fall exactly on the simulation timestamps, the aggregation is done by averaging the kW at
+        those time stamps. If any of the hour(s) fall in between timestamps, then the following process is followed:
+            i. The average kWs is calculated for timestamps specified by the hour, or just after it. Call it upper_kw
+            ii. The average kWs is calculated for timestamps specified by the hour, or just before it. Call it lower_kw
+            iii. Return the interpolation between upper_kw and lower_kw based on the average location of the hour(s)
+                 between the upper and lower timestamps.
+
         Check the argument description below to learn about additional features and options.
         Args:
-            at_hour: The list of enduses to aggregate. Defaults to all electricity enduses
+            at_hour: the hour(s) at which the average kWs of buildings need to be calculated at. It can either be a
+                     single number if the hour is same for all days, or a list of numbers if the kW needs to be
+                     calculated for different hours for different days.
 
-            at_days: The list of columns to group the aggregation by.
+            at_days: The list of days (of year) for which the average kW is to be calculated for.
 
-            enduses: The columns by which to sort the result.
+            enduses: The list of enduses for which to calculate the average kWs
 
             custom_sample_weight: If you want to override the build_existing_model.sample_weight, provide a custom
                                   sample weight.
-            get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
-                            submitting multiple queries or debugging
+            get_query_only: Skips submitting the query to Athena and just returns the query strings. Useful for batch
+                            submitting multiple queries or debugging.
 
         Returns:
                 if get_query_only is True, returns two queries that gets the KW at two timestamps that are to immediate
                     left and right of the the supplied hour.
-                if get_query_only is False, returns the average KW of each building at the given hour across the
+                if get_query_only is False, returns the average KW of each building at the given hour(s) across the
                 supplied days
 
         """
@@ -773,6 +783,12 @@ class ResStockAthena:
 
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
+
+        if isinstance(at_hour, list):
+            if len(at_hour) != len(at_days):
+                raise ValueError("The length of at_hour list should be the same as length of at_days list")
+        else:
+            at_hour = [at_hour]*len(at_days)
 
         sim_year, sim_interval_seconds = self._get_simulation_info()
         kw_factor = 3600.0 / sim_interval_seconds
@@ -788,23 +804,34 @@ class ResStockAthena:
                                  f" {C(self.simple_label(c))}" for c in enduses])
         grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
 
-        def get_upper_timestamps(day):
+        def get_upper_timestamps(day, hour):
             new_dt = datetime.datetime(year=sim_year, month=1, day=1)
+
+            if round(hour * 3600 % sim_interval_seconds, 2) == 0:
+                # if the hour falls exactly on the simulation timestamp, use the same timestamp
+                # for both lower and upper
+                add = 0
+            else:
+                add = 1
+
             upper_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds *
-                                                   (int(at_hour * 3600 / sim_interval_seconds) + 1))
+                                                   (int(hour * 3600 / sim_interval_seconds) + add))
             if upper_dt.year > sim_year:
                 upper_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds *
-                                                       (int(at_hour * 3600 / sim_interval_seconds)))
+                                                       (int(hour * 3600 / sim_interval_seconds)))
             return upper_dt
 
-        def get_lower_timestamps(day):
+        def get_lower_timestamps(day, hour):
             new_dt = datetime.datetime(year=sim_year, month=1, day=1)
-            lower_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds * int(at_hour * 3600 /
+            lower_dt = new_dt + datetime.timedelta(days=day, seconds=sim_interval_seconds * int(hour * 3600 /
                                                                                                 sim_interval_seconds))
             return lower_dt
 
-        lower_timestamps = [get_lower_timestamps(d - 1) for d in at_days]
-        upper_timestamps = [get_upper_timestamps(d - 1) for d in at_days]
+        # check if the supplied hours fall exactly on the simulation timestamps
+        exact_times = np.all([round(h * 3600 % sim_interval_seconds, 2) == 0 for h in at_hour])
+        lower_timestamps = [get_lower_timestamps(d - 1, h) for d, h in zip(at_days, at_hour)]
+        upper_timestamps = [get_upper_timestamps(d - 1, h) for d, h in zip(at_days, at_hour)]
+
         query_str = f'''select {C(self.ts_table_name)}."building_id" as building_id, '''
         query_str += grouping_metrics_cols
         query_str += f''', {enduse_cols} from {C(self.ts_table_name)}'''
@@ -818,18 +845,24 @@ class ResStockAthena:
         lower_val_query += " group by 1 order by 1"
         upper_val_query += " group by 1 order by 1"
 
-        queries = [lower_val_query, upper_val_query]
+        if exact_times:
+            # only one query is sufficient if the hours fall in exact timestamps
+            queries = [lower_val_query]
+        else:
+            queries = [lower_val_query, upper_val_query]
 
         if get_query_only:
             return queries
 
         batch_id = self.submit_batch_query(queries)
-        lower_vals, upper_vals = self.get_batch_query_result(batch_id, combine=False)
-
-        upper_weight = (at_hour * 3600 % sim_interval_seconds) / sim_interval_seconds
-        lower_weight = 1 - upper_weight
-        # modify the lower vals to make it weighted average of upper and lower vals
-        lower_vals[enduses] = lower_vals[enduses] * lower_weight + upper_vals[enduses] * upper_weight
-
-        lower_vals.drop(columns=['query_id'], inplace=True)
-        return lower_vals
+        if exact_times:
+            vals, = self.get_batch_query_result(batch_id, combine=False)
+            return vals.drop(columns=['query_id'])
+        else:
+            lower_vals, upper_vals = self.get_batch_query_result(batch_id, combine=False)
+            avg_upper_weight = np.mean([min_of_hour / sim_interval_seconds for hour in at_hour if
+                                        (min_of_hour := hour * 3600 % sim_interval_seconds)])
+            avg_lower_weight = 1 - avg_upper_weight
+            # modify the lower vals to make it weighted average of upper and lower vals
+            lower_vals[enduses] = lower_vals[enduses] * avg_lower_weight + upper_vals[enduses] * avg_upper_weight
+            return lower_vals.drop(columns=['query_id'])
