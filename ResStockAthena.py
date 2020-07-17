@@ -772,10 +772,10 @@ class ResStockAthena:
                             submitting multiple queries or debugging.
 
         Returns:
-                if get_query_only is True, returns two queries that gets the KW at two timestamps that are to immediate
+                If get_query_only is True, returns two queries that gets the KW at two timestamps that are to immediate
                     left and right of the the supplied hour.
-                if get_query_only is False, returns the average KW of each building at the given hour(s) across the
-                supplied days
+                If get_query_only is False, returns the average KW of each building at the given hour(s) across the
+                supplied days.
 
         """
 
