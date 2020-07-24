@@ -248,6 +248,8 @@ class ResStockAthena:
         while True:
             if self.did_batch_query_complete(batch_id):
                 query_exe_ids = self.batch_query_status_map[batch_id]['submitted_execution_ids']
+                if len(query_exe_ids) == 0:
+                    raise ValueError("No query was submitted successfully")
                 res_df_array = []
                 for index, exe_id in enumerate(query_exe_ids):
                     df = self.get_query_result(exe_id)
@@ -314,8 +316,13 @@ class ResStockAthena:
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'TooManyRequestsException':
                         time.sleep(60)  # wait for a minute before submitting another query
+                    elif e.response['Error']['Code'] == 'InvalidRequestException':
+                        logger.info(f"Queries[{current_id}] is Invalid: {e.response['Message']} \n {current_query}")
+                        to_submit_ids.pop(0)  # query failed, so remove it from the list
+                        queries.pop(0)
+                        raise
                     else:
-                        raise e
+                        raise
 
         query_runner = Thread(target=run_queries)
         query_runner.start()
@@ -785,10 +792,13 @@ class ResStockAthena:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
 
         if isinstance(at_hour, list):
-            if len(at_hour) != len(at_days):
-                raise ValueError("The length of at_hour list should be the same as length of at_days list")
-        else:
+            if len(at_hour) != len(at_days) or len(at_hour) == 0:
+                raise ValueError("The length of at_hour list should be the same as length of at_days list and"
+                                 " not be empty")
+        elif isinstance(at_hour, float) or isinstance(at_hour, int):
             at_hour = [at_hour]*len(at_days)
+        else:
+            raise ValueError("At hour should be a list or a number")
 
         sim_year, sim_interval_seconds = self._get_simulation_info()
         kw_factor = 3600.0 / sim_interval_seconds
