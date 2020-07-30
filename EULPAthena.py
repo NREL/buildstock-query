@@ -67,13 +67,17 @@ class EULPAthena(ResStockAthena):
             map_table_name = 'v2_eiaid_weights'
             map_baseline_column = 'build_existing_model.county'
             map_eiaid_column = 'county'
+        elif mapping_version == 3:
+            map_table_name = 'v3_eiaid_weights'
+            map_baseline_column = 'build_existing_model.county'
+            map_eiaid_column = 'county'
         else:
             raise ValueError("Invalid mapping_version")
 
         return map_table_name, map_baseline_column, map_eiaid_column
 
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
-                              mapping_version=2, get_query_only: bool = False):
+                              mapping_version=3, get_query_only: bool = False):
         """
         Aggregates the timeseries result, grouping by utilities.
         Args:
@@ -97,7 +101,7 @@ class EULPAthena(ResStockAthena):
                                          eiaid_list, enduses, group_by, get_query_only)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
-                                       mapping_version=2, get_query_only: bool = False):
+                                       mapping_version=3, get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
         provided.
@@ -124,7 +128,7 @@ class EULPAthena(ResStockAthena):
         return result
 
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
-                                  mapping_version=2, get_query_only: bool = False):
+                                  mapping_version=3, get_query_only: bool = False):
         """
         Aggregates the annual consumption in the baseline table, grouping by all the utilities
         Args:
@@ -146,7 +150,7 @@ class EULPAthena(ResStockAthena):
                                        get_query_only=get_query_only)
         return result
 
-    def get_filtered_results_csv_by_eiaid(self, eiaids: List[str], mapping_version=2, get_query_only: bool = False):
+    def get_filtered_results_csv_by_eiaid(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
         """
         Returns a portion of the results csvs, which belongs to given list of utilities
         Args:
@@ -188,7 +192,7 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=2, get_query_only: bool = False):
+    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
         Args:
@@ -212,7 +216,7 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=2, get_query_only: bool = False):
+    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
         Args:
