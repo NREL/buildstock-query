@@ -58,7 +58,7 @@ class EULPAthena(ResStockAthena):
         return self.get_batch_query_result(batch_id=batch_query_id)
 
     @staticmethod
-    def get_eiaid_map(mapping_version):
+    def get_eiaid_map(mapping_version, year=2018):
         if mapping_version == 1:
             map_table_name = 'eiaid_weights'
             map_baseline_column = 'build_existing_model.location'
@@ -68,7 +68,7 @@ class EULPAthena(ResStockAthena):
             map_baseline_column = 'build_existing_model.county'
             map_eiaid_column = 'county'
         elif mapping_version == 3:
-            map_table_name = 'v3_eiaid_weights'
+            map_table_name = 'v3_eiaid_weights_%d' % year
             map_baseline_column = 'build_existing_model.county'
             map_eiaid_column = 'county'
         else:
@@ -77,7 +77,7 @@ class EULPAthena(ResStockAthena):
         return map_table_name, map_baseline_column, map_eiaid_column
 
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
-                              mapping_version=3, get_query_only: bool = False):
+                              mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Aggregates the timeseries result, grouping by utilities.
         Args:
@@ -86,12 +86,13 @@ class EULPAthena(ResStockAthena):
             group_by: Additional columns to group the aggregation by
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the list of queries to run instead of the result.
 
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         eiaid_list = [str(e) for e in eiaid_list]
         if not enduses:
             enduses = ['total_site_electricity_kwh']
@@ -101,7 +102,7 @@ class EULPAthena(ResStockAthena):
                                          eiaid_list, enduses, group_by, get_query_only)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
-                                       mapping_version=3, get_query_only: bool = False):
+                                       mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
         provided.
@@ -110,12 +111,13 @@ class EULPAthena(ResStockAthena):
             group_by: Additional columns to group by
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the query instead of the result
 
         Returns:
             Pandas dataframe with the units counts
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
 
@@ -128,7 +130,7 @@ class EULPAthena(ResStockAthena):
         return result
 
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
-                                  mapping_version=3, get_query_only: bool = False):
+                                  mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Aggregates the annual consumption in the baseline table, grouping by all the utilities
         Args:
@@ -136,11 +138,12 @@ class EULPAthena(ResStockAthena):
             group_by: Additional columns to group the aggregation by
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the list of queries to run instead of the result.
         Returns:
             Pandas dataframe with the annual sum of the requested enduses, grouped by utilities
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
         result = self.aggregate_annual(enduses=enduses, group_by=['eiaid'] + group_by,
@@ -150,20 +153,22 @@ class EULPAthena(ResStockAthena):
                                        get_query_only=get_query_only)
         return result
 
-    def get_filtered_results_csv_by_eiaid(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+    def get_filtered_results_csv_by_eiaid(
+            self, eiaids: List[str], mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Returns a portion of the results csvs, which belongs to given list of utilities
         Args:
             eiaids: The eiaid list of utitlies
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the list of queries to run instead of the result.
 
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
         C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
         query = f'''select * from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)} on '''\
                 f'''{C(map_baseline_column)} = "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 '''\
@@ -192,13 +197,14 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
         Args:
             eiaids: list of utility EIAIDs
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the query string instead of the result
 
         Returns:
@@ -206,7 +212,7 @@ class EULPAthena(ResStockAthena):
 
         """
         C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
         query = f"select distinct(building_id) from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)}" \
                 f" on {C(map_baseline_column)} = {C(map_eiaid_column)} where eiaid in ({eiaid_str}) and " \
@@ -216,13 +222,14 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=3, year=2018, get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
         Args:
             eiaids: list of utility EIAIDs
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
+            year: The year of the EIA form 861 service territory to use.
             get_query_only: If set to true, returns the query string instead of the result
 
         Returns:
@@ -231,7 +238,7 @@ class EULPAthena(ResStockAthena):
 
         """
         C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version, year)
         eiaid_str = ','.join([f"'{e}'" for e in eiaids])
         query = f"select distinct({C(map_eiaid_column)}) from {C(eiaid_map_table_name)} where weight > 0 and eiaid in" \
                 f" ({eiaid_str}) order by 1"
