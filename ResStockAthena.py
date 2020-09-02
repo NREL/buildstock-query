@@ -796,7 +796,7 @@ class ResStockAthena:
                 raise ValueError("The length of at_hour list should be the same as length of at_days list and"
                                  " not be empty")
         elif isinstance(at_hour, float) or isinstance(at_hour, int):
-            at_hour = [at_hour]*len(at_days)
+            at_hour = [at_hour] * len(at_days)
         else:
             raise ValueError("At hour should be a list or a number")
 
