@@ -1,10 +1,12 @@
 """
 # EULPAthena
 - - - - - - - - -
-A class to run AWS Athena queries for the EULP project using  built-in query functions. New query use cases for the
+A class to run AWS Athena queries for the EULP project using built-in query functions. New query use cases for the
 EULP project should be implemented as member function of this class.
 
 :author: Rajendra.Adhikari@nrel.gov
+
+:author: Anthony.Fontanini@nrel.gov
 """
 
 from eulpda.smart_query.ResStockAthena import ResStockAthena
@@ -18,6 +20,13 @@ logger = logging.getLogger(__name__)
 class EULPAthena(ResStockAthena):
 
     def __init__(self, eia_mapping_year=2018, *args, **kwargs):
+        """
+        A class to run AWS Athena queries for the EULP project using built-in query functions. Look up definition in \
+        the ResStockAthena to understand other args and kwargs.
+        Args:
+            eia_mapping_year: The year of the EIA form 861 service territory map to use when mapping to utility \
+            service territories. Currently, only 2018 and 2012 are valid years.
+        """
         super().__init__(*args, **kwargs)
         self.group_query_id = 0
         self.query_store = {}
