@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class ResStockAthena:
-    def __init__(self, db_name: str,
+    def __init__(self, workgroup: str,
+                 db_name: str,
                  buildstock_type: str = None,
                  table_name: Union[str, Tuple[str, str]] = None,
                  region_name: str = 'us-west-2',
@@ -47,6 +48,7 @@ class ResStockAthena:
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                                use .execution_history if not supplied.
         """
+        self.workgroup = workgroup
         self.buildstock_type = buildstock_type
         self.py_thena = pythena.Athena(db_name, region_name)
         self.aws_athena = boto3.client('athena', region_name=region_name)
@@ -133,7 +135,7 @@ class ResStockAthena:
             db = self.db_name
 
         self.py_thena._Athena__database = db  # override the DB in pythena
-        res = self.py_thena.execute(query, save_results=True, run_async=run_async)
+        res = self.py_thena.execute(query, save_results=True, run_async=run_async, workgroup=self.workgroup)
         self.py_thena._Athena__database = self.db_name  # restore the DB name
 
         if run_async:
