@@ -112,6 +112,85 @@ class ResStockAthena:
                     exe_ids.append(exe_id.strip())
         return exe_ids
 
+    def delete_table(self, table_name):
+        delete_table_query = f"""DROP TABLE {self.db_name}.{table_name};"""
+        result, reason = self.execute_raw(delete_table_query)
+        if result.upper() == "SUCCEEDED":
+            return "SUCCEEDED"
+        else:
+            raise Exception(f"Deleting it failed. Reason: {reason}")
+
+    def add_table(self, table_name, table_df, s3_location):
+        table_df.to_csv(f's3://{s3_location}/{table_name}/{table_name}.csv', index=False)
+        column_formats = []
+        for column_name, dtype in table_df.dtypes.items():
+            if np.issubdtype(dtype, np.integer):
+                type = "int"
+            elif np.issubdtype(dtype, np.floating):
+                type = "double"
+            else:
+                type = "string"
+            column_formats.append(f"`{column_name}` {type}")
+
+        column_formats = ",".join(column_formats)
+
+        table_create_query = f"""
+        CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats}
+        )
+        ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+        WITH SERDEPROPERTIES (
+          'skip.header.line.count' = '1',
+          'field.delim' = ','
+        ) LOCATION 's3://eulp/test_runs/correction_test/{table_name}/'
+        TBLPROPERTIES ('has_encrypted_data'='false');
+        """
+        result, reason = self.execute_raw(table_create_query)
+        if result.lower() == "failed" and 'alreadyexists' in reason.lower():
+            delete_table_query = f"""
+            DROP TABLE {self.db_name}.{table_name};
+            """
+            result, reason = self.execute_raw(delete_table_query)
+            if result.upper() == "SUCCEEDED":
+                result, reason = self.execute_raw(table_create_query)
+                if result.upper() == "SUCCEEDED":
+                    return "SUCCEEDED"
+                else:
+                    raise Exception(f"There was an existing table named {table_name} which is now successfully deleted,"
+                                    f"but new table failed to be created. Reason: {reason}")
+            else:
+                raise Exception(f"There was an existing table named {table_name}. Deleting it failed."
+                                f" Reason: {reason}")
+        elif result.upper() == "SUCCEEDED":
+            return "SUCCEEDED"
+        else:
+            raise Exception(f"Failed to create the table. Reason: {reason}")
+
+    def execute_raw(self, query, db=None, run_async=False):
+
+        if not db:
+            db = self.db_name
+
+        response = self.aws_athena.start_query_execution(
+            QueryString=query,
+            QueryExecutionContext={
+                'Database': db
+            },
+            WorkGroup=self.workgroup)
+
+        query_execution_id = response['QueryExecutionId']
+        if run_async:
+            return query_execution_id
+        start_time = time.time()
+        query_stat = ""
+        while time.time() - start_time < 30*60:  # 30 minute timeout
+            query_stat = self.aws_athena.get_query_execution(QueryExecutionId=query_execution_id)
+            if query_stat['QueryExecution']['Status']['State'].lower() not in ['pending', 'running', 'queued']:
+                reason = query_stat['QueryExecution']['Status'].get('StateChangeReason', '')
+                return query_stat['QueryExecution']['Status']['State'], reason
+            time.sleep(1)
+
+        raise TimeoutError(f"Query failed to complete within 30 mins. Last status: {query_stat}")
+
     def _save_execution_id(self, execution_id):
         with open(self.execution_history_file, 'a') as f:
             f.write(f'{time.time()},{execution_id}\n')
@@ -402,6 +481,10 @@ class ResStockAthena:
                 cols = [c for c in cols if 'simulation_output_report' in c]
                 cols = [c for c in cols if fuel_type in c]
             return cols
+        else:
+            tbl = self.aws_glue.get_table(DatabaseName=self.db_name, Name=table)['Table']
+            cols = tbl['StorageDescriptor']['Columns']
+            return [c['Name'] for c in cols]
 
     @staticmethod
     def simple_label(label):
@@ -637,7 +720,8 @@ class ResStockAthena:
                              custom_sample_weight: float = None,
                              restrict: [Tuple[str, List]] = [],
                              run_async: bool = False,
-                             get_query_only: bool = False):
+                             get_query_only: bool = False,
+                             correction_factors_table: str = None):
         """
         Aggregates the timeseries result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -667,6 +751,13 @@ class ResStockAthena:
                        blocks otherwise.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
+            correction_factors_table: A correction factor table used for scaling timeseries during aggregation. Use
+                                      add_table method to add a correction_factor table to Athena if it doesn't exist.
+                                      Column names matching with the baseline table as well as datetime columns such as
+                                      'day_of_week', 'day_of_year', 'hour', 'minute' and 'month' will be used for
+                                      joining the correction_factor table to timeseries table during aggregation.
+                                      The column named 'factor_all' is applied to all the columns, whereas columns named
+                                      'factor_<timeseries_enduse_column_name>' is used for only the specific enduse.
 
         Returns:
                 if get_query_only is True, returns the query_string, otherwise,
@@ -679,6 +770,11 @@ class ResStockAthena:
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
 
+        if correction_factors_table:
+            correction_columns = self.get_cols(table=correction_factors_table)
+            factors_dict = {c: f'"factor_all" * "factor_{c}"' if f'factor_{c}' in correction_columns else 'factor_all'
+                            for c in enduses}
+
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
         else:
@@ -689,8 +785,14 @@ class ResStockAthena:
         for weight in weights:
             total_weight += f' * {C(weight)} '
 
-        enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
-                                 for c in enduses])
+        if correction_factors_table:
+            # COALESCE for the factors table is used to allow partial left join when sparse correction table is used
+            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
+            enduse_cols += ', '.join([f"sum({C(c)} * {total_weight} * COALESCE({C(factors_dict[c])}, 1) / "
+                                      f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses])
+        else:
+            enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
+                                     for c in enduses])
 
         if not group_by:
             query = f'select {enduse_cols} from {C(self.ts_table_name)}'
@@ -702,11 +804,28 @@ class ResStockAthena:
                 select_cols += ", " + enduse_cols
             query = f"select {select_cols} from {C(self.ts_table_name)}"
 
-        join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" =\
-                         {C(self.baseline_table_name)}."building_id" '''
+        join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" = '''\
+                      f''' {C(self.baseline_table_name)}."building_id" '''
         for new_table_name, baseline_column_name, new_column_name in join_list:
-            join_clause += f''' join {C(new_table_name)} on\
-            {C(self.baseline_table_name)}.{C(baseline_column_name)} = {C(new_table_name)}.{C(new_column_name)}'''
+            join_clause += f''' join {C(new_table_name)} on '''\
+                           f''' {C(self.baseline_table_name)}.{C(baseline_column_name)} ='''\
+                           f''' {C(new_table_name)}.{C(new_column_name)}'''
+
+        if correction_factors_table:
+            baseline_columns = self.get_cols(table='baseline')
+            on_clauses = [f" {C(self.baseline_table_name)}.{C(c)} = {C(correction_factors_table)}.{C(c)} "
+                          for c in baseline_columns if c in correction_columns]
+
+            # https://prestodb.io/docs/0.217/functions/datetime.html#convenience-extraction-functions
+            extraction_functions = ['day_of_week', 'day_of_year', 'hour', 'minute', 'month']
+            on_clauses += [f" {c}({C(self.ts_table_name)}.{self.timestamp_column_name}) = "
+                           f" {C(correction_factors_table)}.{C(c)} "
+                           for c in correction_columns if c in extraction_functions]
+            if not on_clauses:
+                raise ValueError("No column in the correction table matches any column in baseline table.")
+
+            join_clause += f""" left join {C(correction_factors_table)} on {" and ".join(on_clauses)}"""
+
         query += join_clause
 
         query += self._get_restrict_string(restrict)
