@@ -764,6 +764,32 @@ class ResStockAthena:
                     if run_async is True, it returns a query_execution_id.
                     if run_async is False, it returns the result_dataframe
 
+        Further notes on using correction_factors_table (CFT) argument:
+        CFT is used for calibration purpose to adjust the timeseries by multiplying with various correction factors.
+        There are three type of columns in CFT which have special meanings.
+        1. Time columns (Valid column names: day_of_week, day_of_year, hour, minute and month)
+           These columns are used to align the factors properly with the timeseries table. You can have more than one of
+           these columns and they will be ANDed. For example, if you have day_of_week column and hour column, then the
+           factor in each row is applied to a particular hour of the particular day_of_week.
+        2. Baseline columns (Valid column names: any column in baseline table starting with build_existing_model.<...>)
+           These columns are used to link the factors with particular building types. You can have zero or more
+           of these columns and they will be ANDed (i.e. the building to which the factor will be applied has to match
+           all of the condition)
+        3. Factor columns (Valid column names: factor_all, factor_electricity_cooling_kwh, ... factor_<enduse_column>)
+           These columns contain the correction factor. The factor_all column will be used to adjust all the enduses
+           whereas factor_<enduse_column> is used to adjust only that particular enduse.
+        The CFT can contain other columns besides the one listed above, but they will have no effect on the timeseries
+        aggregation. Also, for CFT to work, the CFT must exist on athena. You can use add_table function to add CFT to
+        athena if it doens't already exists.
+
+        Tiny CFT example:
+        month, factor_all
+        1, 1.1
+        12, 0.95
+
+        This will result in the January enduse timeseries (for all buildings everywhere) to be multiplied by 1.1 and
+        December timeseries to be multiplied by 0.95. Timeseries for all other months will not be modified.
+
         """
 
         C = self.make_column_string
