@@ -141,7 +141,7 @@ class ResStockAthena:
         WITH SERDEPROPERTIES (
           'skip.header.line.count' = '1',
           'field.delim' = ','
-        ) LOCATION 's3://eulp/test_runs/correction_test/{table_name}/'
+        ) LOCATION 's3://{s3_location}/{table_name}/'
         TBLPROPERTIES ('has_encrypted_data'='false');
         """
         result, reason = self.execute_raw(table_create_query)
