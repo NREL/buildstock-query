@@ -24,10 +24,12 @@ import numpy as np
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DataExistsException(Exception):
     def __init__(self, message, existing_data=None):
         super(DataExistsException, self).__init__(message)
         self.existing_data = existing_data
+
 
 class ResStockAthena:
     def __init__(self, workgroup: str,
@@ -825,14 +827,14 @@ class ResStockAthena:
                 total_weight += ' * COALESCE("simulation_weight_correction_factor", 1)'
 
             # COALESCE for the factors table is used to allow partial left join when sparse correction table is used
-            enduse_cols = f'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
+            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
 
             # If the individual enduses have changed, we will need to adjust the total_site_electricity_kwh
             # TODO: Need to adjust total columns for other fuel types too if correction is applied to other fuel enduses
             if 'total_site_electricity_kwh' in enduses:
                 enduses.remove('total_site_electricity_kwh')
                 # we need to add (factor_enduse - 1) portion of all the corrected enduses to total_site_electricity_kwh
-                enduse_cols += f'sum(("total_site_electricity_kwh"'
+                enduse_cols += 'sum(("total_site_electricity_kwh"'
 
                 enduse_corrected_fractions = [f'COALESCE("factor_{c}" - 1, 0) * {C(c)}' for c in correction_enduses
                                               if c.startswith('electricity')]
