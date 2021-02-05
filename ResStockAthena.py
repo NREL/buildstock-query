@@ -24,6 +24,10 @@ import numpy as np
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class DataExistsException(Exception):
+    def __init__(self, message, existing_data=None):
+        super(DataExistsException, self).__init__(message)
+        self.existing_data = existing_data
 
 class ResStockAthena:
     def __init__(self, workgroup: str,
@@ -120,7 +124,7 @@ class ResStockAthena:
         else:
             raise Exception(f"Deleting it failed. Reason: {reason}")
 
-    def add_table(self, table_name, table_df, s3_location):
+    def add_table(self, table_name, table_df, s3_location, override=False):
         table_df.to_csv(f's3://{s3_location}/{table_name}/{table_name}.csv', index=False)
         column_formats = []
         for column_name, dtype in table_df.dtypes.items():
@@ -146,6 +150,9 @@ class ResStockAthena:
         """
         result, reason = self.execute_raw(table_create_query)
         if result.lower() == "failed" and 'alreadyexists' in reason.lower():
+            if not override:
+                existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
+                raise DataExistsException("Table already exists", existing_data)
             delete_table_query = f"""
             DROP TABLE {self.db_name}.{table_name};
             """
@@ -766,7 +773,7 @@ class ResStockAthena:
 
         Further notes on using correction_factors_table (CFT) argument:
         CFT is used for calibration purpose to adjust the timeseries by multiplying with various correction factors.
-        There are three type of columns in CFT which have special meanings.
+        There are four types of columns in CFT which have special meanings.
         1. Time columns (Valid column names: day_of_week, day_of_year, hour, minute and month)
            These columns are used to align the factors properly with the timeseries table. You can have more than one of
            these columns and they will be ANDed. For example, if you have day_of_week column and hour column, then the
@@ -778,14 +785,15 @@ class ResStockAthena:
         3. Factor columns (Valid column names: factor_all, factor_electricity_cooling_kwh, ... factor_<enduse_column>)
            These columns contain the correction factor. The factor_all column will be used to adjust all the enduses
            whereas factor_<enduse_column> is used to adjust only that particular enduse.
+        4. simulation_weight_correction_factor: This column must be optional and corrects for failed simulation.
         The CFT can contain other columns besides the one listed above, but they will have no effect on the timeseries
         aggregation. Also, for CFT to work, the CFT must exist on athena. You can use add_table function to add CFT to
         athena if it doens't already exists.
 
         Tiny CFT example:
-        month, factor_all
-        1, 1.1
-        12, 0.95
+        month, simulation_weight_correction_factor, factor_all
+        1, 1, 1.1
+        12, 1, 0.95
 
         This will result in the January enduse timeseries (for all buildings everywhere) to be multiplied by 1.1 and
         December timeseries to be multiplied by 0.95. Timeseries for all other months will not be modified.
@@ -795,11 +803,6 @@ class ResStockAthena:
         C = self.make_column_string
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
-
-        if correction_factors_table:
-            correction_columns = self.get_cols(table=correction_factors_table)
-            factors_dict = {c: f'"factor_all" * "factor_{c}"' if f'factor_{c}' in correction_columns else 'factor_all'
-                            for c in enduses}
 
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
@@ -812,10 +815,36 @@ class ResStockAthena:
             total_weight += f' * {C(weight)} '
 
         if correction_factors_table:
+            correction_columns = self.get_cols(table=correction_factors_table)
+            # c[7:] extracts enduse_name from 'factor_enduse_name' columns
+            correction_enduses = [c[7:] for c in correction_columns if c.startswith('factor_') and c != 'factor_all']
+            correction_factors_dict = {c: f'"factor_all" * "factor_{c}"' if c in correction_enduses else '"factor_all"'
+                                       for c in enduses}
+
+            if "simulation_weight_correction_factor" in correction_columns:
+                total_weight += ' * COALESCE("simulation_weight_correction_factor", 1)'
+
             # COALESCE for the factors table is used to allow partial left join when sparse correction table is used
-            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
-            enduse_cols += ', '.join([f"sum({C(c)} * {total_weight} * COALESCE({C(factors_dict[c])}, 1) / "
+            enduse_cols = f'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
+
+            # If the individual enduses have changed, we will need to adjust the total_site_electricity_kwh
+            # TODO: Need to adjust total columns for other fuel types too if correction is applied to other fuel enduses
+            if 'total_site_electricity_kwh' in enduses:
+                enduses.remove('total_site_electricity_kwh')
+                # we need to add (factor_enduse - 1) portion of all the corrected enduses to total_site_electricity_kwh
+                enduse_cols += f'sum(("total_site_electricity_kwh"'
+
+                enduse_corrected_fractions = [f'COALESCE("factor_{c}" - 1, 0) * {C(c)}' for c in correction_enduses
+                                              if c.startswith('electricity')]
+                if enduse_corrected_fractions:
+                    enduse_cols += " + " + " + ".join(enduse_corrected_fractions)
+
+                enduse_cols += f') * {total_weight} * COALESCE("factor_all", 1) / {n_units_col}) as' \
+                    f' total_site_electricity_kwh, '
+
+            enduse_cols += ', '.join([f"sum({C(c)} * {total_weight} * COALESCE({C(correction_factors_dict[c])}, 1) / "
                                       f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses])
+
         else:
             enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
                                      for c in enduses])
