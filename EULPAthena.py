@@ -43,7 +43,8 @@ class EULPAthena(ResStockAthena):
                              id_list: List[Any],
                              enduses: List[str],
                              group_by: List[str],
-                             get_query_only: bool = False):
+                             get_query_only: bool = False,
+                             correction_factors_table: str = None):
 
         group_by = [] if group_by is None else group_by
         new_table = map_table_name
@@ -52,13 +53,14 @@ class EULPAthena(ResStockAthena):
         batch_queries_to_submit = []
         for current_id in id_list:
             query = self.aggregate_timeseries(enduses=enduses,
-                                              group_by=[id_column] + group_by + ['time'],
+                                              group_by=[id_column] + group_by,
                                               join_list=join_list,
                                               weights=['weight'],
-                                              order_by=[id_column, 'time'],
+                                              order_by=[id_column] + group_by,
                                               restrict=[(id_column, current_id)],
                                               run_async=True,
-                                              get_query_only=True)
+                                              get_query_only=True,
+                                              correction_factors_table=correction_factors_table)
             batch_queries_to_submit.append(query)
 
         if get_query_only:
@@ -86,7 +88,9 @@ class EULPAthena(ResStockAthena):
         return map_table_name, map_baseline_column, map_eiaid_column
 
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
-                              mapping_version=3, get_query_only: bool = False):
+                              mapping_version=3, get_query_only: bool = False,
+                              correction_factors_table: str = None,
+                              ):
         """
         Aggregates the timeseries result, grouping by utilities.
         Args:
@@ -96,6 +100,8 @@ class EULPAthena(ResStockAthena):
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
             get_query_only: If set to true, returns the list of queries to run instead of the result.
+            correction_factors_table: A correction factor table used for scaling timeseries during aggregation. Check
+                                      Further notes on ResStockAthena.aggregate_timeseries function.
 
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
@@ -107,7 +113,8 @@ class EULPAthena(ResStockAthena):
         id_column = 'eiaid'
 
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
-                                         eiaid_list, enduses, group_by, get_query_only)
+                                         eiaid_list, enduses, group_by, get_query_only,
+                                         correction_factors_table)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
                                        mapping_version=3, get_query_only: bool = False):

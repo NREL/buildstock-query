@@ -805,6 +805,8 @@ class ResStockAthena:
         C = self.make_column_string
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
+        else:
+            enduses = enduses.copy()
 
         if custom_sample_weight:
             sample_weight = str(custom_sample_weight)
@@ -842,10 +844,12 @@ class ResStockAthena:
                     enduse_cols += " + " + " + ".join(enduse_corrected_fractions)
 
                 enduse_cols += f') * {total_weight} * COALESCE("factor_all", 1) / {n_units_col}) as' \
-                    f' total_site_electricity_kwh, '
+                    f' total_site_electricity_kwh'
 
-            enduse_cols += ', '.join([f"sum({C(c)} * {total_weight} * COALESCE({C(correction_factors_dict[c])}, 1) / "
-                                      f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses])
+            additional_enduses = [f"sum({C(c)} * {total_weight} * COALESCE({C(correction_factors_dict[c])}, 1) / "
+                                  f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses]
+            if additional_enduses:
+                enduse_cols += ', ' + ', '.join(additional_enduses)
 
         else:
             enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
