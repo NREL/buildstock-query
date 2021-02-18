@@ -61,7 +61,7 @@ class ResStockAthena:
         self.aws_glue = boto3.client('glue', region_name=region_name)
         self.db_name = db_name
         self.region_name = region_name
-        self.timestamp_column_name = self.make_column_string(timestamp_column_name)
+        self.timestamp_column_name = timestamp_column_name
         if sample_weight_column:
             self.sample_weight_column = self.make_column_string(sample_weight_column)
         else:
@@ -588,7 +588,7 @@ class ResStockAthena:
 
         return self.execute(query)
 
-    def get_results_csv(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+    def get_results_csv(self, restrict: List[Tuple[str, Union[List, str, int]]] = [], get_query_only: bool = False):
         """
         Returns the results_csv table for the resstock run
         Args:
@@ -885,15 +885,27 @@ class ResStockAthena:
         if schedule_enduses:
             enduse_cols += ', ' + ', '.join(schedule_enduses)
 
-        if not group_by:
-            query = f'select {enduse_cols} from {C(self.ts_table_name)}'
+        if group_by is None:
+            group_by = []
+
+        group_by_cols = ", ".join([f'{C(g)}' for g in group_by])
+        grouping_metrics_cols = "sum(1) as raw_count,"
+        if self.timestamp_column_name not in group_by:
+            # The aggregation is done across time so we should compensate unit count by dividing by the total number
+            # of distinct timestamps per unit
+            timesteps_per_unit = self._get_simulation_timesteps_count()
+            grouping_metrics_cols += f" sum({total_weight})/{timesteps_per_unit} as scaled_unit_count"
         else:
-            group_by_cols = ", ".join([f'{C(g)}' for g in group_by])
-            grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
+            grouping_metrics_cols += f" sum({total_weight}) as scaled_unit_count"
+
+        if group_by_cols:
             select_cols = group_by_cols + ", " + grouping_metrics_cols
-            if enduse_cols:
-                select_cols += ", " + enduse_cols
-            query = f"select {select_cols} from {C(self.ts_table_name)}"
+        else:
+            select_cols = grouping_metrics_cols
+        if enduse_cols:
+            select_cols += ", " + enduse_cols
+
+        query = f"select {select_cols} from {C(self.ts_table_name)}"
 
         join_clause = f''' join {C(self.baseline_table_name)} on {C(self.ts_table_name)}."building_id" = '''\
                       f''' {C(self.baseline_table_name)}."building_id" '''
@@ -909,7 +921,7 @@ class ResStockAthena:
 
             # https://prestodb.io/docs/0.217/functions/datetime.html#convenience-extraction-functions
             extraction_functions = ['day_of_week', 'day_of_year', 'hour', 'minute', 'month']
-            on_clauses += [f" {c}({C(self.ts_table_name)}.{self.timestamp_column_name}) = "
+            on_clauses += [f" {c}({C(self.ts_table_name)}.{C(self.timestamp_column_name)}) = "
                            f" {C(correction_factors_table)}.{C(c)} "
                            for c in correction_columns if c in extraction_functions]
             if not on_clauses:
@@ -952,10 +964,21 @@ class ResStockAthena:
 
             raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
 
+    def _get_simulation_timesteps_count(self):
+        C = self.make_column_string
+        # find the simulation time interval
+        sim_timesteps_count = self.execute(f'SELECT "building_id", sum(1) as count'
+                                           f' from {C(self.ts_table_name)} group by 1')
+        bld0_step_count = sim_timesteps_count['count'].iloc[0]
+        if not sum(sim_timesteps_count['count'] == bld0_step_count) == len(sim_timesteps_count):
+            logger.warning("Not all building has the same number of timestamps. This can cause wrong scaled_units_count"
+                           " and other problems.")
+        return bld0_step_count
+
     def _get_simulation_info(self):
         C = self.make_column_string
         # find the simulation time interval
-        two_times = self.execute(f"SELECT distinct({self.timestamp_column_name}) as time"
+        two_times = self.execute(f"SELECT distinct({C(self.timestamp_column_name)}) as time"
                                  f" from {C(self.ts_table_name)} limit 2")
         time1 = parser.parse(two_times['time'].iloc[0])
         time2 = parser.parse(two_times['time'].iloc[1])

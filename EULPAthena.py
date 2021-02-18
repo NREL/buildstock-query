@@ -207,7 +207,7 @@ class EULPAthena(ResStockAthena):
                                            join_list=join_list,
                                            weights=['weight'],
                                            order_by=['eiaid'])
-        return annual_agg['eiaid'].values
+        return list(annual_agg['eiaid'].values)
 
     def get_buildings_by_locations(self, locations: List[str], get_query_only: bool = False):
         """
