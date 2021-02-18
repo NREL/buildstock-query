@@ -11,7 +11,7 @@ EULP project should be implemented as member function of this class.
 
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import logging
-from typing import List, Any
+from typing import List, Any, Tuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -188,6 +188,26 @@ class EULPAthena(ResStockAthena):
         if get_query_only:
             return query
         return self.execute(query)
+
+    def get_eiaids(self, restrict: List[Tuple[str, List]] = [], mapping_version=3):
+        """
+        Returns the list of building
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+        Returns:
+            Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
+        """
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+        annual_agg = self.aggregate_annual(enduses=[], group_by=['eiaid'],
+                                           restrict=restrict,
+                                           join_list=join_list,
+                                           weights=['weight'],
+                                           order_by=['eiaid'])
+        return annual_agg['eiaid'].values
 
     def get_buildings_by_locations(self, locations: List[str], get_query_only: bool = False):
         """

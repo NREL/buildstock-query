@@ -608,6 +608,26 @@ class ResStockAthena:
 
         return self.execute(query)
 
+    def get_building_ids(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+        """
+        Returns the list of buildings based on the restrict list
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        """
+        C = ResStockAthena.make_column_string
+        query = f'''select building_id from {C(self.baseline_table_name)} '''
+        query += self._get_restrict_string(restrict)
+        if get_query_only:
+            return query
+        res = self.execute(query)
+        return res
+
     def aggregate_annual(self,
                          enduses: List[str] = None,
                          group_by: List[str] = None,
@@ -730,7 +750,9 @@ class ResStockAthena:
                              restrict: [Tuple[str, List]] = [],
                              run_async: bool = False,
                              get_query_only: bool = False,
-                             correction_factors_table: str = None):
+                             correction_factors_table: str = None,
+                             limit=None
+                             ):
         """
         Aggregates the timeseries result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -755,6 +777,7 @@ class ResStockAthena:
 
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            limit: The maximum number of rows to query
 
             run_async: Whether to run the query in the background. Returns immediately if running in background,
                        blocks otherwise.
@@ -767,6 +790,7 @@ class ResStockAthena:
                                       joining the correction_factor table to timeseries table during aggregation.
                                       The column named 'factor_all' is applied to all the columns, whereas columns named
                                       'factor_<timeseries_enduse_column_name>' is used for only the specific enduse.
+
 
         Returns:
                 if get_query_only is True, returns the query_string, otherwise,
@@ -829,14 +853,14 @@ class ResStockAthena:
                 total_weight += ' * COALESCE("simulation_weight_correction_factor", 1)'
 
             # COALESCE for the factors table is used to allow partial left join when sparse correction table is used
-            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all, '
+            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all'
 
             # If the individual enduses have changed, we will need to adjust the total_site_electricity_kwh
             # TODO: Need to adjust total columns for other fuel types too if correction is applied to other fuel enduses
             if 'total_site_electricity_kwh' in enduses:
                 enduses.remove('total_site_electricity_kwh')
                 # we need to add (factor_enduse - 1) portion of all the corrected enduses to total_site_electricity_kwh
-                enduse_cols += 'sum(("total_site_electricity_kwh"'
+                enduse_cols += ', sum(("total_site_electricity_kwh"'
 
                 enduse_corrected_fractions = [f'COALESCE("factor_{c}" - 1, 0) * {C(c)}' for c in correction_enduses
                                               if c.startswith('electricity')]
@@ -847,13 +871,19 @@ class ResStockAthena:
                     f' total_site_electricity_kwh'
 
             additional_enduses = [f"sum({C(c)} * {total_weight} * COALESCE({C(correction_factors_dict[c])}, 1) / "
-                                  f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses]
+                                  f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses
+                                  if not c.startswith("schedules_")]
             if additional_enduses:
                 enduse_cols += ', ' + ', '.join(additional_enduses)
 
         else:
             enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
-                                     for c in enduses])
+                                     for c in enduses if not c.startswith("schedules_")])
+
+        schedule_enduses = [f"sum({C(c)} * {total_weight})"
+                            f" as {C(self.simple_label(c))}" for c in enduses if c.startswith("schedules_")]
+        if schedule_enduses:
+            enduse_cols += ', ' + ', '.join(schedule_enduses)
 
         if not group_by:
             query = f'select {enduse_cols} from {C(self.ts_table_name)}'
@@ -895,6 +925,9 @@ class ResStockAthena:
             query += " group by " + ", ".join([f'''{C(g)}''' for g in group_by])
         if order_by:
             query += " order by " + ", ".join([f'''{C(o)}''' for o in order_by])
+
+        if limit is not None:
+            query += f" limit {limit}"
 
         if get_query_only:
             return query
