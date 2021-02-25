@@ -44,20 +44,25 @@ class EULPAthena(ResStockAthena):
                              enduses: List[str],
                              group_by: List[str],
                              get_query_only: bool = False,
-                             correction_factors_table: str = None):
+                             correction_factors_table: str = None,
+                             query_group_size: int = 1):
 
         group_by = [] if group_by is None else group_by
         new_table = map_table_name
         join_list = [(new_table, baseline_column, map_column)]
         logger.info(f"Will submit request for {id_list}")
+        GS = query_group_size
+        id_list_batches = [id_list[i:i+GS] for i in range(0, len(id_list), GS)]
         batch_queries_to_submit = []
-        for current_id in id_list:
+        for current_ids in id_list_batches:
+            if len(current_ids) == 1:
+                current_ids = current_ids[0]
             query = self.aggregate_timeseries(enduses=enduses,
                                               group_by=[id_column] + group_by,
                                               join_list=join_list,
                                               weights=['weight'],
                                               order_by=[id_column] + group_by,
-                                              restrict=[(id_column, current_id)],
+                                              restrict=[(id_column, current_ids)],
                                               run_async=True,
                                               get_query_only=True,
                                               correction_factors_table=correction_factors_table)
@@ -90,6 +95,7 @@ class EULPAthena(ResStockAthena):
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
                               mapping_version=3, get_query_only: bool = False,
                               correction_factors_table: str = None,
+                              query_group_size: int = None
                               ):
         """
         Aggregates the timeseries result, grouping by utilities.
@@ -102,6 +108,8 @@ class EULPAthena(ResStockAthena):
             get_query_only: If set to true, returns the list of queries to run instead of the result.
             correction_factors_table: A correction factor table used for scaling timeseries during aggregation. Check
                                       Further notes on ResStockAthena.aggregate_timeseries function.
+            query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
+                              used as large as possible that doesn't result in query timeout.
 
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
@@ -112,9 +120,12 @@ class EULPAthena(ResStockAthena):
             enduses = ['total_site_electricity_kwh']
         id_column = 'eiaid'
 
+        if query_group_size is None:
+            query_group_size = min(100, len(eiaid_list))
+
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
                                          eiaid_list, enduses, group_by, get_query_only,
-                                         correction_factors_table)
+                                         correction_factors_table, query_group_size)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
                                        mapping_version=3, get_query_only: bool = False):

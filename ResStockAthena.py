@@ -62,6 +62,7 @@ class ResStockAthena:
         self.db_name = db_name
         self.region_name = region_name
         self.timestamp_column_name = timestamp_column_name
+        self.cache = {}  # To store small but frequently queried result, such as total number of timesteps
         if sample_weight_column:
             self.sample_weight_column = self.make_column_string(sample_weight_column)
         else:
@@ -434,7 +435,7 @@ class ResStockAthena:
         Return:
             List of query execution ids of all the queries that are currently running in Athena.
         """
-        exe_ids = self.aws_athena.list_query_executions()['QueryExecutionIds']
+        exe_ids = self.aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
         running_ids = [i for i in exe_ids if i in self.execution_ids_history and
                        self.py_thena.get_query_status(i) == "RUNNING"]
         return running_ids
@@ -966,6 +967,11 @@ class ResStockAthena:
 
     def _get_simulation_timesteps_count(self):
         C = self.make_column_string
+        if "simulation_timesteps_count" in self.cache:
+            if self.db_name + "/" + self.ts_table_name in self.cache["simulation_timesteps_count"]:
+                return self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table_name]
+        else:
+            self.cache['simulation_timesteps_count'] = {}
         # find the simulation time interval
         sim_timesteps_count = self.execute(f'SELECT "building_id", sum(1) as count'
                                            f' from {C(self.ts_table_name)} group by 1')
@@ -973,6 +979,8 @@ class ResStockAthena:
         if not sum(sim_timesteps_count['count'] == bld0_step_count) == len(sim_timesteps_count):
             logger.warning("Not all building has the same number of timestamps. This can cause wrong scaled_units_count"
                            " and other problems.")
+
+        self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table_name] = bld0_step_count
         return bld0_step_count
 
     def _get_simulation_info(self):
