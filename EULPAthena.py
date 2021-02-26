@@ -212,13 +212,21 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+
+        if 'eiaids' in self.cache:
+            if self.db_name + '/' +  eiaid_map_table_name in self.cache['eiaids']:
+                return self.cache['eiaids'][self.db_name + '/' +  eiaid_map_table_name]
+        else:
+            self.cache['eiaids'] = {}
+
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         annual_agg = self.aggregate_annual(enduses=[], group_by=['eiaid'],
                                            restrict=restrict,
                                            join_list=join_list,
                                            weights=['weight'],
                                            order_by=['eiaid'])
-        return list(annual_agg['eiaid'].values)
+        self.cache['eiaids'] = list(annual_agg['eiaid'].values)
+        return self.cache['eiaids']
 
     def get_buildings_by_locations(self, locations: List[str], get_query_only: bool = False):
         """
