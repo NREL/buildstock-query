@@ -214,8 +214,8 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
 
         if 'eiaids' in self.cache:
-            if self.db_name + '/' +  eiaid_map_table_name in self.cache['eiaids']:
-                return self.cache['eiaids'][self.db_name + '/' +  eiaid_map_table_name]
+            if self.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
+                return self.cache['eiaids'][self.db_name + '/' + eiaid_map_table_name]
         else:
             self.cache['eiaids'] = {}
 
