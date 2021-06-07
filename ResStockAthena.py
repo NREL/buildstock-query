@@ -10,6 +10,7 @@ new class can be created by inheriting ResStockAthena and adding in the project 
 
 import os
 import boto3
+import botocore
 import pythena
 from typing import List, Tuple, Union
 import time
@@ -57,6 +58,7 @@ class ResStockAthena:
         self.workgroup = workgroup
         self.buildstock_type = buildstock_type
         self.py_thena = pythena.Athena(db_name, region_name)
+        self.s3 = boto3.client('s3')
         self.aws_athena = boto3.client('athena', region_name=region_name)
         self.aws_glue = boto3.client('glue', region_name=region_name)
         self.db_name = db_name
@@ -127,8 +129,18 @@ class ResStockAthena:
         else:
             raise Exception(f"Deleting it failed. Reason: {reason}")
 
-    def add_table(self, table_name, table_df, s3_location, override=False):
-        table_df.to_csv(f's3://{s3_location}/{table_name}/{table_name}.csv', index=False)
+    def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+        s3_location = s3_bucket + '/' + s3_prefix
+        save = False
+        s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}/{table_name}.csv')
+        if 'Contents' in s3_data and override == False:
+            # existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
+            raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
+        else:
+            print("Saving the csv to s3")
+            table_df.to_csv(f's3://{s3_location}/{table_name}/{table_name}.csv', index=False)
+            print("Saving Done.")
+
         column_formats = []
         for column_name, dtype in table_df.dtypes.items():
             if np.issubdtype(dtype, np.integer):
@@ -151,6 +163,7 @@ class ResStockAthena:
         ) LOCATION 's3://{s3_location}/{table_name}/'
         TBLPROPERTIES ('has_encrypted_data'='false');
         """
+        print("Running create table query.")
         result, reason = self.execute_raw(table_create_query)
         if result.lower() == "failed" and 'alreadyexists' in reason.lower():
             if not override:
@@ -921,10 +934,10 @@ class ResStockAthena:
                           for c in baseline_columns if c in correction_columns]
 
             # https://prestodb.io/docs/0.217/functions/datetime.html#convenience-extraction-functions
-            extraction_functions = ['day_of_week', 'day_of_year', 'hour', 'minute', 'month']
-            on_clauses += [f" {c}({C(self.ts_table_name)}.{C(self.timestamp_column_name)}) = "
+            extraction_functions = ['day_of_week', 'day_of_year', 'day_of_month', 'hour', 'minute', 'month']
+            on_clauses += [f" {c.lower()}({C(self.ts_table_name)}.{C(self.timestamp_column_name)}) = "
                            f" {C(correction_factors_table)}.{C(c)} "
-                           for c in correction_columns if c in extraction_functions]
+                           for c in correction_columns if c.lower() in extraction_functions]
             if not on_clauses:
                 raise ValueError("No column in the correction table matches any column in baseline table.")
 
