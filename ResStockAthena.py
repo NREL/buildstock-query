@@ -10,7 +10,6 @@ new class can be created by inheriting ResStockAthena and adding in the project 
 
 import os
 import boto3
-import botocore
 import pythena
 from typing import List, Tuple, Union
 import time
@@ -38,8 +37,9 @@ class ResStockAthena:
                  buildstock_type: str = None,
                  table_name: Union[str, Tuple[str, str]] = None,
                  region_name: str = 'us-west-2',
-                 timestamp_column_name='time',
-                 sample_weight_column="build_existing_model.sample_weight",
+                 timestamp_column_name: str = 'time',
+                 sample_weight_column: str = "build_existing_model.sample_weight",
+                 custom_sample_weight: float = None,
                  execution_history=None) -> None:
         """
         A class to run common Athena queries for ResStock runs and download results as pandas dataFrame
@@ -52,6 +52,10 @@ class ResStockAthena:
                         timeseries table.
             region_name: The AWS region where the database exists. Defaults to 'us-west-2'.
             timestamp_column_name: The column name for the time column. Defaults to 'time'
+            sample_weight_column: The column name to be used to get the sample weight. Defaults to
+                                  build_existing_model.sample_weight
+            custom_sample_weight: This overrides the sample_weight_column. For example, if the sample_weight column does
+                                  not exist, or is wrong, a value for custom_sample_weight can be provided instead.
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                                use .execution_history if not supplied.
         """
@@ -69,6 +73,7 @@ class ResStockAthena:
             self.sample_weight_column = self.make_column_string(sample_weight_column)
         else:
             self.sample_weight_column = 1
+        self.custom_sample_weight = custom_sample_weight
         if isinstance(table_name, str):
             self.ts_table_name = f'{table_name}_timeseries'
             self.baseline_table_name = f'{table_name}_baseline'
@@ -131,9 +136,8 @@ class ResStockAthena:
 
     def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
         s3_location = s3_bucket + '/' + s3_prefix
-        save = False
         s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}/{table_name}.csv')
-        if 'Contents' in s3_data and override == False:
+        if 'Contents' in s3_data and override is False:
             # existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
             raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
         else:
@@ -649,7 +653,6 @@ class ResStockAthena:
                          join_list: List[Tuple[str, str, str]] = [],
                          weights: List[str] = [],
                          restrict: List[Tuple[str, List]] = [],
-                         custom_sample_weight: float = None,
                          run_async: bool = False,
                          get_query_only: bool = False):
         """
@@ -671,9 +674,6 @@ class ResStockAthena:
 
             weights: The additional column to use as weight. The "build_existing_model.sample_weight" is already used.
 
-            custom_sample_weight: If the sample weight is different from build_existing_model.sample_weight, use
-                                  this parameter to provide a different weight
-
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
 
@@ -694,8 +694,8 @@ class ResStockAthena:
         if enduses is None:
             enduses = self.get_cols(table='baseline', fuel_type='electricity')
 
-        if custom_sample_weight:
-            sample_weight = str(custom_sample_weight)
+        if self.custom_sample_weight:
+            sample_weight = str(self.custom_sample_weight)
         else:
             sample_weight = self.sample_weight_column
 
@@ -760,7 +760,6 @@ class ResStockAthena:
                              order_by: List[str] = None,
                              join_list: List[Tuple[str, str, str]] = [],
                              weights: List[str] = [],
-                             custom_sample_weight: float = None,
                              restrict: [Tuple[str, List]] = [],
                              run_async: bool = False,
                              get_query_only: bool = False,
@@ -785,9 +784,6 @@ class ResStockAthena:
                                 should be joined to baseline table.
 
             weights: The additional column to use as weight. The "build_existing_model.sample_weight" is already used.
-
-            custom_sample_weight: If the sample weight is different from build_existing_model.sample_weight, use
-                                  this parameter to provide a different weight
 
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
@@ -846,8 +842,8 @@ class ResStockAthena:
         else:
             enduses = enduses.copy()
 
-        if custom_sample_weight:
-            sample_weight = str(custom_sample_weight)
+        if self.custom_sample_weight:
+            sample_weight = str(self.custom_sample_weight)
         else:
             sample_weight = self.sample_weight_column
         n_units_col = C("build_existing_model.units_represented")
@@ -1011,7 +1007,6 @@ class ResStockAthena:
                                     at_hour,
                                     at_days,
                                     enduses=None,
-                                    custom_sample_weight=None,
                                     get_query_only=False):
         """
         Aggregates the timeseries result on select enduses, for the given days and hours.
@@ -1032,8 +1027,6 @@ class ResStockAthena:
 
             enduses: The list of enduses for which to calculate the average kWs
 
-            custom_sample_weight: If you want to override the build_existing_model.sample_weight, provide a custom
-                                  sample weight.
             get_query_only: Skips submitting the query to Athena and just returns the query strings. Useful for batch
                             submitting multiple queries or debugging.
 
@@ -1062,8 +1055,8 @@ class ResStockAthena:
         sim_year, sim_interval_seconds = self._get_simulation_info()
         kw_factor = 3600.0 / sim_interval_seconds
 
-        if custom_sample_weight:
-            sample_weight = str(custom_sample_weight)
+        if self.custom_sample_weight:
+            sample_weight = str(self.custom_sample_weight)
         else:
             sample_weight = self.sample_weight_column
 
