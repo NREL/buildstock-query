@@ -35,20 +35,20 @@ class SparkQuery:
         query_status = notebook_status['NotebookExecution']['Status'].upper()
         if query_status in ['RUNNING', 'STARTING']:
             return {'result': "RUNNING"}
-        elif query_status in ['FINISHED']:
+        elif query_status in ['FINISHED', 'FINISHING']:
             params = self.get_notebook_params(execution_id)
             obj = self.s3.get_object(Bucket=params['result_s3_bucket'],
                                      Key=f"{params['result_s3_path']}/result.txt")
-            result = obj.get()['Body'].read()
+            result = obj['Body'].read()
             logger.info(result)
             result_json = json.loads(result)
             return result_json
-        elif query_status in ['STOPPED']:
+        elif query_status in ['STOPPED', 'STOPPING']:
             return {'result': 'CANCELLED', 'error': 'User stopped the notebook execution'}
         else:
             output_notebook_path = notebook_status['NotebookExecution']['OutputNotebookURI']
-            return {'result': "FAILED", "error": "Something wrong in query execution. Check the output notebook at: "
-                                                 f"{output_notebook_path}"}
+            return {'result': "FAILED", "error": f"Something wrong in query execution; ended with {query_status}."
+                                                 f" Check the output notebook at: {output_notebook_path}"}
 
     def get_query_status(self, execution_id):
         result_json = self.get_notebook_status_dict(execution_id)
@@ -87,7 +87,7 @@ class SparkQuery:
         result_json = self.get_notebook_status_dict(execution_id)
         if result_json['result'].upper() == "SUCCEEDED":
             df = pd.read_csv(result_json['output_path'])
-            return [df]  # return in a list to be consistent with Athena query result
+            return df
         else:
             raise Exception(f"Query ended with error. {result_json['error']}.")
 
@@ -113,7 +113,7 @@ class SparkQuery:
         if run_async:
             return execution_id
         else:
-            self.get_query_result(execution_id)
+            self.get_query_result(execution_id), execution_id
 
 
 if __name__ == "__main__":
