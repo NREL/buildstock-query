@@ -20,7 +20,7 @@ import pandas as pd
 import datetime
 from dateutil import parser
 import numpy as np
-
+from eulpda.smart_query.SparkQuery import SparkQuery
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,9 @@ class ResStockAthena:
                  timestamp_column_name: str = 'time',
                  sample_weight_column: str = "build_existing_model.sample_weight",
                  custom_sample_weight: float = None,
+                 use_spark: bool = False,
+                 emr_cluster_id: str = None,
+                 emr_s3_path: str = None,
                  execution_history=None) -> None:
         """
         A class to run common Athena queries for ResStock runs and download results as pandas dataFrame
@@ -56,6 +59,11 @@ class ResStockAthena:
                                   build_existing_model.sample_weight
             custom_sample_weight: This overrides the sample_weight_column. For example, if the sample_weight column does
                                   not exist, or is wrong, a value for custom_sample_weight can be provided instead.
+            use_spark: If true (default is false), use spark in EMR instead of Athena for query. This is useful when
+                       Athena runs into "Query exhausted resources ..." error.
+            emr_cluster_id: The EMR cluster ID to use for spark query. It can be found from the AWS console.
+                            This is only used when use_spark is True.
+            emr_s3_path: str = The s3 path to store emr query related output.
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                                use .execution_history if not supplied.
         """
@@ -68,6 +76,11 @@ class ResStockAthena:
         self.db_name = db_name
         self.region_name = region_name
         self.timestamp_column_name = timestamp_column_name
+        self.use_spark = use_spark
+        if use_spark:
+            self.emr = boto3.client('emr', region_name='us-west-2')
+            self.spark = SparkQuery(emr=self.emr, s3=self.s3, cluster_id=emr_cluster_id,
+                                    result_s3_path=emr_s3_path)
         self.cache = {}  # To store small but frequently queried result, such as total number of timesteps
         if sample_weight_column:
             self.sample_weight_column = self.make_column_string(sample_weight_column)
@@ -127,6 +140,11 @@ class ResStockAthena:
         return exe_ids
 
     def delete_table(self, table_name):
+        """
+        Function to delete athena table.
+        :param table_name: Athena table name
+        :return:
+        """
         delete_table_query = f"""DROP TABLE {self.db_name}.{table_name};"""
         result, reason = self.execute_raw(delete_table_query)
         if result.upper() == "SUCCEEDED":
@@ -135,6 +153,15 @@ class ResStockAthena:
             raise Exception(f"Deleting it failed. Reason: {reason}")
 
     def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+        """
+        Function to add a table in s3.
+        :param table_name: The name of the table
+        :param table_df: The pandas dataframe to use as table data
+        :param s3_bucket: s3 bucket name
+        :param s3_prefix: s3 prefix to save the table to.
+        :param override: Whether to override eixsting table.
+        :return:
+        """
         s3_location = s3_bucket + '/' + s3_prefix
         s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}/{table_name}.csv')
         if 'Contents' in s3_data and override is False:
@@ -193,7 +220,13 @@ class ResStockAthena:
             raise Exception(f"Failed to create the table. Reason: {reason}")
 
     def execute_raw(self, query, db=None, run_async=False):
-
+        """
+        Directly executes the supplied query in Athena.
+        :param query:
+        :param db:
+        :param run_async:
+        :return:
+        """
         if not db:
             db = self.db_name
 
@@ -203,8 +236,8 @@ class ResStockAthena:
                 'Database': db
             },
             WorkGroup=self.workgroup)
-
         query_execution_id = response['QueryExecutionId']
+
         if run_async:
             return query_execution_id
         start_time = time.time()
@@ -226,7 +259,7 @@ class ResStockAthena:
         """
         Executes a query
         Args:
-            query: The SQL query to run in Athena
+            query: The SQL query to run in Athena or Spark
             db: Optionally specify the database on which to run the query. Defaults to the database supplied during
                 initialization
             run_async: Whether to wait until the query completes (run_async=False) or return immediately
@@ -240,14 +273,19 @@ class ResStockAthena:
         if not db:
             db = self.db_name
 
-        self.py_thena._Athena__database = db  # override the DB in pythena
-        res = self.py_thena.execute(query, save_results=True, run_async=run_async, workgroup=self.workgroup)
-        self.py_thena._Athena__database = self.db_name  # restore the DB name
+        if self.use_spark:
+            res = self.spark.spark_query(self.db_name, query, run_async=run_async)
+        else:
+            old_db = self.py_thena._Athena__database
+            self.py_thena._Athena__database = db  # override the DB in pythena
+            res = self.py_thena.execute(query, save_results=True, run_async=run_async, workgroup=self.workgroup)
+            self.py_thena._Athena__database = old_db  # restore the DB name
 
         if run_async:
             # in case of asynchronous run, you get the execution id only. Save it before returning
-            self._save_execution_id(res)
-            return res
+            prefix = 'S' if self.use_spark else 'A'
+            self._save_execution_id(prefix+res)
+            return prefix+res
         else:
             # in case of synchronous run, just return the dataFrame
             return res[0]
@@ -437,13 +475,22 @@ class ResStockAthena:
         return batch_query_id
 
     def get_query_result(self, query_id):
-        return self.py_thena.get_result(query_execution_id=query_id, save_results=True)
+        if self.use_spark:
+            return self.spark.get_query_result(execution_id=query_id[1:])
+        else:
+            return self.py_thena.get_result(query_execution_id=query_id[1:], save_results=True)
 
     def get_query_status(self, query_id):
-        return self.py_thena.get_query_status(query_id)
+        if query_id.startswith('A'):
+            return self.py_thena.get_query_status(query_id[1:])
+        else:
+            return self.spark.get_query_status(query_id[1:])
 
     def get_query_error(self, query_id):
-        return self.py_thena.get_query_error(query_id)
+        if query_id.startswith('A'):
+            return self.py_thena.get_query_error(query_id[1:])
+        elif query_id.startswith('S'):
+            return self.spark.get_query_error(query_id[1:])
 
     def get_all_running_queries(self):
         """
@@ -452,9 +499,17 @@ class ResStockAthena:
         Return:
             List of query execution ids of all the queries that are currently running in Athena.
         """
-        exe_ids = self.aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
-        running_ids = [i for i in exe_ids if i in self.execution_ids_history and
-                       self.py_thena.get_query_status(i) == "RUNNING"]
+        if self.use_spark:
+            exe_ids = self.spark.get_all_running_queries()
+            exe_ids = ['S' + exe_id for exe_id in exe_ids]
+            return exe_ids
+        else:
+            exe_ids = self.aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
+            exe_ids = ['A' + exe_id for exe_id in exe_ids]
+
+            running_ids = [i for i in exe_ids if i in self.execution_ids_history and
+                           self.get_query_status(i) == "RUNNING"]
+
         return running_ids
 
     def stop_all_queries(self):
@@ -469,7 +524,7 @@ class ResStockAthena:
 
         running_ids = self.get_all_running_queries()
         for i in running_ids:
-            self.py_thena.cancel_query(query_execution_id=i)
+            self.stop_query(execution_id=i)
 
         logger.info(f"Stopped {len(running_ids)} queries")
 
@@ -482,7 +537,11 @@ class ResStockAthena:
         Returns:
 
         """
-        return self.aws_athena.stop_query_execution(QueryExecutionId=execution_id)
+        if execution_id.startswith('A'):
+            # Athena Query
+            return self.py_thena.cancel_query(query_execution_id=execution_id[1:])
+        elif execution_id.startswith('S'):
+            self.spark.stop_execution(execution_id=execution_id[1:])
 
     def get_cols(self, table='baseline', fuel_type=None):
         """
@@ -741,7 +800,7 @@ class ResStockAthena:
         else:
             time.sleep(1)
             while time.time() - t < 30 * 60:
-                stat = self.py_thena.get_query_status(res)
+                stat = self.get_query_status(res)
                 if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
@@ -752,7 +811,85 @@ class ResStockAthena:
                     logger.info(f'Query status is {stat}')
                     time.sleep(30)
 
-            raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
+            raise Exception(f'Query failed {self.get_query_status(res)}')
+
+    def aggregate_timeseries_light(self,
+                                   enduses: List[str] = None,
+                                   group_by: List[str] = None,
+                                   order_by: List[str] = None,
+                                   join_list: List[Tuple[str, str, str]] = [],
+                                   weights: List[str] = [],
+                                   restrict: [Tuple[str, List]] = [],
+                                   run_async: bool = False,
+                                   get_query_only: bool = False,
+                                   adjust_total_site=True,
+                                   correction_factors_table: str = None,
+                                   limit=None
+                                   ):
+        """
+        Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
+        Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
+        """
+        if not enduses:
+            enduses = self.get_cols(table='timeseries', fuel_type='electricity')
+        else:
+            enduses = enduses.copy()
+
+        correction_enduses = []
+        if adjust_total_site and correction_factors_table and 'total_site_electricity_kwh' in enduses:
+            correction_columns = self.get_cols(table=correction_factors_table)
+            # c[7:] extracts enduse_name from 'factor_enduse_name' columns
+            correction_enduses = [c[7:] for c in correction_columns if c.startswith('factor_') and c != 'factor_all']
+
+        batch_queries_to_submit = []
+        for indx, enduse in enumerate(enduses + correction_enduses):
+
+            # retrieve the changes for correction_enduses
+            if indx >= len(enduses):
+                change_only = True
+            else:
+                change_only = False
+
+            query = self.aggregate_timeseries(enduses=[enduse],
+                                              group_by=group_by,
+                                              order_by=order_by,
+                                              join_list=join_list,
+                                              weights=weights,
+                                              restrict=restrict,
+                                              run_async=True,
+                                              get_query_only=True,
+                                              split_enduses=False,
+                                              adjust_total_site=False,
+                                              return_change_only=change_only,
+                                              correction_factors_table=correction_factors_table,
+                                              limit=limit)
+            batch_queries_to_submit.append(query)
+
+        if get_query_only:
+            return batch_queries_to_submit
+
+        batch_query_id = self.submit_batch_query(batch_queries_to_submit)
+
+        if run_async:
+            raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
+                             "the result after the query finishes.")
+        else:
+            result_dfs = self.get_batch_query_result(batch_id=batch_query_id, combine=False)
+            for res in result_dfs:
+                res.set_index(group_by, inplace=True)
+            joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
+            for enduse, res in list(zip(enduses, result_dfs))[1:]:
+                joined_enduses_df = joined_enduses_df.join(res[[enduse]])
+
+            if correction_enduses:
+                joined_correction_df = result_dfs[len(enduses)].drop(columns=['query_id'])
+                for enduse, res in list(zip(correction_enduses, result_dfs[len(enduses):]))[1:]:
+                    joined_correction_df = joined_correction_df.join(res[[enduse]])
+
+                joined_correction_sum = joined_correction_df[correction_enduses].sum(axis=1)
+                joined_enduses_df['total_site_electricity_kwh'] += joined_correction_sum
+
+            return joined_enduses_df.reset_index()
 
     def aggregate_timeseries(self,
                              enduses: List[str] = None,
@@ -762,9 +899,12 @@ class ResStockAthena:
                              weights: List[str] = [],
                              restrict: [Tuple[str, List]] = [],
                              run_async: bool = False,
+                             split_enduses: bool = False,
                              get_query_only: bool = False,
                              correction_factors_table: str = None,
-                             limit=None
+                             adjust_total_site: bool = True,
+                             return_change_only: bool = False,
+                             limit: int = None
                              ):
         """
         Aggregates the timeseries result on select enduses.
@@ -791,6 +931,8 @@ class ResStockAthena:
 
             run_async: Whether to run the query in the background. Returns immediately if running in background,
                        blocks otherwise.
+            split_enduses: Whether to query for each enduses in a separate query to reduce Athena load for query. Useful
+                           when Athena runs into "Query exhausted resources ..." errors.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
             correction_factors_table: A correction factor table used for scaling timeseries during aggregation. Use
@@ -800,6 +942,12 @@ class ResStockAthena:
                                       joining the correction_factor table to timeseries table during aggregation.
                                       The column named 'factor_all' is applied to all the columns, whereas columns named
                                       'factor_<timeseries_enduse_column_name>' is used for only the specific enduse.
+            adjust_total_site: Whether to adjust the total_site_electricity_kwh when other enduse columns are adjusted
+                               by correction factors. If false, only the factor_all and simulation_weight_correction
+                               correction will be applied to the total_site_electricity.
+            return_change_only: Only used when correction_factors_table is supplied. Controls whether the full values
+                               for enduses should be returned (default) or just the change. Only returning the change is
+                               useful if you want to manually add the change to total_site_electricity.
 
 
         Returns:
@@ -836,6 +984,14 @@ class ResStockAthena:
 
         """
 
+        if split_enduses:
+            return self.aggregate_timeseries_light(enduses=enduses, group_by=group_by, order_by=order_by,
+                                                   join_list=join_list, weights=weights, restrict=restrict,
+                                                   run_async=run_async, get_query_only=get_query_only,
+                                                   adjust_total_site=adjust_total_site,
+                                                   correction_factors_table=correction_factors_table,
+                                                   limit=limit)
+
         C = self.make_column_string
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
@@ -856,8 +1012,12 @@ class ResStockAthena:
             correction_columns = self.get_cols(table=correction_factors_table)
             # c[7:] extracts enduse_name from 'factor_enduse_name' columns
             correction_enduses = [c[7:] for c in correction_columns if c.startswith('factor_') and c != 'factor_all']
-            correction_factors_dict = {c: f'"factor_all" * "factor_{c}"' if c in correction_enduses else '"factor_all"'
-                                       for c in enduses}
+            if return_change_only:
+                correction_factors_dict = {c: f'"factor_all" * ("factor_{c}" - 1)' if c in correction_enduses else
+                                           '"factor_all"' for c in enduses}
+            else:
+                correction_factors_dict = {c: f'"factor_all" * "factor_{c}"' if c in correction_enduses else
+                                           '"factor_all"' for c in enduses}
 
             if "simulation_weight_correction_factor" in correction_columns:
                 total_weight += ' * COALESCE("simulation_weight_correction_factor", 1)'
@@ -867,7 +1027,7 @@ class ResStockAthena:
 
             # If the individual enduses have changed, we will need to adjust the total_site_electricity_kwh
             # TODO: Need to adjust total columns for other fuel types too if correction is applied to other fuel enduses
-            if 'total_site_electricity_kwh' in enduses:
+            if adjust_total_site and 'total_site_electricity_kwh' in enduses:
                 enduses.remove('total_site_electricity_kwh')
                 # we need to add (factor_enduse - 1) portion of all the corrected enduses to total_site_electricity_kwh
                 enduse_cols += ', sum(("total_site_electricity_kwh"'
@@ -961,7 +1121,7 @@ class ResStockAthena:
         else:
             time.sleep(1)
             while time.time() - t < 30 * 60:
-                stat = self.py_thena.get_query_status(res)
+                stat = self.get_query_status(res)
                 if stat.upper() == 'SUCCEEDED':
                     result = self.get_query_result(res)
                     return result
@@ -972,7 +1132,7 @@ class ResStockAthena:
                     logger.info(f"Query status is {stat}")
                     time.sleep(30)
 
-            raise Exception(f'Query failed {self.py_thena.get_query_status(res)}')
+            raise Exception(f'Query failed {self.get_query_status(res)}')
 
     def _get_simulation_timesteps_count(self):
         C = self.make_column_string
