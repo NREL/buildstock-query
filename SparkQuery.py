@@ -58,17 +58,14 @@ class SparkQuery:
         result_json = self.get_notebook_status_dict(execution_id)
         return result_json["error"]
 
-    def wait_execution_to_finish(self, execution_id, max_wait_minutes=60):
+    def wait_execution_to_finish(self, execution_id, timeout_minutes=60):
         start_time = time.time()
-        while time.time() - start_time < max_wait_minutes * 60:
-            query_status = self.get_query_status(execution_id)
-            if query_status in ['RUNNING', 'STARTING']:
-                logger.info(f"Spark Query status is {query_status}.")
+        while time.time() - start_time < timeout_minutes * 60:
+            result_json = self.get_notebook_status_dict(execution_id)
+            if result_json['result'] in ['RUNNING']:
+                logger.info(f"Spark Query status is {result_json['result']}.")
             else:
-                if query_status in ['FINISHED']:
-                    return "Success"
-                else:
-                    return query_status
+                return result_json
             time.sleep(30)
 
     def get_all_running_queries(self):
@@ -82,14 +79,14 @@ class SparkQuery:
     def stop_execution(self, execution_id):
         self.emr.stop_notebook_execution(NotebookExecutionId=execution_id)
 
-    def get_query_result(self, execution_id):
-        _ = self.wait_execution_to_finish(execution_id)
-        result_json = self.get_notebook_status_dict(execution_id)
+    def get_query_result(self, execution_id, timeout_minutes=60):
+        result_json = self.wait_execution_to_finish(execution_id, timeout_minutes=timeout_minutes)
         if result_json['result'].upper() == "SUCCEEDED":
+            logger.info("Query SUCCEEDED. Reading output data.")
             df = pd.read_csv(result_json['output_path'])
             return df
         else:
-            raise Exception(f"Query ended with error. {result_json['error']}.")
+            raise Exception(f"Query {result_json['result']} with error. {result_json['error']}.")
 
     def spark_query(self, athena_db, query,
                     run_async=False):

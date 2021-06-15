@@ -77,6 +77,10 @@ class ResStockAthena:
         self.region_name = region_name
         self.timestamp_column_name = timestamp_column_name
         self.use_spark = use_spark
+
+        self.execution_cost = {'GB': 0, 'Dollars': 0}  # Tracks the cost of current session. Only used for Athena query
+        self.seen_execution_ids = set()  # set to prevent double counting same execution id
+
         if use_spark:
             self.emr = boto3.client('emr', region_name='us-west-2')
             self.spark = SparkQuery(emr=self.emr, s3=self.s3, cluster_id=emr_cluster_id,
@@ -255,6 +259,21 @@ class ResStockAthena:
         with open(self.execution_history_file, 'a') as f:
             f.write(f'{time.time()},{execution_id}\n')
 
+    def log_execution_cost(self, execution_id):
+        if not execution_id.startswith('A'):
+            # Can't log cost for Spark query
+            return
+        res = self.aws_athena.get_query_execution(QueryExecutionId=execution_id[1:])
+        scanned_GB = res['QueryExecution']['Statistics']['DataScannedInBytes'] / 1e9
+        cost = scanned_GB * 5 / 1e3  # 5$ per TB scanned
+        if execution_id not in self.seen_execution_ids:
+            self.execution_cost['Dollars'] += cost
+            self.execution_cost['GB'] += scanned_GB
+            self.seen_execution_ids.add(execution_id)
+
+        logger.info(f"{execution_id} cost {scanned_GB:.1f}GB (${cost:.1f}). Session total:"
+                    f" {self.execution_cost['GB']:.1f} GB (${self.execution_cost['Dollars']:.1f})")
+
     def execute(self, query, db=None, run_async=False):
         """
         Executes a query
@@ -288,6 +307,8 @@ class ResStockAthena:
             return prefix+res
         else:
             # in case of synchronous run, just return the dataFrame
+            if not self.use_spark:
+                self.log_execution_cost('A'+res[1])
             return res[0]
 
     def print_all_batch_query_status(self):
@@ -393,6 +414,7 @@ class ResStockAthena:
         last_report = None
         while True:
             if self.did_batch_query_complete(batch_id):
+                logger.info("Batch query completed. Gathering results.")
                 query_exe_ids = self.batch_query_status_map[batch_id]['submitted_execution_ids']
                 if len(query_exe_ids) == 0:
                     raise ValueError("No query was submitted successfully")
@@ -400,8 +422,10 @@ class ResStockAthena:
                 for index, exe_id in enumerate(query_exe_ids):
                     df = self.get_query_result(exe_id)
                     df['query_id'] = index
+                    logger.info(f"Got result from Query [{index}] ({exe_id})")
                     res_df_array.append(df)
                 if combine:
+                    logger.info("Concatenating the results.")
                     return pd.concat(res_df_array)
                 else:
                     return res_df_array
@@ -453,7 +477,7 @@ class ResStockAthena:
                     db = self.db_name
                 try:
                     execution_id = self.execute(current_query, db=db, run_async=True)
-                    logger.info(f"Submitted queries[{current_id}]")
+                    logger.info(f"Submitted queries[{current_id}] ({execution_id})")
                     to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
                     queries.pop(0)
                     submitted_ids.append(current_id)
@@ -478,7 +502,24 @@ class ResStockAthena:
         if self.use_spark:
             return self.spark.get_query_result(execution_id=query_id[1:])
         else:
-            return self.py_thena.get_result(query_execution_id=query_id[1:], save_results=True)
+            return self.get_athena_query_result(execution_id=query_id)
+
+    def get_athena_query_result(self, execution_id, timeout_minutes=60):
+        t = time.time()
+        while time.time() - t < timeout_minutes * 60:
+            stat = self.get_query_status(execution_id)
+            if stat.upper() == 'SUCCEEDED':
+                result = self.py_thena.get_result(execution_id[1:], save_results=True)
+                self.log_execution_cost(execution_id)
+                return result
+            elif stat.upper() == 'FAILED':
+                error = self.get_query_error(execution_id)
+                raise Exception(error)
+            else:
+                logger.info(f"Query status is {stat}")
+                time.sleep(30)
+
+        raise Exception(f'Query timed-out. {self.get_query_status(execution_id)}')
 
     def get_query_status(self, query_id):
         if query_id.startswith('A'):
@@ -793,25 +834,11 @@ class ResStockAthena:
         if get_query_only:
             return query
 
-        t = time.time()
         res = self.execute(query, run_async=True)
         if run_async:
             return res
         else:
-            time.sleep(1)
-            while time.time() - t < 30 * 60:
-                stat = self.get_query_status(res)
-                if stat.upper() == 'SUCCEEDED':
-                    result = self.get_query_result(res)
-                    return result
-                elif stat.upper() == 'FAILED':
-                    error = self.get_query_error(res)
-                    raise Exception(error)
-                else:
-                    logger.info(f'Query status is {stat}')
-                    time.sleep(30)
-
-            raise Exception(f'Query failed {self.get_query_status(res)}')
+            return self.get_query_result(res)
 
     def aggregate_timeseries_light(self,
                                    enduses: List[str] = None,
@@ -1114,25 +1141,11 @@ class ResStockAthena:
         if get_query_only:
             return query
 
-        t = time.time()
         res = self.execute(query, run_async=True)
         if run_async:
             return res
         else:
-            time.sleep(1)
-            while time.time() - t < 30 * 60:
-                stat = self.get_query_status(res)
-                if stat.upper() == 'SUCCEEDED':
-                    result = self.get_query_result(res)
-                    return result
-                elif stat.upper() == 'FAILED':
-                    error = self.get_query_error(res)
-                    raise Exception(error)
-                else:
-                    logger.info(f"Query status is {stat}")
-                    time.sleep(30)
-
-            raise Exception(f'Query failed {self.get_query_status(res)}')
+            return self.get_query_result(res)
 
     def _get_simulation_timesteps_count(self):
         C = self.make_column_string
