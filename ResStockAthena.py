@@ -328,14 +328,22 @@ class ResStockAthena:
         for exec_id in self.batch_query_status_map[batch_id]['submitted_execution_ids']:
             self.stop_query(exec_id)
 
-    def print_failed_query_errors(self, batch_id):
+    def get_failed_queries(self, batch_id):
         stats = self.batch_query_status_map.get(batch_id, None)
+        failed_query_ids, failed_queries = [], []
         if stats:
             for i, exe_id in enumerate(stats['submitted_execution_ids']):
                 completion_stat = self.get_query_status(exe_id)
-                if completion_stat in ['FAILED']:
-                    print(f"Query id: {exe_id}. \n Query string: {stats['submitted_queries'][i]}."
-                          f"\nError: {self.get_query_error(exe_id)}\n")
+                if completion_stat in ['FAILED', 'CANCELLED']:
+                    failed_query_ids.append(exe_id)
+                    failed_queries.append(stats['submitted_queries'][i])
+        return failed_query_ids, failed_queries
+
+    def print_failed_query_errors(self, batch_id):
+        failed_ids, failed_queries = self.get_failed_queries(batch_id)
+        for exe_id, query in zip(failed_ids, failed_queries):
+            print(f"Query id: {exe_id}. \n Query string: {query}."
+                  f"\nError: {self.get_query_error(exe_id)}\n")
 
     def get_ids_for_failed_queries(self, batch_id):
         failed_ids = []
@@ -369,6 +377,7 @@ class ResStockAthena:
                 elif completion_stat in ['FAILED', 'CANCELLED']:
                     fail_count += 1
                 else:
+                    # for example: QUEUED
                     other += 1
 
             result = {'Submitted': len(stats['submitted_ids']),
@@ -397,6 +406,19 @@ class ResStockAthena:
         else:
             return True
 
+    def wait_for_batch_query(self, batch_id):
+        while True:
+            last_time = time.time()
+            last_report = None
+            report = self.get_batch_query_report(batch_id)
+            if time.time() - last_time > 60 or last_report is None or report != last_report:
+                logger.info(report)
+                last_report = report
+                last_time = time.time()
+            if report['Pending'] == 0 and report['Running'] == 0:
+                break
+            time.sleep(20)
+
     def get_batch_query_result(self, batch_id, combine=True, no_block=False):
         """
         Concatenates and returns the results of all the queries of a batchquery
@@ -410,35 +432,44 @@ class ResStockAthena:
             The concatenated dataframe of the results of all the queries in a batch query.
 
         """
-        last_time = time.time()
-        last_report = None
-        while True:
-            if self.did_batch_query_complete(batch_id):
-                logger.info("Batch query completed. Gathering results.")
-                query_exe_ids = self.batch_query_status_map[batch_id]['submitted_execution_ids']
-                if len(query_exe_ids) == 0:
-                    raise ValueError("No query was submitted successfully")
-                res_df_array = []
-                for index, exe_id in enumerate(query_exe_ids):
-                    df = self.get_query_result(exe_id)
-                    df['query_id'] = index
-                    logger.info(f"Got result from Query [{index}] ({exe_id})")
-                    res_df_array.append(df)
-                if combine:
-                    logger.info("Concatenating the results.")
-                    return pd.concat(res_df_array)
-                else:
-                    return res_df_array
-            else:
-                if no_block:
-                    raise Exception('Batch query not completed yet.')
-                else:
-                    report = self.get_batch_query_report(batch_id)
-                    if time.time() - last_time > 60 or last_report is None or report != last_report:
-                        logger.info(report)
-                        last_report = report
-                        last_time = time.time()
-                    time.sleep(20)
+        if no_block and self.did_batch_query_complete(batch_id) is False:
+            raise Exception('Batch query not completed yet.')
+
+        self.wait_for_batch_query(batch_id)
+        logger.info("Batch query completed. ")
+        report = self.get_batch_query_report(batch_id)
+        query_exe_ids = self.batch_query_status_map[batch_id]['submitted_execution_ids']
+
+        if report['Failed'] > 0:
+            logger.warning(f"{report['Failed']} queries failed. Redoing them")
+            failed_ids, failed_queries = self.get_failed_queries(batch_id)
+            new_batch_id = self.submit_batch_query(failed_queries)
+            new_exe_ids = self.batch_query_status_map[new_batch_id]['submitted_execution_ids']
+
+            self.wait_for_batch_query(new_batch_id)
+            new_exe_ids_map = {entry[0]: entry[1] for entry in zip(failed_ids, new_exe_ids)}
+
+            new_report = self.get_batch_query_report(new_batch_id)
+            if new_report['Failed'] > 0:
+                raise Exception("Queries failed again. Maybe try using spark?")
+            logger.info("The queries succeeded this time. Gathering all the results.")
+            # replace the old failed exe_ids with new successful exe_ids
+            for indx, old_exe_id in enumerate(query_exe_ids):
+                query_exe_ids[indx] = new_exe_ids_map.get(old_exe_id, old_exe_id)
+
+        if len(query_exe_ids) == 0:
+            raise ValueError("No query was submitted successfully")
+        res_df_array = []
+        for index, exe_id in enumerate(query_exe_ids):
+            df = self.get_query_result(exe_id)
+            df['query_id'] = index
+            logger.info(f"Got result from Query [{index}] ({exe_id})")
+            res_df_array.append(df)
+        if combine:
+            logger.info("Concatenating the results.")
+            return pd.concat(res_df_array)
+        else:
+            return res_df_array
 
     def submit_batch_query(self, queries: List[str]):
         """

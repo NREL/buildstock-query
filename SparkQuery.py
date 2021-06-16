@@ -15,6 +15,21 @@ class SparkQuery:
         # s3://eulp/emr/nmerket/
         self.result_s3_bucket, self.result_s3_path = self.get_bucket_and_path(result_s3_path)
 
+    def wait_for_cluster_to_start(self):
+        status = ''
+        while True:
+            status = self.emr.describe_cluster(ClusterId=self.cluster_id)['Cluster']['Status']['State']
+            if status.lower() in ['waiting']:
+                break
+            logger.info(f"Cluster is {status}")
+            time.sleep(30)
+
+    def get_cluster_status(self):
+        return self.emr.describe_cluster(ClusterId=self.cluster_id)['Cluster']['Status']['State']
+
+    def terminate_cluster(self):
+        self.emr.terminate_job_flows(JobFlowIds=[self.cluster_id])
+
     @staticmethod
     def get_bucket_and_path(s3_path):
         if not s3_path.lower().startswith('s3://'):
@@ -46,8 +61,12 @@ class SparkQuery:
         elif query_status in ['STOPPED', 'STOPPING']:
             return {'result': 'CANCELLED', 'error': 'User stopped the notebook execution'}
         else:
-            output_notebook_path = notebook_status['NotebookExecution']['OutputNotebookURI']
-            return {'result': "FAILED", "error": f"Something wrong in query execution; ended with {query_status}."
+            if "OutputNotebookURI" in notebook_status['NotebookExecution']:
+                output_notebook_path = notebook_status['NotebookExecution']['OutputNotebookURI']
+            else:
+                output_notebook_path = "Output Notebook not available."
+
+            return {'result': "FAILED", "error": f"Something wrong in query execution; ended with {notebook_status}."
                                                  f" Check the output notebook at: {output_notebook_path}"}
 
     def get_query_status(self, execution_id):
@@ -67,6 +86,7 @@ class SparkQuery:
             else:
                 return result_json
             time.sleep(30)
+        raise TimeoutError(f"The query didn't complete even after {timeout_minutes} minutes.")
 
     def get_all_running_queries(self):
         executions = self.emr.list_notebook_executions()
