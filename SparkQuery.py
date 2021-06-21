@@ -3,19 +3,48 @@ import boto3
 import logging
 import time
 import pandas as pd
+import atexit
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class SparkQuery:
-    def __init__(self, emr, s3, cluster_id, result_s3_path) -> None:
-        self.emr = emr
-        self.s3 = s3
-        self.cluster_id = cluster_id
-        # s3://eulp/emr/nmerket/
-        self.result_s3_bucket, self.result_s3_path = self.get_bucket_and_path(result_s3_path)
+    def __init__(self, emr=None, s3=None, cluster_id=None, result_s3_full_path=None,
+                 terminate_on_exit=False) -> None:
+        """
 
-    def wait_for_cluster_to_start(self):
+        :param emr: boto3 emr client instance. If not provided, a new client instance will be created
+        :param s3: boto3 s3 client instance. If not provided, a new client instance will be created.
+        :param cluster_id: The cluster_id of the EMR cluster. If not provided, can't submit queries, but can still
+                           query for cluster status or terminate clusters.
+        :param result_s3_full_path: The path in s3 to store the query result. If not provided, cannot run queries.
+        :param terminate_on_exit: If true, terminates the cluster when the python program exits. Set this to true if
+                                  you have started the cluster to run a single set of analysis and you would like to
+                                  terminate the cluster when it completes. You can always manually call the terminate_
+                                  cluster function.
+        """
+
+        self.emr = boto3.client('emr', region_name='us-west-2') if emr is None else emr
+        self.s3 = boto3.client('s3') if s3 is None else s3
+        self.cluster_id = cluster_id
+        self.result_s3_full_path = result_s3_full_path
+        if terminate_on_exit:
+            atexit.register(self.terminate_cluster)
+        if cluster_id is None or result_s3_full_path is None:
+            logger.warning("Until you set cluster_id and result_s3_path, you can't run queries. ")
+
+    @property
+    def result_s3_full_path(self):
+        return self._result_s3_full_path
+
+    @result_s3_full_path.setter
+    def result_s3_full_path(self, value):
+        if value is not None:
+            self.result_s3_bucket, self.result_s3_path = self.get_bucket_and_path(value)
+        self._result_s3_full_path = value
+
+    def wait_for_cluster_to_start(self, cluster_id=None):
+        cluster_id = self.cluster_id if cluster_id is None else cluster_id
         status = ''
         while True:
             status = self.emr.describe_cluster(ClusterId=self.cluster_id)['Cluster']['Status']['State']
@@ -24,15 +53,19 @@ class SparkQuery:
             logger.info(f"Cluster is {status}")
             time.sleep(30)
 
-    def get_cluster_status(self):
+    def get_cluster_status(self, cluster_id=None):
+        cluster_id = self.cluster_id if cluster_id is None else cluster_id
         return self.emr.describe_cluster(ClusterId=self.cluster_id)['Cluster']['Status']['State']
 
-    def terminate_cluster(self):
-        self.emr.terminate_job_flows(JobFlowIds=[self.cluster_id])
+    def terminate_cluster(self, cluster_id=None):
+        cluster_id = self.cluster_id if cluster_id is None else cluster_id
+        logger.info(f"Terminating cluster: {cluster_id}")
+        self.emr.terminate_job_flows(JobFlowIds=[cluster_id])
+        logger.info(f"Terminated cluster: {cluster_id}")
 
     @staticmethod
     def get_bucket_and_path(s3_path):
-        if not s3_path.lower().startswith('s3://'):
+        if not s3_path.lower().startswith('s3://') or len(s3_path.split('//')) != 2:
             raise ValueError(f"Path should have the format: s3://bucket/path/to/output. This is wrong: {s3_path}")
 
         bucket = s3_path.split('//')[1].split('/')[0]
@@ -135,11 +168,12 @@ class SparkQuery:
 
 if __name__ == "__main__":
     # example query
-    emr = boto3.client('emr', region_name='us-west-2')
-    s3 = boto3.client('s3')
     result_s3_path = "s3://eulp/emr/radhikar/test/test1"
     # Cluster ID can be found from the aws console
-    mySpark = SparkQuery(emr, s3, cluster_id='j-2DMA12HKLAGWJ', result_s3_path=result_s3_path)
+    mySpark = SparkQuery(cluster_id='j-2DMA12HKLAGWJ')
+    print(mySpark.result_s3_full_path)
+    mySpark.result_s3_full_path = result_s3_path
+
     query = """
     select * from "res_national_53_2018_timeseries" limit 100;
     """

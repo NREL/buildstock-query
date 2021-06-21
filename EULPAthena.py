@@ -12,6 +12,7 @@ EULP project should be implemented as member function of this class.
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import logging
 from typing import List, Any, Tuple
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,7 +46,8 @@ class EULPAthena(ResStockAthena):
                              group_by: List[str],
                              get_query_only: bool = False,
                              correction_factors_table: str = None,
-                             query_group_size: int = 1):
+                             query_group_size: int = 1,
+                             split_endues: bool = False):
 
         group_by = [] if group_by is None else group_by
         new_table = map_table_name
@@ -53,26 +55,49 @@ class EULPAthena(ResStockAthena):
         logger.info(f"Will submit request for {id_list}")
         GS = query_group_size
         id_list_batches = [id_list[i:i+GS] for i in range(0, len(id_list), GS)]
-        batch_queries_to_submit = []
+        results_array = []
         for current_ids in id_list_batches:
             if len(current_ids) == 1:
                 current_ids = current_ids[0]
-            query = self.aggregate_timeseries(enduses=enduses,
-                                              group_by=[id_column] + group_by,
-                                              join_list=join_list,
-                                              weights=['weight'],
-                                              order_by=[id_column] + group_by,
-                                              restrict=[(id_column, current_ids)],
-                                              run_async=True,
-                                              get_query_only=True,
-                                              correction_factors_table=correction_factors_table)
-            batch_queries_to_submit.append(query)
+            logger.info(f"Submitting query for {current_ids}")
+            if split_endues:
+                logger.info("Splitting the query into separate queries for each enduse.")
+                result_df = self.aggregate_timeseries(enduses=enduses,
+                                                      group_by=[id_column] + group_by,
+                                                      join_list=join_list,
+                                                      weights=['weight'],
+                                                      order_by=[id_column] + group_by,
+                                                      restrict=[(id_column, current_ids)],
+                                                      run_async=False,
+                                                      get_query_only=get_query_only,
+                                                      correction_factors_table=correction_factors_table,
+                                                      split_enduses=True)
+                results_array.append(result_df)
+            else:
+                query = self.aggregate_timeseries(enduses=enduses,
+                                                  group_by=[id_column] + group_by,
+                                                  join_list=join_list,
+                                                  weights=['weight'],
+                                                  order_by=[id_column] + group_by,
+                                                  restrict=[(id_column, current_ids)],
+                                                  run_async=True,
+                                                  get_query_only=True,
+                                                  correction_factors_table=correction_factors_table,
+                                                  split_enduses=False)
+                results_array.append(query)
 
         if get_query_only:
-            return batch_queries_to_submit
+            return results_array
 
-        batch_query_id = self.submit_batch_query(batch_queries_to_submit)
-        return self.get_batch_query_result(batch_id=batch_query_id)
+        if split_endues:
+            # In this case, the resuls_array will contain the result dataframes
+            logger.info("Concatenating the results from all IDs")
+            all_dfs = pd.concat(results_array)
+            return all_dfs
+        else:
+            # In this case, results_array will contain the queries
+            batch_query_id = self.submit_batch_query(results_array)
+            return self.get_batch_query_result(batch_id=batch_query_id)
 
     def get_eiaid_map(self, mapping_version):
         if mapping_version == 1:
@@ -95,7 +120,8 @@ class EULPAthena(ResStockAthena):
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
                               mapping_version=3, get_query_only: bool = False,
                               correction_factors_table: str = None,
-                              query_group_size: int = None
+                              query_group_size: int = None,
+                              split_endues: bool = False,
                               ):
         """
         Aggregates the timeseries result, grouping by utilities.
@@ -110,6 +136,7 @@ class EULPAthena(ResStockAthena):
                                       Further notes on ResStockAthena.aggregate_timeseries function.
             query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
                               used as large as possible that doesn't result in query timeout.
+            split_endues: Query each enduses separately to spread load on Athena
 
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
@@ -125,7 +152,7 @@ class EULPAthena(ResStockAthena):
 
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
                                          eiaid_list, enduses, group_by, get_query_only,
-                                         correction_factors_table, query_group_size)
+                                         correction_factors_table, query_group_size, split_endues)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
                                        mapping_version=3, get_query_only: bool = False):

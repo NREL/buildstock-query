@@ -84,7 +84,7 @@ class ResStockAthena:
         if use_spark:
             self.emr = boto3.client('emr', region_name='us-west-2')
             self.spark = SparkQuery(emr=self.emr, s3=self.s3, cluster_id=emr_cluster_id,
-                                    result_s3_path=emr_s3_path)
+                                    result_s3_full_path=emr_s3_path)
         self.cache = {}  # To store small but frequently queried result, such as total number of timesteps
         if sample_weight_column:
             self.sample_weight_column = self.make_column_string(sample_weight_column)
@@ -133,6 +133,9 @@ class ResStockAthena:
             with open(self.execution_history_file, 'w') as f:
                 f.writelines(valid_entries)
 
+        if self.use_spark:
+            self.spark.wait_for_cluster_to_start()
+
     @property
     def execution_ids_history(self):
         exe_ids = []
@@ -167,13 +170,19 @@ class ResStockAthena:
         :return:
         """
         s3_location = s3_bucket + '/' + s3_prefix
-        s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}/{table_name}.csv')
+        s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}')
+
         if 'Contents' in s3_data and override is False:
             # existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
             raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
         else:
-            print("Saving the csv to s3")
-            table_df.to_csv(f's3://{s3_location}/{table_name}/{table_name}.csv', index=False)
+            if 'Contents' in s3_data:
+                existing_objects = [{'Key': el['Key']} for el in s3_data['Contents']]
+                print(f"The following existing objects is being delete and replaced: {existing_objects}")
+                print(f"Saving s3://{s3_location}/{table_name}/{table_name}.parquet)")
+                self.s3.delete_objects(Bucket=s3_bucket, Delete={"Objects": existing_objects})
+            print(f"Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet")
+            table_df.to_parquet(f's3://{s3_location}/{table_name}/{table_name}.parquet', index=False)
             print("Saving Done.")
 
         column_formats = []
@@ -189,21 +198,19 @@ class ResStockAthena:
         column_formats = ",".join(column_formats)
 
         table_create_query = f"""
-        CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats}
-        )
-        ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
-        WITH SERDEPROPERTIES (
-          'skip.header.line.count' = '1',
-          'field.delim' = ','
-        ) LOCATION 's3://{s3_location}/{table_name}/'
+        CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats})
+        STORED AS PARQUET
+        LOCATION 's3://{s3_location}/{table_name}/'
         TBLPROPERTIES ('has_encrypted_data'='false');
         """
+
         print("Running create table query.")
         result, reason = self.execute_raw(table_create_query)
         if result.lower() == "failed" and 'alreadyexists' in reason.lower():
             if not override:
                 existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
                 raise DataExistsException("Table already exists", existing_data)
+            print(f"There was existing table {table_name} in Athena which was deleted and recreated.")
             delete_table_query = f"""
             DROP TABLE {self.db_name}.{table_name};
             """
@@ -342,7 +349,7 @@ class ResStockAthena:
     def print_failed_query_errors(self, batch_id):
         failed_ids, failed_queries = self.get_failed_queries(batch_id)
         for exe_id, query in zip(failed_ids, failed_queries):
-            print(f"Query id: {exe_id}. \n Query string: {query}."
+            print(f"Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}"
                   f"\nError: {self.get_query_error(exe_id)}\n")
 
     def get_ids_for_failed_queries(self, batch_id):
@@ -451,6 +458,7 @@ class ResStockAthena:
 
             new_report = self.get_batch_query_report(new_batch_id)
             if new_report['Failed'] > 0:
+                self.print_failed_query_errors(new_batch_id)
                 raise Exception("Queries failed again. Maybe try using spark?")
             logger.info("The queries succeeded this time. Gathering all the results.")
             # replace the old failed exe_ids with new successful exe_ids
@@ -516,6 +524,7 @@ class ResStockAthena:
                     submitted_queries.append(current_query)
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'TooManyRequestsException':
+                        logger.info("Athena complained about too many requests. Waiting for a minute.")
                         time.sleep(60)  # wait for a minute before submitting another query
                     elif e.response['Error']['Code'] == 'InvalidRequestException':
                         logger.info(f"Queries[{current_id}] is Invalid: {e.response['Message']} \n {current_query}")
@@ -888,6 +897,11 @@ class ResStockAthena:
         Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
         Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
         """
+
+        if run_async:
+            raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
+                             "the result after the query finishes.")
+
         if not enduses:
             enduses = self.get_cols(table='timeseries', fuel_type='electricity')
         else:
@@ -924,30 +938,31 @@ class ResStockAthena:
             batch_queries_to_submit.append(query)
 
         if get_query_only:
+            logger.warning("Not recommended to use get_query_only and split_enduses used together."
+                           " The results from the queries cannot be directly combined to get the desired result."
+                           " There are further processing done in the function. The queries should be used for"
+                           " information or debugging purpose only. Use get_query_only=False to get proper result.")
             return batch_queries_to_submit
 
         batch_query_id = self.submit_batch_query(batch_queries_to_submit)
 
-        if run_async:
-            raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
-                             "the result after the query finishes.")
-        else:
-            result_dfs = self.get_batch_query_result(batch_id=batch_query_id, combine=False)
-            for res in result_dfs:
-                res.set_index(group_by, inplace=True)
-            joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
-            for enduse, res in list(zip(enduses, result_dfs))[1:]:
-                joined_enduses_df = joined_enduses_df.join(res[[enduse]])
+        result_dfs = self.get_batch_query_result(batch_id=batch_query_id, combine=False)
+        logger.info("Joining the individual enduses result into a single DataFrame")
+        for res in result_dfs:
+            res.set_index(group_by, inplace=True)
+        joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
+        for enduse, res in list(zip(enduses, result_dfs))[1:]:
+            joined_enduses_df = joined_enduses_df.join(res[[enduse]])
 
-            if correction_enduses:
-                joined_correction_df = result_dfs[len(enduses)].drop(columns=['query_id'])
-                for enduse, res in list(zip(correction_enduses, result_dfs[len(enduses):]))[1:]:
-                    joined_correction_df = joined_correction_df.join(res[[enduse]])
+        if correction_enduses:
+            joined_correction_df = result_dfs[len(enduses)].drop(columns=['query_id'])
+            for enduse, res in list(zip(correction_enduses, result_dfs[len(enduses):]))[1:]:
+                joined_correction_df = joined_correction_df.join(res[[enduse]])
 
-                joined_correction_sum = joined_correction_df[correction_enduses].sum(axis=1)
-                joined_enduses_df['total_site_electricity_kwh'] += joined_correction_sum
-
-            return joined_enduses_df.reset_index()
+            joined_correction_sum = joined_correction_df[correction_enduses].sum(axis=1)
+            joined_enduses_df['total_site_electricity_kwh'] += joined_correction_sum
+        logger.info("Joining Completed.")
+        return joined_enduses_df.reset_index()
 
     def aggregate_timeseries(self,
                              enduses: List[str] = None,
