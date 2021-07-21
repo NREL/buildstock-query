@@ -138,7 +138,6 @@ class ResStockAthena:
         s3_location = s3_bucket + '/' + s3_prefix
         s3_data = self.s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}/{table_name}.csv')
         if 'Contents' in s3_data and override is False:
-            # existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
             raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
         else:
             print("Saving the csv to s3")
