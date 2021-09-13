@@ -23,7 +23,7 @@ import numpy as np
 from eulpda.smart_query.SparkQuery import SparkQuery
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+import re
 
 class DataExistsException(Exception):
     def __init__(self, message, existing_data=None):
@@ -687,10 +687,10 @@ class ResStockAthena:
             for column, vals in restrict:
                 if isinstance(vals, list) or isinstance(vals, tuple):
                     vals = [cls.dress_literal(v) for v in vals]
-                    condition_strs.append(f'''({C(column)} in ({', '.join(vals)}))''')
+                    condition_strs.append(f'''({column} in ({', '.join(vals)}))''')
                 elif isinstance(vals, str) or isinstance(vals, int):
                     vals = cls.dress_literal(vals)
-                    condition_strs.append(f'''({C(column)} = {vals})''')
+                    condition_strs.append(f'''({column} = {vals})''')
 
             query += " and ".join(condition_strs)
         return query
@@ -698,7 +698,7 @@ class ResStockAthena:
     def get_distinct_vals(self, column: str, table_name: str = None, get_query_only: bool = False):
         table_name = self.baseline_table_name if table_name is None else table_name
         C = self.make_column_string
-        query = f"select distinct {C(column)} from {C(table_name)}"
+        query = f"select distinct {column} from {C(table_name)}"
 
         if get_query_only:
             return query
@@ -715,7 +715,7 @@ class ResStockAthena:
         else:
             weight = C(weight_column) if weight_column else 1
 
-        query = f"select {C(column)}, sum(1) as raw_count, sum({weight}) as weighted_count from {C(table_name)} " \
+        query = f"select {column}, sum(1) as raw_count, sum({weight}) as weighted_count from {C(table_name)} " \
             f"group by 1 order by 1"
 
         if get_query_only:
@@ -846,10 +846,11 @@ class ResStockAthena:
 
         enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
                                  for c in enduses])
+
         if not group_by:
             query = f"select {enduse_cols} from {C(self.baseline_table_name)}"
         else:
-            group_by_cols = ", ".join([f'{C(g)}' for g in group_by])
+            group_by_cols = ", ".join([f'{g[0]} as {g[1]}' if isinstance(g, tuple) else f'{g}' for g in group_by])
             grouping_metrics_cols = f" sum(1) as raw_count, sum({total_weight}) as scaled_unit_count"
             select_cols = group_by_cols + ", " + grouping_metrics_cols
             if enduse_cols:
@@ -865,10 +866,11 @@ class ResStockAthena:
 
         query += self._get_restrict_string(restrict)
 
+
         if group_by:
-            query += " group by " + ", ".join([f'{C(g)}' for g in group_by])
+            query += " group by " + ", ".join([f'{g[0]}' if isinstance(g, tuple) else f'{g}' for g in group_by])
         if order_by:
-            query += " order by " + ", ".join([f'{C(o)}' for o in order_by])
+            query += " order by " + ", ".join([f'{o}' for o in order_by])
 
         if get_query_only:
             return query
@@ -878,6 +880,42 @@ class ResStockAthena:
             return res
         else:
             return self.get_query_result(res)
+
+    def clean_group_by(self, group_by):
+        """
+
+        :param group_by: The group_by list
+        :return: cleaned version of group_by
+
+        Sometimes, it is necessary to include the table name in the group_by column. For example, a group_by could be
+        ['time', '"res_national_53_2018_baseline"."build_existing_model.state"']. This is necessary if the another table
+        (such as correction factors table) that has the same column ("build_existing_model.state") as the baseline
+        table. However, the query result will not include the table name in columns, so it is necessary to transform
+        the group_by to a cleaner version (['time', 'build_existing_model.state']).
+
+        Othertimes, quotes are used in group_by columns, such as ['"time"'], but the query result will not contain the
+        quote so it is necessary to remove the quote.
+
+        Some other time, a group_by column is specified as a tuple of column and a as name. For example, group_by can
+        contain [('month(time)', 'MOY')], in this case, we want to convert it into just 'MOY' is what will be present
+        in the returned query.
+
+        """
+        new_group_by = []
+        for col in group_by:
+            if isinstance(col, tuple):
+                new_group_by.append(col[1])
+                continue
+
+            match = re.search('"[\w\.]*"\."([\w\.]*)"', col)
+            if not match:
+                match = re.search('"([\w\.]*)"', col)
+
+            if match:
+                new_group_by.append(match.group(1))
+            else:
+                new_group_by.append(col)
+        return new_group_by
 
     def aggregate_timeseries_light(self,
                                    enduses: List[str] = None,
@@ -947,6 +985,7 @@ class ResStockAthena:
 
         result_dfs = self.get_batch_query_result(batch_id=batch_query_id, combine=False)
         logger.info("Joining the individual enduses result into a single DataFrame")
+        group_by = self.clean_group_by(group_by)
         for res in result_dfs:
             res.set_index(group_by, inplace=True)
         joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
@@ -1094,15 +1133,13 @@ class ResStockAthena:
             if "simulation_weight_correction_factor" in correction_columns:
                 total_weight += ' * COALESCE("simulation_weight_correction_factor", 1)'
 
-            # COALESCE for the factors table is used to allow partial left join when sparse correction table is used
-            enduse_cols = 'sum(COALESCE("factor_all", 1)) as correction_factor_all'
-
+            enduse_cols = ''
             # If the individual enduses have changed, we will need to adjust the total_site_electricity_kwh
             # TODO: Need to adjust total columns for other fuel types too if correction is applied to other fuel enduses
             if adjust_total_site and 'total_site_electricity_kwh' in enduses:
                 enduses.remove('total_site_electricity_kwh')
                 # we need to add (factor_enduse - 1) portion of all the corrected enduses to total_site_electricity_kwh
-                enduse_cols += ', sum(("total_site_electricity_kwh"'
+                enduse_cols = 'sum(("total_site_electricity_kwh"'
 
                 enduse_corrected_fractions = [f'COALESCE("factor_{c}" - 1, 0) * {C(c)}' for c in correction_enduses
                                               if c.startswith('electricity')]
@@ -1116,7 +1153,10 @@ class ResStockAthena:
                                   f"{n_units_col}) as {C(self.simple_label(c))}" for c in enduses
                                   if not c.startswith("schedules_")]
             if additional_enduses:
-                enduse_cols += ', ' + ', '.join(additional_enduses)
+                if enduse_cols:
+                    enduse_cols += ', ' + ', '.join(additional_enduses)
+                else:
+                    enduse_cols = ', '.join(additional_enduses)
 
         else:
             enduse_cols = ', '.join([f"sum({C(c)} * {total_weight} / {n_units_col}) as {C(self.simple_label(c))}"
@@ -1130,9 +1170,9 @@ class ResStockAthena:
         if group_by is None:
             group_by = []
 
-        group_by_cols = ", ".join([f'{C(g)}' for g in group_by])
+        group_by_cols = ", ".join([f'{g[0]} as {g[1]}' if isinstance(g, tuple) else f'{g}' for g in group_by])
         grouping_metrics_cols = "sum(1) as raw_count,"
-        if self.timestamp_column_name not in group_by:
+        if self.timestamp_column_name not in group_by and C(self.timestamp_column_name) not in group_by:
             # The aggregation is done across time so we should compensate unit count by dividing by the total number
             # of distinct timestamps per unit
             timesteps_per_unit = self._get_simulation_timesteps_count()
@@ -1176,9 +1216,9 @@ class ResStockAthena:
         query += self._get_restrict_string(restrict)
 
         if group_by:
-            query += " group by " + ", ".join([f'''{C(g)}''' for g in group_by])
+            query += " group by " + ", ".join([f'{g[0]}' if isinstance(g, tuple) else f'{g}' for g in group_by])
         if order_by:
-            query += " order by " + ", ".join([f'''{C(o)}''' for o in order_by])
+            query += " order by " + ", ".join([f'''{o}''' for o in order_by])
 
         if limit is not None:
             query += f" limit {limit}"
