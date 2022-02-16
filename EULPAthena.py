@@ -9,10 +9,43 @@ EULP project should be implemented as member function of this class.
 :author: Anthony.Fontanini@nrel.gov
 """
 
+from sqlalchemy.orm import Query
+from datetime import date, timedelta
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import logging
 from typing import List, Any, Tuple
 import pandas as pd
+
+from sqlalchemy import TypeDecorator, Integer
+from sqlalchemy.ext.compiler import compiles
+import re
+from pyathena.connection import Connection
+from pyathena.sqlalchemy_athena import AthenaDialect
+from typing import List, Sequence
+import sqlalchemy as sa
+from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, Float
+from sqlalchemy.sql import func as safunc
+import dask.dataframe as dd
+from pyathena.pandas.async_cursor import AsyncPandasCursor
+from pyathena.pandas.cursor import PandasCursor
+import os
+import boto3
+import pythena
+from typing import List, Tuple, Union
+import time
+import logging
+from threading import Thread
+from botocore.exceptions import ClientError
+import pandas as pd
+import datetime
+from dateutil import parser
+import numpy as np
+from eulpda.smart_query.SparkQuery import SparkQuery
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 class EULPAthena(ResStockAthena):
 
-    def __init__(self, eia_mapping_year=2018, *args, **kwargs):
+    def __init__(self, eia_mapping_year=2018, eia_mapping_version=1, *args, **kwargs):
         """
         A class to run AWS Athena queries for the EULP project using built-in query functions. Look up definition in \
         the ResStockAthena to understand other args and kwargs.
@@ -35,6 +68,7 @@ class EULPAthena(ResStockAthena):
         self.query_list = []
         self.batch_query_status_map = {}
         self.eia_mapping_year = eia_mapping_year
+        self.eia_mapping_version = eia_mapping_version
 
     def _aggregate_ts_by_map(self,
                              map_table_name: str,
@@ -45,7 +79,6 @@ class EULPAthena(ResStockAthena):
                              enduses: List[str],
                              group_by: List[str],
                              get_query_only: bool = False,
-                             correction_factors_table: str = None,
                              query_group_size: int = 1,
                              split_endues: bool = False):
 
@@ -70,7 +103,6 @@ class EULPAthena(ResStockAthena):
                                                       restrict=[(id_column, current_ids)],
                                                       run_async=False,
                                                       get_query_only=get_query_only,
-                                                      correction_factors_table=correction_factors_table,
                                                       split_enduses=True)
                 results_array.append(result_df)
             else:
@@ -82,7 +114,6 @@ class EULPAthena(ResStockAthena):
                                                   restrict=[(id_column, current_ids)],
                                                   run_async=True,
                                                   get_query_only=True,
-                                                  correction_factors_table=correction_factors_table,
                                                   split_enduses=False)
                 results_array.append(query)
 
@@ -99,16 +130,16 @@ class EULPAthena(ResStockAthena):
             batch_query_id = self.submit_batch_query(results_array)
             return self.get_batch_query_result(batch_id=batch_query_id)
 
-    def get_eiaid_map(self, mapping_version):
-        if mapping_version == 1:
+    def get_eiaid_map(self):
+        if self.eia_mapping_version == 1:
             map_table_name = 'eiaid_weights'
-            map_baseline_column = 'build_existing_model.location'
-            map_eiaid_column = 'location'
-        elif mapping_version == 2:
+            map_baseline_column = 'build_existing_model.county'
+            map_eiaid_column = 'county'
+        elif self.eia_mapping_version == 2:
             map_table_name = 'v2_eiaid_weights'
             map_baseline_column = 'build_existing_model.county'
             map_eiaid_column = 'county'
-        elif mapping_version == 3:
+        elif self.eia_mapping_version == 3:
             map_table_name = 'v3_eiaid_weights_%d' % (self.eia_mapping_year)
             map_baseline_column = 'build_existing_model.county'
             map_eiaid_column = 'county'
@@ -118,8 +149,7 @@ class EULPAthena(ResStockAthena):
         return map_table_name, map_baseline_column, map_eiaid_column
 
     def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
-                              mapping_version=3, get_query_only: bool = False,
-                              correction_factors_table: str = None,
+                              get_query_only: bool = False,
                               query_group_size: int = None,
                               split_endues: bool = False,
                               ):
@@ -132,8 +162,6 @@ class EULPAthena(ResStockAthena):
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
             get_query_only: If set to true, returns the list of queries to run instead of the result.
-            correction_factors_table: A correction factor table used for scaling timeseries during aggregation. Check
-                                      Further notes on ResStockAthena.aggregate_timeseries function.
             query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
                               used as large as possible that doesn't result in query timeout.
             split_endues: Query each enduses separately to spread load on Athena
@@ -141,10 +169,10 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         eiaid_list = [str(e) for e in eiaid_list]
         if not enduses:
-            enduses = ['total_site_electricity_kwh']
+            raise ValueError("Need to provide enduses")
         id_column = 'eiaid'
 
         if query_group_size is None:
@@ -152,10 +180,10 @@ class EULPAthena(ResStockAthena):
 
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
                                          eiaid_list, enduses, group_by, get_query_only,
-                                         correction_factors_table, query_group_size, split_endues)
+                                         query_group_size, split_endues)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
-                                       mapping_version=3, get_query_only: bool = False):
+                                       get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
         provided.
@@ -169,7 +197,7 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe with the units counts
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
 
@@ -182,7 +210,7 @@ class EULPAthena(ResStockAthena):
         return result
 
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
-                                  mapping_version=3, get_query_only: bool = False):
+                                  get_query_only: bool = False):
         """
         Aggregates the annual consumption in the baseline table, grouping by all the utilities
         Args:
@@ -194,7 +222,7 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe with the annual sum of the requested enduses, grouped by utilities
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
         result = self.aggregate_annual(enduses=enduses, group_by=['eiaid'] + group_by,
@@ -205,7 +233,7 @@ class EULPAthena(ResStockAthena):
         return result
 
     def get_filtered_results_csv_by_eiaid(
-            self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+            self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns a portion of the results csvs, which belongs to given list of utilities
         Args:
@@ -217,17 +245,17 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
-        C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
-        eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f'''select * from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)} on '''\
-                f'''{C(map_baseline_column)} = "{map_eiaid_column}" where eiaid in ({eiaid_str}) and weight > 0 '''\
-                f'''order by 1'''
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select(['*']).select_from(self.bs_table)
+        query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.get_col("weight") > 0)
         if get_query_only:
-            return query
-        return self.execute(query)
+            return self._compile(query)
+        res = self.execute(query)
+        return res
 
-    def get_eiaids(self, restrict: List[Tuple[str, List]] = [], mapping_version=3):
+    def get_eiaids(self, restrict: List[Tuple[str, List]] = []):
         """
         Returns the list of building
         Args:
@@ -238,7 +266,7 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
         """
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
 
         if 'eiaids' in self.cache:
             if self.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
@@ -255,10 +283,11 @@ class EULPAthena(ResStockAthena):
         self.cache['eiaids'] = list(annual_agg['eiaid'].values)
         return self.cache['eiaids']
 
-    def get_buildings_by_locations(self, locations: List[str], get_query_only: bool = False):
+    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
         """
         Returns the list of buildings belonging to given list of locations.
         Args:
+            location_col: The column used for "build_existing_model.county" etc
             locations: list of `build_existing_model.location' strings
             get_query_only: If set to true, returns the query string instead of the result
 
@@ -266,16 +295,15 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe consisting of the building ids belonging to the provided list of locations.
 
         """
-        C = ResStockAthena.make_column_string
-        locations_str = ','.join([f"'{a}'" for a in locations])
-        query = f'''select building_id from {C(self.baseline_table_name)} where "build_existing_model.location" in ''' \
-                f'''({locations_str}) order by building_id'''
+        query = sa.select([self.bs_bldgid_column])
+        query = query.where(self.get_col(location_col).in_(locations))
+        query = self._add_order_by(query, [self.bs_bldgid_column])
         if get_query_only:
-            return query
+            return self._compile(query)
         res = self.execute(query)
         return res
 
-    def get_buildings_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+    def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
         Args:
@@ -288,18 +316,17 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
 
         """
-        C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
-        eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f"select distinct(building_id) from {C(self.baseline_table_name)} join {C(eiaid_map_table_name)}" \
-                f" on {C(map_baseline_column)} = {C(map_eiaid_column)} where eiaid in ({eiaid_str}) and " \
-                f" weight > 0 order by 1 "
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select([self.bs_bldgid_column.distinct()])
+        query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.get_col("weight") > 0)
         if get_query_only:
-            return query
+            return self._compile(query)
         res = self.execute(query)
         return res
 
-    def get_locations_by_eiaids(self, eiaids: List[str], mapping_version=3, get_query_only: bool = False):
+    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
         Args:
@@ -313,12 +340,12 @@ class EULPAthena(ResStockAthena):
             provided list of utilities.
 
         """
-        C = ResStockAthena.make_column_string
-        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map(mapping_version)
-        eiaid_str = ','.join([f"'{e}'" for e in eiaids])
-        query = f"select distinct({C(map_eiaid_column)}) from {C(eiaid_map_table_name)} where weight > 0 and eiaid in" \
-                f" ({eiaid_str}) order by 1"
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        self.get_tbl(eiaid_map_table_name)
+        query = sa.select([self.get_col(map_eiaid_column).distinct()])
+        query = self._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.get_col("weight") > 0)
         if get_query_only:
-            return query
+            return self._compile(query)
         res = self.execute(query)
         return res
