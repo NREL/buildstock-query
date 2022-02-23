@@ -27,6 +27,7 @@ import pandas as pd
 import datetime
 import numpy as np
 from collections import OrderedDict
+import types
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -337,15 +338,15 @@ class ResStockAthena:
 
         Returns:
             if run_async is False, returns the results dataframe.
-            if run_async is  True, returns the query_execution_id. Use `get_query_result` to get the result after
-            the query is completed. Use :get_status: to check the status of the query.
+            if run_async is  True, returns the query_execution_id, futures
         """
         if not isinstance(query, str):
             query = self._compile(query)
 
         if run_async:
-            # in case of asynchronous run, you get the execution id only. Save it before returning
+            # in case of asynchronous run, you get the execution id abd futures object
             exe_id, result_future = self.async_conn.cursor().execute(query)
+            result_future.as_pandas = types.MethodType(lambda x: x.result().as_pandas(), result_future)
             self._save_execution_id(exe_id)
             return exe_id, result_future
         else:
