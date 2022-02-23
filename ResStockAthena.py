@@ -8,21 +8,16 @@ new class can be created by inheriting ResStockAthena and adding in the project 
 :author: Rajendra.Adhikari@nrel.gov
 """
 
-from sqlalchemy import TypeDecorator, Integer
-from sqlalchemy.ext.compiler import compiles
 import re
 from pyathena.connection import Connection
 from pyathena.sqlalchemy_athena import AthenaDialect
-from typing import List, OrderedDict, Sequence
 import sqlalchemy as sa
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, Float
 from sqlalchemy.sql import func as safunc
 import dask.dataframe as dd
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
 import boto3
-import pythena
 from typing import List, Tuple, Union
 import time
 import logging
@@ -30,23 +25,18 @@ from threading import Thread
 from botocore.exceptions import ClientError
 import pandas as pd
 import datetime
-from dateutil import parser
 import numpy as np
-from eulpda.smart_query.SparkQuery import SparkQuery
+from collections import OrderedDict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-from datetime import date, timedelta
-
-from sqlalchemy.orm import Query
-
-# https://stackoverflow.com/questions/5631078/sqlalchemy-print-the-actual-query
 class CustomCompiler(AthenaDialect().statement_compiler):
     def render_literal_value(self, value, type_):
         if isinstance(value, (datetime.datetime)):
             return "timestamp '%s'" % str(value).replace("'", "''")
         return super(CustomCompiler, self).render_literal_value(value, type_)
+
 
 class DataExistsException(Exception):
     def __init__(self, message, existing_data=None):
@@ -74,9 +64,10 @@ class ResStockAthena:
                         named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
                         as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and a
                         timeseries table.
-            region_name: The AWS region where the database exists. Defaults to 'us-west-2'.
             timestamp_column_name: The column name for the time column. Defaults to 'time'
-            sample_weight: The column name to be used to get the sample weight. Defaults to build_existing_model.sample_weight.
+            sample_weight: The column name to be used to get the sample weight. Defaults to
+                           build_existing_model.sample_weight. Pass floats/integer to use constant sample weight.
+            region_name: The AWS region where the database exists. Defaults to 'us-west-2'.
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                     use .execution_history if not supplied.
         """
@@ -91,7 +82,7 @@ class ResStockAthena:
                                      cursor_class=AsyncPandasCursor, schema_name=db_name, )
         self.db_name = db_name
         self.region_name = region_name
-        
+
         self.tables = OrderedDict()
         self.join_list = {}
 
@@ -129,7 +120,7 @@ class ResStockAthena:
     def get_col(self, column_name):
         matches = []
         if isinstance(column_name, sa.Column):
-            return column_name # already a col
+            return column_name  # already a col
 
         for name, table in self.tables.items():
             if column_name in table.columns:
@@ -528,7 +519,7 @@ class ResStockAthena:
         Submit multiple related queries
         Args:
             queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
-                    functions is easiest way to obtain queries. 
+                    functions is easiest way to obtain queries.
         Returns:
             An integer representing the batch_query id. The id can be used with other batch_query functions.
         """
@@ -818,7 +809,7 @@ class ResStockAthena:
                 g, tuple) else self.get_col(g) for g in order_by]
             query = query.order_by(*order_by_cols)
         return query
-    
+
     def _get_enduse_cols(self, enduses, table='baseline'):
         tbl = self.bs_table if table == 'baseline' else self.ts_table
         if not enduses:
@@ -827,7 +818,7 @@ class ResStockAthena:
             enduse_cols = [tbl.c[e] for e in enduses if not e.startswith('schedule_')]
         # enduse_cols = [sa.column(e.name) for e in enduse_cols]
         return enduse_cols
-    
+
     def _get_schedule_cols(self, enduses):
         if not enduses:
             sch_cols = [c for c in self.ts_table.columns if c.name.startswith('schedule_')]
@@ -891,12 +882,13 @@ class ResStockAthena:
 
         """
 
-
-        [self.get_tbl(jl[0]) for jl in join_list] # ingress all tables in join list
+        [self.get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
         enduses = self._get_enduse_cols(enduses)
-        total_weight = self._get_weight(weights)        
-        enduse_selection = [safunc.sum(enduse * total_weight).label(self.simple_label(enduse.name)) for enduse in enduses]
-        grouping_metrics_selction = [safunc.sum(1).label("raw_count"), safunc.sum(total_weight).label("scaled_unit_count")]
+        total_weight = self._get_weight(weights)
+        enduse_selection = [safunc.sum(enduse * total_weight).label(self.simple_label(enduse.name))
+                            for enduse in enduses]
+        grouping_metrics_selction = [safunc.sum(1).label("raw_count"),
+                                     safunc.sum(total_weight).label("scaled_unit_count")]
 
         if not group_by:
             query = sa.select(grouping_metrics_selction + enduse_selection)
@@ -943,9 +935,9 @@ class ResStockAthena:
                 new_group_by.append(col[1])
                 continue
 
-            match = re.search('"[\w\.]*"\."([\w\.]*)"', col)
+            match = re.search(r'"[\w\.]*"\."([\w\.]*)"', col)
             if not match:
-                match = re.search('"([\w\.]*)"', col)
+                match = re.search(r'"([\w\.]*)"', col)
 
             if match:
                 new_group_by.append(match.group(1))
@@ -1084,7 +1076,7 @@ class ResStockAthena:
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "raw_count"), safunc.sum(total_weight).label("scaled_unit_count")]
-        
+
         query = sa.select(group_by_selection + grouping_metrics_selection + enduse_selection)
         query = query.join(self.bs_table, self.bs_bldgid_column == self.ts_bldgid_column)
         if join_list:
@@ -1106,14 +1098,16 @@ class ResStockAthena:
                 return self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name]
         else:
             self.cache['simulation_timesteps_count'] = {}
+
         # find the simulation time interval
         query = sa.select([self.ts_bldgid_column, safunc.sum(1).label('count')])
         query = query.group_by(self.ts_bldgid_column)
         sim_timesteps_count = self.execute(query)
         bld0_step_count = sim_timesteps_count['count'].iloc[0]
+
         if not sum(sim_timesteps_count['count'] == bld0_step_count) == len(sim_timesteps_count):
-            logger.warning("Not all buildings have the same number of timestamps. This can cause wrong scaled_units_count"
-                           " and other problems.")
+            logger.warning("Not all buildings have the same number of timestamps. This can cause wrong \
+                            scaled_units_count and other problems.")
 
         self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name] = bld0_step_count
         return bld0_step_count
@@ -1180,10 +1174,8 @@ class ResStockAthena:
 
         enduse_selection = [safunc.avg(enduse * total_weight * kw_factor).label(self.simple_label(enduse.name))
                             for enduse in enduse_cols + schedule_cols]
-            
-        grouping_metrics_selection = [safunc.sum(1).label("raw_count"), safunc.sum(total_weight).label("scaled_unit_count")]
-
-        
+        grouping_metrics_selection = [safunc.sum(1).label("raw_count"),
+                                      safunc.sum(total_weight).label("scaled_unit_count")]
 
         def get_upper_timestamps(day, hour):
             new_dt = datetime.datetime(year=sim_year, month=1, day=1)

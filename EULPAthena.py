@@ -9,44 +9,11 @@ EULP project should be implemented as member function of this class.
 :author: Anthony.Fontanini@nrel.gov
 """
 
-from sqlalchemy.orm import Query
-from datetime import date, timedelta
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import logging
 from typing import List, Any, Tuple
 import pandas as pd
-
-from sqlalchemy import TypeDecorator, Integer
-from sqlalchemy.ext.compiler import compiles
-import re
-from pyathena.connection import Connection
-from pyathena.sqlalchemy_athena import AthenaDialect
-from typing import List, Sequence
 import sqlalchemy as sa
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, Float
-from sqlalchemy.sql import func as safunc
-import dask.dataframe as dd
-from pyathena.pandas.async_cursor import AsyncPandasCursor
-from pyathena.pandas.cursor import PandasCursor
-import os
-import boto3
-import pythena
-from typing import List, Tuple, Union
-import time
-import logging
-from threading import Thread
-from botocore.exceptions import ClientError
-import pandas as pd
-import datetime
-from dateutil import parser
-import numpy as np
-from eulpda.smart_query.SparkQuery import SparkQuery
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
