@@ -9,6 +9,7 @@ new class can be created by inheriting ResStockAthena and adding in the project 
 """
 
 import re
+import boto3
 from pyathena.connection import Connection
 from pyathena.sqlalchemy_athena import AthenaDialect
 import sqlalchemy as sa
@@ -17,7 +18,6 @@ import dask.dataframe as dd
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-import boto3
 from typing import List, Tuple, Union
 import time
 import logging
@@ -77,10 +77,12 @@ class ResStockAthena:
         self.s3 = boto3.client('s3')
         self.aws_athena = boto3.client('athena', region_name=region_name)
         self.aws_glue = boto3.client('glue', region_name=region_name)
+
         self.conn = Connection(work_group=workgroup, region_name=region_name,
                                cursor_class=PandasCursor, schema_name=db_name)
         self.async_conn = Connection(work_group=workgroup, region_name=region_name,
                                      cursor_class=AsyncPandasCursor, schema_name=db_name, )
+
         self.db_name = db_name
         self.region_name = region_name
 
@@ -98,7 +100,7 @@ class ResStockAthena:
         self._initialize_book_keeping(execution_history)
 
     def _initialize_tables(self):
-        self.bs_table, self.ts_table = self._get_ts_bs_tables(self.table_name)
+        self.bs_table, self.ts_table, self.up_table = self._get_ts_bs_tables(self.table_name)
 
         self.timestamp_column = self.ts_table.c[self.timestamp_column_name]
         self.ts_bldgid_column = self.ts_table.c[self.building_id_column_name]
@@ -115,8 +117,14 @@ class ResStockAthena:
         elif isinstance(sample_weight, float):
             return sa.literal(sample_weight)
 
-    def get_tbl(self, table_name):
-        return self.tables.setdefault(table_name, sa.Table(table_name, self.meta, autoload_with=self.engine))
+    def get_tbl(self, table_name, missing_ok=False):
+        try:
+            return self.tables.setdefault(table_name, sa.Table(table_name, self.meta, autoload_with=self.engine))
+        except sa.exc.NoSuchTableError:
+            if missing_ok:
+                logger.warning(f"No {table_name} table is present.")
+            else:
+                raise
 
     def get_col(self, column_name):
         matches = []
@@ -138,15 +146,18 @@ class ResStockAthena:
                                                  workgroup=self.workgroup)
         self.meta = sa.MetaData(bind=self.engine)
         if isinstance(table_name, str):
-            baseline_table_name = self.get_tbl(f'{table_name}_baseline')
-            ts_table_name = self.get_tbl(f'{table_name}_timeseries')
+            baseline_table = self.get_tbl(f'{table_name}_baseline')
+            ts_table = self.get_tbl(f'{table_name}_timeseries')
+            upgrade_table = self.get_tbl(f'{table_name}_upgrades', missing_ok=True)
         elif isinstance(table_name, tuple):
-            baseline_table_name = self.get_tbl(f'{table_name[0]}')
-            ts_table_name = self.get_tbl(f'{table_name[1]}')
+            baseline_table = self.get_tbl(f'{table_name[0]}')
+            ts_table = self.get_tbl(f'{table_name[1]}')
+            upgrade_table = self.get_tbl(f'{table_name[2]}', missing_ok=True)
         else:
-            baseline_table_name = None
-            ts_table_name = None
-        return baseline_table_name, ts_table_name
+            baseline_table = None
+            ts_table = None
+            upgrade_table = None
+        return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
         if not execution_history:
