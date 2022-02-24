@@ -1113,12 +1113,19 @@ class ResStockAthena:
         self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name] = bld0_step_count
         return bld0_step_count
 
-    def _get_simulation_info(self):
+    def _get_simulation_info(self, get_query_only=False):
         # find the simulation time interval
-        query = sa.select([self.timestamp_column.distinct().label('time')]).limit(2)
-        two_times = self.execute(query)
-        time1 = two_times['time'].iloc[0]
-        time2 = two_times['time'].iloc[1]
+        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        bldg_df = self.execute(query0)
+        bldg_id = bldg_df.iloc[0].values[0]
+        query1 = sa.select([self.timestamp_column.distinct().label('time')]).where(self.ts_bldgid_column == bldg_id)
+        query1 = query1.order_by(self.timestamp_column).limit(2)
+        if get_query_only:
+            return self._compile(query1)
+
+        two_times = self.execute(query1)
+        time1 = two_times[self.timestamp_column_name].iloc[0]
+        time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
         sim_interval_seconds = (time2 - time1).total_seconds()
         return sim_year, sim_interval_seconds
