@@ -36,7 +36,7 @@ class UpgradesAnalyzer:
             para, option = condition.split('|')
         except ValueError:
             raise ValueError(f"Condition {condition} is invalid")
-        return f"(`{para.lower()}`=='{option}')"
+        return f"`{para.lower()}`=='{option}'"
 
     @staticmethod
     def reduce_logic(logic, parent=None):
