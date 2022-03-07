@@ -5,6 +5,7 @@ Different utility functions
 
 :author: Rajendra.Adhikari@nrel.gov
 """
+from cmath import log
 from functools import reduce
 import yaml
 import pandas as pd
@@ -13,6 +14,8 @@ import logging
 from itertools import combinations
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+MAX_COMBINATION_REPORT_COUNT = 5  # Don't print combination report; There would be 2^n - n - 1 rows
 
 
 class UpgradesAnalyzer:
@@ -24,6 +27,7 @@ class UpgradesAnalyzer:
         elif isinstance(buildstock, pd.DataFrame):
             self.buildstock_df = buildstock
         self.total_samples = len(self.buildstock_df)
+        self.logic_cache = {}
 
     def read_cfg(self):
         with open(self.yaml_file) as f:
@@ -39,34 +43,49 @@ class UpgradesAnalyzer:
         return f"`{para.lower()}`=='{option}'"
 
     @staticmethod
-    def reduce_logic(logic, parent=None):
-        return_str = None
+    def _get_para_option(condition):
+        try:
+            para, option = condition.split('|')
+        except ValueError:
+            raise ValueError(f"Condition {condition} is invalid")
+        return para.lower(), option
+
+    def reduce_logic(self, logic, parent=None):
+        if str(logic) in self.logic_cache:
+            return self.logic_cache[str(logic)]
+
+        logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, 'and', 'or', 'not']:
             raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
 
         if isinstance(logic, str):
-            logic_str = UpgradesAnalyzer._get_eq_str(logic)
-            return_str = logic_str
+            para, opt = UpgradesAnalyzer._get_para_option(logic)
+            logic_array = (self.buildstock_df[para] == opt)
         elif isinstance(logic, list):
-            logics = [UpgradesAnalyzer.reduce_logic(entry) for entry in logic]
-            if parent in ['or']:
-                grouped_logic = reduce(lambda l1, l2: l1 + ' | ' + l2, logics)
+            if len(logic) == 1:
+                logic_array = self.reduce_logic(logic[0])
+            elif parent in ['or']:
+                logic_array = reduce(lambda l1, l2: l1 | self.reduce_logic(l2), logic,
+                                     np.zeros((1, self.total_samples), dtype=bool))
             else:
-                grouped_logic = reduce(lambda l1, l2: l1 + ' & ' + l2, logics)
-            return_str = f"({grouped_logic})"
+                logic_array = reduce(lambda l1, l2: l1 & self.reduce_logic(l2), logic,
+                                     np.ones((1, self.total_samples), dtype=bool))
         elif isinstance(logic, dict):
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
-            logics = [UpgradesAnalyzer.reduce_logic(value, parent=key) for key, value in logic.items()]
-            grouped_logic = reduce(lambda l1, l2: l1 + ' & ' + l2, logics)
-            return_str = f"({grouped_logic})"
+            key = list(logic.keys())[0]
+            logic_array = self.reduce_logic(logic[key], parent=key)
 
         if parent == 'not':
-            return f"~{return_str}"
-        return return_str
+            return ~logic_array
+        if not (isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)):
+            # Don't cache small logics - computing them again won't be too bad
+            self.logic_cache[str(logic)] = logic_array
+        return logic_array
 
     def get_report(self):
         cfg = self.read_cfg()
+        self.logic_cache = {}
         if 'upgrades' not in cfg:
             raise ValueError("The project yaml has no upgrades defined")
         records = []
@@ -76,20 +95,18 @@ class UpgradesAnalyzer:
             package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
             if "package_apply_logic" in upgrade:
                 package_flat_logic = UpgradesAnalyzer.flatten_lists(upgrade['package_apply_logic'])
-                package_logic_str = UpgradesAnalyzer.reduce_logic(package_flat_logic, parent=None)
-                package_applied_bldgs = self.buildstock_df.eval(package_logic_str, engine='python')
+                package_applied_bldgs = self.reduce_logic(package_flat_logic, parent=None)
 
             for opt_index, option in enumerate(upgrade['options']):
                 if 'apply_logic' in option:
                     flat_logic = UpgradesAnalyzer.flatten_lists(option['apply_logic'])
-                    logic_str = UpgradesAnalyzer.reduce_logic(flat_logic, parent=None)
-                    applied_bldgs = self.buildstock_df.eval(logic_str, engine='python')
-                    applied_bldgs &= package_applied_bldgs
-                    count = applied_bldgs.sum()
-                    all_applied_bldgs |= applied_bldgs
+                    applied_bldgs = self.reduce_logic(flat_logic, parent=None)
                 else:
-                    count = self.total_samples
-                    all_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+                    applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+
+                applied_bldgs &= package_applied_bldgs
+                count = applied_bldgs.sum()
+                all_applied_bldgs |= applied_bldgs
                 record = {'upgrade': str(indx+1), 'upgrade_name': upgrade['upgrade_name'],
                           'option_num': opt_index + 1,
                           'option': option['option'], 'applicable_to': count,
@@ -97,6 +114,7 @@ class UpgradesAnalyzer:
                           'cost': option.get('cost', 0),
                           'lifetime': option.get('lifetime', float('inf'))}
                 records.append(record)
+
             count = all_applied_bldgs.sum()
             record = {'upgrade': str(indx+1), 'upgrade_name': upgrade['upgrade_name'],
                       'option_num': -1,
@@ -118,10 +136,9 @@ class UpgradesAnalyzer:
         else:
             return [logic]
 
-    def _print_options_combination_report(self, conds_dict, comb_type='and'):
-        n_options = len(conds_dict)
+    def _print_options_combination_report(self, logic_dict, comb_type='and'):
+        n_options = len(logic_dict)
         assert comb_type in ['and', 'or']
-        comb_sym = '&' if comb_type == 'and' else '|'
         if n_options >= 2:
             header = f"Options '{comb_type}' combination report"
             print("-"*len(header))
@@ -131,12 +148,11 @@ class UpgradesAnalyzer:
         for combination_size in range(2, n_options + 1):
             print("-"*len(header))
             for group in combinations(list(range(n_options)), combination_size):
-                candidates = [opt_indx for opt_indx in group if conds_dict.get(opt_indx)]
-                if comb_type == 'or' and len(candidates) < len(group):
-                    count = self.total_samples
+                if comb_type == 'and':
+                    combined_logic = reduce(lambda c1, c2: c1 & c2, [logic_dict[opt_indx] for opt_indx in group])
                 else:
-                    combined_logic = f' {comb_sym} '.join([conds_dict.get(opt_indx) for opt_indx in candidates])
-                    count = self.buildstock_df.eval(combined_logic, engine='python').sum() if combined_logic else self.total_samples
+                    combined_logic = reduce(lambda c1, c2: c1 | c2, [logic_dict[opt_indx] for opt_indx in group])
+                count = combined_logic.sum()
                 text = f" {comb_type} ". join([f"Option {opt_indx + 1}" for opt_indx in group])
                 print(f"{text}: {count} ({self.to_pct(count)}%)")
         print("-"*len(header))
@@ -144,16 +160,33 @@ class UpgradesAnalyzer:
 
     def print_detailed_report(self, upgrade_num, option_num=None):
         cfg = self.read_cfg()
+        self.logic_cache = {}
         if upgrade_num == 0 or option_num == 0:
             raise ValueError(f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}")
 
         if option_num is None:
             conds_dict = {}
             n_options = len(cfg['upgrades'][upgrade_num - 1]['options'])
+            or_array = np.zeros((1, self.total_samples), dtype=bool)
+            and_array = np.ones((1, self.total_samples), dtype=bool)
             for option_indx in range(n_options):
-                conds_dict[option_indx] = self.print_detailed_report(upgrade_num, option_indx + 1)
-            self._print_options_combination_report(conds_dict, 'and')
-            self._print_options_combination_report(conds_dict, 'or')
+                logic_array = self.print_detailed_report(upgrade_num, option_indx + 1)
+                if n_options <= MAX_COMBINATION_REPORT_COUNT:
+                    conds_dict[option_indx] = log
+                or_array |= logic_array
+                and_array &= logic_array
+            and_count = and_array.sum()
+            or_count = or_array.sum()
+            if n_options <= MAX_COMBINATION_REPORT_COUNT:
+                self._print_options_combination_report(conds_dict, 'and')
+                self._print_options_combination_report(conds_dict, 'or')
+            else:
+                text = f"Combination report not printed because {n_options} options would require "\
+                       f"{2**n_options - n_options - 1} rows."
+                print(text)
+                print("-"*len(text))
+            print(f"All of the options (and-ing) were applied to: {and_count} ({self.to_pct(and_count)}%)")
+            print(f"Any of the options (or-ing) were applied to: {or_count} ({self.to_pct(or_count)}%)")
             return
 
         try:
@@ -169,64 +202,73 @@ class UpgradesAnalyzer:
         print("-"*len(header))
         if "apply_logic" in opt:
             logic = UpgradesAnalyzer.flatten_lists(opt['apply_logic'])
-            cond, logic_str = self._get_logic_report(logic)
+            logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             print("\n".join(logic_str))
             print("-"*footer_len)
+            # print(cond)
         else:
-            cond = None
+            logic_array = np.ones((1, self.total_samples), dtype=bool)
+
         if "package_apply_logic" in upgrade:
             logic = UpgradesAnalyzer.flatten_lists(upgrade['package_apply_logic'])
-            package_cond, logic_str = self._get_logic_report(logic)
+            package_logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             print("Package Apply Logic Report")
             print("--------------------------")
             print("\n".join(logic_str))
             print("-"*footer_len)
-            cond = cond + ' & ' + package_cond if cond else package_cond
+            logic_array = logic_array & package_logic_array
 
-        count = self.buildstock_df.eval(cond, engine='python').sum() if cond else self.total_samples
+        count = logic_array.sum()
         footer_str = f"Overall applied to => {count} ({self.to_pct(count)}%)."
         #  print('-'*len(footer_str))
         print(footer_str)
         print('-'*len(footer_str))
-        return cond
+        return logic_array
 
     def to_pct(self, count):
         return round(100 * count / self.total_samples, 1)
 
     def _get_logic_report(self, logic, parent=None):
-        logic_condition = None
+        logic_array = np.ones((1, self.total_samples), dtype=bool)
+        logic_str = ['']
         if parent not in [None, 'and', 'or', 'not']:
             raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
         if isinstance(logic, str):
             logic_condition = UpgradesAnalyzer._get_eq_str(logic)
+            logic_array = self.buildstock_df.eval(logic_condition, engine='python')
             logic_str = [logic]
         elif isinstance(logic, list):
-            sub_logics = [self._get_logic_report(entry) for entry in logic]
-            sub_logic_conditions = [sl[0] for sl in sub_logics]
-            logic_str = []
-            [logic_str.extend(sl[1]) for sl in sub_logics]
-            if parent in ['or']:
-                grouped_logic = reduce(lambda l1, l2: l1 + ' | ' + l2, sub_logic_conditions)
+            if len(logic) == 1:
+                logic_array, logic_str = self._get_logic_report(logic[0])
+            elif parent in ['or']:
+                def reducer(l1, l2):
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] | ll2[0], l1[1] + ll2[1]
+                logic_array, logic_str = reduce(reducer, logic,
+                                                (np.zeros((1, self.total_samples), dtype=bool), []))
             else:
-                grouped_logic = reduce(lambda l1, l2: l1 + ' & ' + l2, sub_logic_conditions)
-            logic_condition = f"({grouped_logic})"
+                def reducer(l1, l2):
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] & ll2[0], l1[1] + ll2[1]
+                logic_array, logic_str = reduce(reducer, logic,
+                                                (np.ones((1, self.total_samples), dtype=bool), []))
         elif isinstance(logic, dict):
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
             key = list(logic.keys())[0]
             sub_logic = self._get_logic_report(logic[key], parent=key)
-            sub_logic_conditions = sub_logic[0]
+            # print(sub_logic, logic, key)
             sub_logic_str = sub_logic[1]
             logic_str = [key] + [f"  {ls}" for ls in sub_logic_str]
-            logic_condition = f"({sub_logic_conditions})"
+            logic_array = sub_logic[0]
 
         if parent == 'not':
-            logic_condition = f"~{logic_condition}"
+            logic_array = ~logic_array
 
-        count = self.buildstock_df.eval(logic_condition, engine='python').sum()
+        count = logic_array.sum()
         if parent is None and (not isinstance(logic, list) or len(logic) > 1):
             logic_str[0] = logic_str[0] + " => " + f"{count} ({self.to_pct(count)}%)"
 
-        return logic_condition, logic_str
+        return logic_array, logic_str
