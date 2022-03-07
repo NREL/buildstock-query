@@ -27,6 +27,7 @@ class UpgradesAnalyzer:
         elif isinstance(buildstock, pd.DataFrame):
             self.buildstock_df = buildstock
         self.total_samples = len(self.buildstock_df)
+        self.logic_cache = {}
 
     def read_cfg(self):
         with open(self.yaml_file) as f:
@@ -50,6 +51,9 @@ class UpgradesAnalyzer:
         return para.lower(), option
 
     def reduce_logic(self, logic, parent=None):
+        if str(logic) in self.logic_cache:
+            return self.logic_cache[str(logic)]
+
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, 'and', 'or', 'not']:
             raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
@@ -61,21 +65,27 @@ class UpgradesAnalyzer:
             if len(logic) == 1:
                 logic_array = self.reduce_logic(logic[0])
             elif parent in ['or']:
-                logic_array = reduce(lambda l1, l2: self.reduce_logic(l1) | self.reduce_logic(l2), logic)
+                logic_array = reduce(lambda l1, l2: l1 | self.reduce_logic(l2), logic,
+                                     np.zeros((1, self.total_samples), dtype=bool))
             else:
-                logic_array = reduce(lambda l1, l2: self.reduce_logic(l1) & self.reduce_logic(l2), logic)
+                logic_array = reduce(lambda l1, l2: l1 & self.reduce_logic(l2), logic,
+                                     np.ones((1, self.total_samples), dtype=bool))
         elif isinstance(logic, dict):
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
-            logics = [self.reduce_logic(value, parent=key) for key, value in logic.items()]
-            logic_array = reduce(lambda l1, l2: l1 & l2, logics)
+            key = list(logic.keys())[0]
+            logic_array = self.reduce_logic(logic[key], parent=key)
 
         if parent == 'not':
             return ~logic_array
+        if not (isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)):
+            # Don't cache small logics - computing them again won't be too bad
+            self.logic_cache[str(logic)] = logic_array
         return logic_array
 
     def get_report(self):
         cfg = self.read_cfg()
+        self.logic_cache = {}
         if 'upgrades' not in cfg:
             raise ValueError("The project yaml has no upgrades defined")
         records = []
@@ -104,6 +114,7 @@ class UpgradesAnalyzer:
                           'cost': option.get('cost', 0),
                           'lifetime': option.get('lifetime', float('inf'))}
                 records.append(record)
+
             count = all_applied_bldgs.sum()
             record = {'upgrade': str(indx+1), 'upgrade_name': upgrade['upgrade_name'],
                       'option_num': -1,
@@ -149,6 +160,7 @@ class UpgradesAnalyzer:
 
     def print_detailed_report(self, upgrade_num, option_num=None):
         cfg = self.read_cfg()
+        self.logic_cache = {}
         if upgrade_num == 0 or option_num == 0:
             raise ValueError(f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}")
 
@@ -232,16 +244,16 @@ class UpgradesAnalyzer:
                 logic_array, logic_str = self._get_logic_report(logic[0])
             elif parent in ['or']:
                 def reducer(l1, l2):
-                    ll1 = l1 if isinstance(l1, tuple) else self._get_logic_report(l1)
-                    ll2 = l2 if isinstance(l2, tuple) else self._get_logic_report(l2)
-                    return ll1[0] | ll2[0], ll1[1] + ll2[1]
-                logic_array, logic_str = reduce(reducer, logic)
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] | ll2[0], l1[1] + ll2[1]
+                logic_array, logic_str = reduce(reducer, logic,
+                                                (np.zeros((1, self.total_samples), dtype=bool), []))
             else:
                 def reducer(l1, l2):
-                    ll1 = l1 if isinstance(l1, tuple) else self._get_logic_report(l1)
-                    ll2 = l2 if isinstance(l2, tuple) else self._get_logic_report(l2)
-                    return ll1[0] & ll2[0], ll1[1] + ll2[1]
-                logic_array, logic_str = reduce(reducer, logic)
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] & ll2[0], l1[1] + ll2[1]
+                logic_array, logic_str = reduce(reducer, logic,
+                                                (np.ones((1, self.total_samples), dtype=bool), []))
         elif isinstance(logic, dict):
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
