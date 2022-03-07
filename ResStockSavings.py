@@ -9,7 +9,8 @@ A class to calculate savings shapes for various upgrade runs.
 from eulpda.smart_query.ResStockAthena import ResStockAthena
 import pandas as pd
 import sqlalchemy as sa
-from typing import List, Sequence
+from typing import List, Tuple
+from sqlalchemy.sql import functions as safunc
 
 
 class ResStockSavings(ResStockAthena):
@@ -25,122 +26,193 @@ class ResStockSavings(ResStockAthena):
             self._resstock_timestep = int(sim_interval_seconds // 60)
         return self._resstock_timestep
 
-    def get_available_upgrades(self, get_query_only=False) -> dict:
+    def get_available_upgrades(self) -> dict:
         """Get the available upgrade scenarios and their identifier numbers
         :return: Upgrade scenario names
         :rtype: dict
         """
-        if self._available_upgrades is not None and not get_query_only:
-            return self._available_upgrades
-        else:
-            upg_name_col = "apply_upgrade.upgrade_name"
-            q = (
-                sa.select(
-                    [
-                        self.up_table.c["upgrade"],
-                        self.up_table.c[upg_name_col],
-                    ]
-                )
-                .where(self.up_table.c[upg_name_col].isnot(None))
-                .distinct()
-            )
-            if get_query_only:
-                return self._compile(q)
-
-            df = self.execute(q)
-            df["upgrade"] = df["upgrade"].astype(int)
-            self._available_upgrades = df.set_index("upgrade").sort_index()[upg_name_col].to_dict()
-            return self._available_upgrades
+        return list(self.get_success_report().query("Success>0").index)
 
     def get_groupby_cols(self) -> List[str]:
         cols = set(y[21:] for y in filter(lambda x: x.startswith("build_existing_model."), self.bs_table.c.keys()))
         cols.difference_update(["applicable", "sample_weight"])
         return list(cols)
 
-    def get_electric_timeseries_cols(self) -> List[str]:
+    def get_ts_enduse_cols(self) -> List[str]:
         ts_cols = list(map(str, filter(lambda x: x.startswith("end use") or x.startswith("fuel use"),
                        self.ts_table.columns.keys())))
         return ts_cols
 
-    def savings_shape(
-        self,
-        upgrade_id: int,
-        cols: Sequence[str] = ["fuel use: electricity: total"],
-        groupby: Sequence[str] = [],
-        get_query_only=False
-    ) -> pd.DataFrame:
-        """Calculate a savings shape for an upgrade
-        :param upgrade_id: id of the upgrade scenario from the ResStock analysis
-        :type upgrade_id: int
-        :param cambium_scenario: The Cambium scenario to evaluate
-        :type cambium_scenario: str
-        :param cambium_year: Cambium projection year to use
-        :type cambium_year: int
-        :param cols: Electricity output columns to query, defaults to ['fuel use: electricity: total']
-        :type cols: Sequence[str], optional
-        :param groupby: Building characteristics columns to group by, defaults to []
-        :type groupby: Sequence[str], optional
-        :return: Dataframe of aggregated savings shape and carbon calculations
-        :rtype: pd.DataFrame
-        """
-        cols_list = list(cols)
-        groupby_list = list(groupby)
+    def get_bs_enduse_cols(self) -> List[str]:
+        bs_cols = list(map(str, filter(lambda x: x.startswith("report_simulation_output.end_use") or
+                       x.startswith("report_simulation_output.fuel_use"),
+                       self.bs_table.columns.keys())))
+        return bs_cols
 
+    def validate_upgrade(self, upgrade_id):
         available_upgrades = self.get_available_upgrades()
-        if upgrade_id not in available_upgrades.keys():
+        if upgrade_id not in set(available_upgrades):
             raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade.")
+        return upgrade_id
 
-        valid_electric_ts_cols = self.get_electric_timeseries_cols()
-        if not set(cols_list).issubset(valid_electric_ts_cols):
-            invalid_cols = ", ".join(f'"{x}"' for x in set(cols_list).difference(valid_electric_ts_cols))
-            raise ValueError(f"The following are not valid timeseries columns in the database: {invalid_cols}")
+    def validate_enduses(self, enduses, annual_only):
+        if annual_only:
+            if not enduses:
+                return [self.bs_table.c["report_simulation_output.fuel_use_electricity_net_m_btu"]]
+            valid_cols = set(self.get_bs_enduse_cols())
+            enduses = [f"report_simulation_output.{e}" for e in enduses]
+            if not set(enduses).issubset(valid_cols):
+                invalid_cols = ", ".join(f'"{x}"' for x in set(enduses).difference(valid_cols))
+                raise ValueError(f"The following are not valid columns in the baseline table: {invalid_cols}")
+            enduses = self._get_enduse_cols(enduses, table='baseline')
+        else:
+            if not enduses:
+                return [self.ts_table.c["fuel use: electricity: total"]]
+            valid_cols = set(self.get_ts_enduse_cols())
+            if not set(enduses).issubset(valid_cols):
+                invalid_cols = ", ".join(f'"{x}"' for x in set(enduses).difference(valid_cols))
+                raise ValueError(f"The following are not valid columns in the baseline table: {invalid_cols}")
+            return self._get_enduse_cols(enduses, table='timeseries')
+
+    def validate_group_by(self, group_by):
         valid_groupby_cols = self.get_groupby_cols()
-        if not set(groupby_list).issubset(valid_groupby_cols):
-            invalid_cols = ", ".join(f'"{x}"' for x in set(groupby_list).difference(valid_groupby_cols))
+        group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
+        if not set(group_by_cols).issubset(valid_groupby_cols):
+            invalid_cols = ", ".join(f'"{x}"' for x in set(group_by).difference(valid_groupby_cols))
             raise ValueError(f"The following are not valid groupby columns in the database: {invalid_cols}")
+        return group_by
+        # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
+        # performance
 
+    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only):
         ts = self.ts_table
         base = self.bs_table
 
-        sa_ts_cols = [ts.c["building_id"], ts.c["time"]]
-        sa_ts_cols.extend(ts.c[col] for col in cols_list)
-        adj_ts_col = sa.func.date_add("minute", -self.resstock_timestep, ts.c["time"]).label("shifted_time")
+        sa_ts_cols = [ts.c[self.building_id_column_name], ts.c[self.timestamp_column_name]]
+        sa_ts_cols.extend(enduses)
+        # adj_ts_col = sa.func.date_add("minute", -self.resstock_timestep, ts.c["time"]).label("shifted_time")
 
-        ts_b = sa.select(sa_ts_cols + [adj_ts_col]).where(ts.c["upgrade"] == "0").alias("ts_b")
+        ts_b = sa.select(sa_ts_cols).where(ts.c["upgrade"] == "0").alias("ts_b")
         ts_u = sa.select(sa_ts_cols).where(ts.c["upgrade"] == str(upgrade_id)).alias("ts_u")
 
-        # FIXME: Figure out what to do about leap day
-        tbljoin = (
-            ts_b.outerjoin(
-                ts_u, sa.and_(ts_b.c["building_id"] == ts_u.c["building_id"], ts_b.c["time"] == ts_u.c["time"])
+        if applied_only:
+            tbljoin = (
+                ts_b.join(
+                    ts_u, sa.and_(ts_b.c[self.building_id_column_name] == ts_u.c[self.building_id_column_name],
+                                  ts_b.c[self.timestamp_column_name] == ts_u.c[self.timestamp_column_name])
+                ).join(base, ts_b.c[self.building_id_column_name] == base.c[self.building_id_column_name])
             )
-            .join(base, ts_b.c["building_id"] == base.c["building_id"])
+        else:
+            tbljoin = (
+                ts_b.outerjoin(
+                    ts_u, sa.and_(ts_b.c[self.building_id_column_name] == ts_u.c[self.building_id_column_name],
+                                  ts_b.c[self.timestamp_column_name] == ts_u.c[self.timestamp_column_name])
+                ).join(base, ts_b.c[self.building_id_column_name] == base.c[self.building_id_column_name])
+            )
+        return ts_b, ts_u, tbljoin
 
-        )
+    def get_annual_bs_up_table(self, enduses, upgrade_id, applied_only):
+        if applied_only:
+            tbljoin = (
+                self.bs_table.join(
+                    self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
+                                           self.up_table.c[self.building_id_column_name],
+                                           self.up_table.c["upgrade"] == str(upgrade_id)))
+            )
+        else:
+            tbljoin = (
+                self.bs_table.outerjoin(
+                    self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
+                                           self.up_table.c[self.building_id_column_name],
+                                           self.up_table.c["upgrade"] == str(upgrade_id)))
+            )
+        return self.bs_table, self.up_table, tbljoin
 
-        query_cols = []
-        for col in groupby_list:
-            query_cols.append(base.c[f"build_existing_model.{col}"].label(col))
-        query_cols.append(ts_b.c["time"])
-        n_groupby = len(groupby_list) + 1
-        for col in cols_list:
-            savings_col = sa.case((ts_u.c[col] == None, 0.0), else_=(ts_b.c[col] - ts_u.c[col]))  # noqa E711
+    def savings_shape(
+        self,
+        upgrade_id: int,
+        enduses: List[str] = None,
+        group_by: List[str] = None,
+        annual_only: bool = True,
+        sort: bool = True,
+        join_list: List[Tuple[str, str, str]] = [],
+        weights: List[Tuple] = [],
+        restrict: List[Tuple[str, List]] = [],
+        run_async: bool = False,
+        applied_only=False,
+        get_query_only=False
+    ) -> pd.DataFrame:
+        """Calculate savings shape for an upgrade
+        Args:
+            upgrade_id: id of the upgrade scenario from the ResStock analysis
+            enduses: Enduses to query, defaults to ['fuel use: electricity: total']
+            group_by: Building characteristics columns to group by, defaults to []
+            annual_only: If true, calculates only the annual savings using baseline and upgrades table
+            sort: Whether the result should be sorted. Sorting takes extra time.
+            join_list: Additional table to join to baseline table to perform operation. All the inputs (`enduses`,
+                  `group_by` etc) can use columns from these additional tables. It should be specified as a list of
+                  tuples.
+                  Example: `[(new_table_name, baseline_column_name, new_column_name), ...]`
+                        where baseline_column_name and new_column_name are the columns on which the new_table
+                        should be joined to baseline table.
+            applied_only: Calculate savings shape based on only buildings to which the upgrade applied
+            weights: The additional columns to use as weight. The "build_existing_model.sample_weight" is already used.
+                     It is specified as either list of string or list of tuples. When only string is used, the string
+                     is the column name, when tuple is passed, the second element is the table name.
+
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+
+            run_async: Whether to run the query in the background. Returns immediately if running in background,
+                       blocks otherwise.
+            get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
+                            submitting multiple queries or debugging
+         Returns:
+                if get_query_only is True, returns the query_string, otherwise,
+                    if run_async is True, it returns a (query_execution_id, future_object).
+                    if run_async is False, it returns the result_dataframe
+        """
+
+        [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
+
+        upgrade_id = self.validate_upgrade(upgrade_id)
+        enduses = self.validate_enduses(enduses, annual_only)
+        group_by = self.validate_group_by(group_by)
+        total_weight = self._get_weight(weights)
+        # cols_list = list(enduses)
+        # groupby_list = list(group_by)
+        group_by_selection = [self._get_gcol(g[0]).label(g[1]) if isinstance(
+                              g, tuple) else self._get_gcol(g).label(g) for g in group_by]
+        grouping_metrics_selection = [safunc.sum(1).label(
+                "sample_count"), safunc.sum(1 / total_weight).label("unit_count")]
+
+        if annual_only:
+            ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(enduses, upgrade_id, applied_only)
+        else:
+            ts_b, ts_u, tbljoin = self.get_timeseries_bs_up_table(enduses, upgrade_id, applied_only)
+
+        if not annual_only:
+            group_by_selection.append(ts_b.c[self.timestamp_column_name].label(self.timestamp_column_name))
+
+        query_cols = list(group_by_selection)
+        query_cols += grouping_metrics_selection
+        for col in enduses:
+            savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
             query_cols.extend(
                 [
-                    sa.func.sum(ts_b.c[col]).label(f"{col}_baseline"),
-                    sa.func.sum(savings_col).label(f"{col}_savings"),
+                    sa.func.sum(ts_b.c[col.name] / total_weight).label(f"{self._simple_label(col.name)}: baseline"),
+                    sa.func.sum(savings_col / total_weight).label(f"{self._simple_label(col.name)}: savings"),
                 ]
             )
-
-        a = [sa.text(str(x + 1)) for x in range(n_groupby)]
-        # TODO: intelligently select groupby and orderby columns by order of cardinality (most to least groups) for
-        # performance
-        q = (
+        query = (
             sa.select(query_cols)
             .select_from(tbljoin)
-            .group_by(*a)
-            .order_by(*a)
         )
+        query = self._add_join(query, join_list)
+        query = self._add_restrict(query, restrict)
+        query = self._add_group_by(query, group_by_selection)
+        query = self._add_order_by(query, group_by_selection if sort else [])
         if get_query_only:
-            return self._compile(q)
-        return self.execute(q)
+            return self._compile(query)
+
+        return self.execute(query, run_async=run_async)
