@@ -136,7 +136,7 @@ class UpgradesAnalyzer:
                     count = self.total_samples
                 else:
                     combined_logic = f' {comb_sym} '.join([conds_dict.get(opt_indx) for opt_indx in candidates])
-                    count = self.buildstock_df.eval(combined_logic).sum() if combined_logic else self.total_samples
+                    count = self.buildstock_df.eval(combined_logic, engine='python').sum() if combined_logic else self.total_samples
                 text = f" {comb_type} ". join([f"Option {opt_indx + 1}" for opt_indx in group])
                 print(f"{text}: {count} ({self.to_pct(count)}%)")
         print("-"*len(header))
@@ -185,7 +185,7 @@ class UpgradesAnalyzer:
             print("-"*footer_len)
             cond = cond + ' & ' + package_cond if cond else package_cond
 
-        count = self.buildstock_df.eval(cond).sum() if cond else self.total_samples
+        count = self.buildstock_df.eval(cond, engine='python').sum() if cond else self.total_samples
         footer_str = f"Overall applied to => {count} ({self.to_pct(count)}%)."
         #  print('-'*len(footer_str))
         print(footer_str)
