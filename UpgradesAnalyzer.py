@@ -51,8 +51,9 @@ class UpgradesAnalyzer:
         return para.lower(), option
 
     def reduce_logic(self, logic, parent=None):
-        if str(logic) in self.logic_cache:
-            return self.logic_cache[str(logic)]
+        cache_key = str(logic) if parent is None else parent + "[" + str(logic) + "]"
+        if cache_key in self.logic_cache:
+            return self.logic_cache[cache_key]
 
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, 'and', 'or', 'not']:
@@ -63,7 +64,7 @@ class UpgradesAnalyzer:
             logic_array = (self.buildstock_df[para] == opt)
         elif isinstance(logic, list):
             if len(logic) == 1:
-                logic_array = self.reduce_logic(logic[0])
+                logic_array = self.reduce_logic(logic[0]).copy()
             elif parent in ['or']:
                 logic_array = reduce(lambda l1, l2: l1 | self.reduce_logic(l2), logic,
                                      np.zeros((1, self.total_samples), dtype=bool))
@@ -74,13 +75,13 @@ class UpgradesAnalyzer:
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
             key = list(logic.keys())[0]
-            logic_array = self.reduce_logic(logic[key], parent=key)
+            logic_array = self.reduce_logic(logic[key], parent=key).copy()
 
         if parent == 'not':
             return ~logic_array
         if not (isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)):
             # Don't cache small logics - computing them again won't be too bad
-            self.logic_cache[str(logic)] = logic_array
+            self.logic_cache[cache_key] = logic_array.copy()
         return logic_array
 
     def get_report(self):
@@ -172,7 +173,7 @@ class UpgradesAnalyzer:
             for option_indx in range(n_options):
                 logic_array = self.print_detailed_report(upgrade_num, option_indx + 1)
                 if n_options <= MAX_COMBINATION_REPORT_COUNT:
-                    conds_dict[option_indx] = log
+                    conds_dict[option_indx] = logic_array
                 or_array |= logic_array
                 and_array &= logic_array
             and_count = and_array.sum()
@@ -206,7 +207,6 @@ class UpgradesAnalyzer:
             footer_len = len(logic_str[-1])
             print("\n".join(logic_str))
             print("-"*footer_len)
-            # print(cond)
         else:
             logic_array = np.ones((1, self.total_samples), dtype=bool)
 
@@ -222,7 +222,6 @@ class UpgradesAnalyzer:
 
         count = logic_array.sum()
         footer_str = f"Overall applied to => {count} ({self.to_pct(count)}%)."
-        #  print('-'*len(footer_str))
         print(footer_str)
         print('-'*len(footer_str))
         return logic_array
@@ -259,7 +258,6 @@ class UpgradesAnalyzer:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
             key = list(logic.keys())[0]
             sub_logic = self._get_logic_report(logic[key], parent=key)
-            # print(sub_logic, logic, key)
             sub_logic_str = sub_logic[1]
             logic_str = [key] + [f"  {ls}" for ls in sub_logic_str]
             logic_array = sub_logic[0]
