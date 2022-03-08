@@ -5,7 +5,6 @@ Different utility functions
 
 :author: Rajendra.Adhikari@nrel.gov
 """
-from cmath import log
 from functools import reduce
 import yaml
 import pandas as pd
