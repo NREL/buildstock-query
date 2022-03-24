@@ -39,7 +39,7 @@ class ResStockSavings(ResStockAthena):
         return list(cols)
 
     def get_ts_enduse_cols(self) -> List[str]:
-        ts_cols = list(map(str, filter(lambda x: x.startswith("end use") or x.startswith("fuel use"),
+        ts_cols = list(map(str, filter(lambda x: "__" in x,
                        self.ts_table.columns.keys())))
         return ts_cols
 
@@ -67,11 +67,11 @@ class ResStockSavings(ResStockAthena):
             enduses = self._get_enduse_cols(enduses, table='baseline')
         else:
             if not enduses:
-                return [self.ts_table.c["fuel use: electricity: total"]]
+                return [self.ts_table.c["fuel_use__electricity__total__kwh"]]
             valid_cols = set(self.get_ts_enduse_cols())
             if not set(enduses).issubset(valid_cols):
                 invalid_cols = ", ".join(f'"{x}"' for x in set(enduses).difference(valid_cols))
-                raise ValueError(f"The following are not valid columns in the baseline table: {invalid_cols}")
+                raise ValueError(f"The following are not valid columns in the timeseries table: {invalid_cols}")
             return self._get_enduse_cols(enduses, table='timeseries')
 
     def validate_group_by(self, group_by):
@@ -145,7 +145,7 @@ class ResStockSavings(ResStockAthena):
         """Calculate savings shape for an upgrade
         Args:
             upgrade_id: id of the upgrade scenario from the ResStock analysis
-            enduses: Enduses to query, defaults to ['fuel use: electricity: total']
+            enduses: Enduses to query, defaults to ['fuel_use__electricity__total']
             group_by: Building characteristics columns to group by, defaults to []
             annual_only: If true, calculates only the annual savings using baseline and upgrades table
             sort: Whether the result should be sorted. Sorting takes extra time.
@@ -184,7 +184,7 @@ class ResStockSavings(ResStockAthena):
         group_by_selection = [self._get_gcol(g[0]).label(g[1]) if isinstance(
                               g, tuple) else self._get_gcol(g).label(g) for g in group_by]
         grouping_metrics_selection = [safunc.sum(1).label(
-                "sample_count"), safunc.sum(1 / total_weight).label("unit_count")]
+                "sample_count"), safunc.sum(1 * total_weight).label("unit_count")]
 
         if annual_only:
             ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(enduses, upgrade_id, applied_only)
@@ -200,8 +200,8 @@ class ResStockSavings(ResStockAthena):
             savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
             query_cols.extend(
                 [
-                    sa.func.sum(ts_b.c[col.name] / total_weight).label(f"{self._simple_label(col.name)}: baseline"),
-                    sa.func.sum(savings_col / total_weight).label(f"{self._simple_label(col.name)}: savings"),
+                    sa.func.sum(ts_b.c[col.name] * total_weight).label(f"{self._simple_label(col.name)}__baseline"),
+                    sa.func.sum(savings_col * total_weight).label(f"{self._simple_label(col.name)}__savings"),
                 ]
             )
         query = (

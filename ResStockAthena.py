@@ -116,9 +116,7 @@ class ResStockAthena:
             logger.info("Getting Success counts...")
             print(self.get_success_report())
             if self.ts_table is not None:
-                logger.info("Checking integrity with ts_tables ...")
-                if self.check_integrity():
-                    print("Integrity passed between annual and timeseries table.")
+                self.check_integrity()
 
     def print_r(self, text):  # print in Red
         print(f"{COLOR.RED}{text}{COLOR.END}")
@@ -139,7 +137,7 @@ class ResStockAthena:
         pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
         pf.columns = [c[1] for c in pf.columns]  # Flatten the columns
         pf['Sum'] = pf.sum(axis=1)
-        return pf
+        return pf.reset_index()
 
     def _get_up_success_report(self, trim_missing_bs=True, get_query_only=False):
         up_query = sa.select([self.up_table.c['upgrade'], self.up_table.c['completed_status'],
@@ -254,13 +252,22 @@ class ResStockAthena:
             self.print_r("Integrity check failed. Please check the serious issues above.")
             return False
 
-    def get_success_report(self, trim_missing_bs=True, get_query_only=False):
+    def get_success_report(self, trim_missing_bs='auto', get_query_only=False):
+
+        baseline_result = self._get_bs_success_report(get_query_only)
 
         if self.up_table is None:
-            return self._get_bs_success_report(get_query_only=get_query_only)
+            return baseline_result
 
+        if trim_missing_bs == 'auto':
+            if 'Success' not in baseline_result:
+                logger.warning("None of the simulation was successful in baseline. The counts for upgrade will be"
+                               " returned without requiring corresponding successful baseline run.")
+                trim_missing_bs = False
+            else:
+                trim_missing_bs = True
         upgrade_result = self._get_up_success_report(trim_missing_bs, get_query_only)
-        baseline_result = self._get_bs_success_report(get_query_only)
+
         if get_query_only:
             return baseline_result, upgrade_result
         if 'Success' in upgrade_result.columns:
@@ -290,7 +297,28 @@ class ResStockAthena:
         df = df.rename(columns={'count': 'Success'})
         return df
 
+    def _get_rows_per_building(self, get_query_only=False):
+        select_cols = []
+        if self.up_table is not None:
+            select_cols.append(self.ts_table.c['upgrade'])
+        select_cols.append(self.ts_bldgid_column)
+        select_cols.append(safunc.count().label("row_count"))
+        ts_query = sa.select(select_cols)
+        if self.up_table is not None:
+            ts_query = ts_query.group_by(sa.text('1'), sa.text('2'))
+        else:
+            ts_query = ts_query.group_by(sa.text('1'))
+
+        if get_query_only:
+            return self._compile(ts_query)
+        df = self.execute(ts_query)
+        if (df['row_count'] == df['row_count'][0]).all():  # verify all buildings got same number of rows
+            return df['row_count'][0]
+        else:
+            raise ValueError("Not all buildings have same number of rows.")
+
     def check_integrity(self):
+        logger.info("Checking integrity with ts_tables ...")
         raw_ts_report = self._get_ts_report()
         raw_success_report = self.get_success_report(trim_missing_bs=False)
         bs_dict = raw_success_report['Success'].to_dict()
@@ -298,9 +326,17 @@ class ResStockAthena:
         check_pass = True
         for upgrade, count in ts_dict.items():
             if count != bs_dict.get(upgrade, 0):
-                print(f"Upgrade {upgrade} has {count} samples in timeseries table, but {bs_dict.get(upgrade, 0)} \
-                        Samples in baseline/upgrade table.")
+                self.print_r(f"Upgrade {upgrade} has {count} samples in timeseries table, but {bs_dict.get(upgrade, 0)}"
+                             " samples in baseline/upgrade table.")
                 check_pass = False
+        if check_pass:
+            self.print_g("Annual and timeseries tables are verifited to have the same number of buildings.")
+        try:
+            rowcount = self._get_rows_per_building()
+            self.print_g(f"All buildings are verified to have the same number of ({rowcount}) timeseries rows.")
+        except ValueError:
+            check_pass = False
+            self.print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
     def _initialize_tables(self):
@@ -1315,9 +1351,9 @@ class ResStockAthena:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
             # The aggregation is done across time so we should compensate unit count by dividing by the total number
             # of distinct timestamps per unit
-            timesteps_per_unit = self._get_simulation_timesteps_count()
-            grouping_metrics_selection = [safunc.sum(1).label(
-                "sample_count"), safunc.sum(total_weight / timesteps_per_unit).label("units_count")]
+            rows_per_building = self._get_rows_per_building()
+            grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
+                "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
@@ -1351,8 +1387,8 @@ class ResStockAthena:
         bld0_step_count = sim_timesteps_count['count'].iloc[0]
 
         if not sum(sim_timesteps_count['count'] == bld0_step_count) == len(sim_timesteps_count):
-            logger.warning("Not all buildings have the same number of timestamps. This can cause wrong \
-                            scaled_units_count and other problems.")
+            logger.warning("Not all buildings have the same number of timestamps. This can cause wrong"
+                           "scaled_units_count and other problems.")
 
         self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name] = bld0_step_count
         return bld0_step_count
