@@ -79,21 +79,26 @@ class ResStockSavings(ResStockAthena):
         group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
         if not set(group_by_cols).issubset(valid_groupby_cols):
             invalid_cols = ", ".join(f'"{x}"' for x in set(group_by).difference(valid_groupby_cols))
-            raise ValueError(f"The following are not valid groupby columns in the database: {invalid_cols}")
+            raise ValueError(f"The following are not valid columns in the database: {invalid_cols}")
         return group_by
         # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
         # performance
 
-    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only):
+    def validate_partition_by(self, partition_by):
+        if not partition_by:
+            return []
+        [self._get_gcol(col) for col in partition_by]  # making sure all entries are valid
+        return partition_by
+
+    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=[]):
         ts = self.ts_table
         base = self.bs_table
 
         sa_ts_cols = [ts.c[self.building_id_column_name], ts.c[self.timestamp_column_name]]
         sa_ts_cols.extend(enduses)
-        # adj_ts_col = sa.func.date_add("minute", -self.resstock_timestep, ts.c["time"]).label("shifted_time")
-
-        ts_b = sa.select(sa_ts_cols).where(ts.c["upgrade"] == "0").alias("ts_b")
-        ts_u = sa.select(sa_ts_cols).where(ts.c["upgrade"] == str(upgrade_id)).alias("ts_u")
+        ucol = ts.c["upgrade"]
+        ts_b = self._add_restrict(sa.select(sa_ts_cols), [[ucol, ("0")]] + restrict).alias("ts_b")
+        ts_u = self._add_restrict(sa.select(sa_ts_cols), [[ucol, (str(upgrade_id))]] + restrict).alias("ts_u")
 
         if applied_only:
             tbljoin = (
@@ -111,7 +116,7 @@ class ResStockSavings(ResStockAthena):
             )
         return ts_b, ts_u, tbljoin
 
-    def get_annual_bs_up_table(self, enduses, upgrade_id, applied_only):
+    def get_annual_bs_up_table(self, upgrade_id, applied_only):
         if applied_only:
             tbljoin = (
                 self.bs_table.join(
@@ -128,6 +133,17 @@ class ResStockSavings(ResStockAthena):
             )
         return self.bs_table, self.up_table, tbljoin
 
+    def _interpret_restrict(self, restrict):
+        # Some cols like "state" might be available in both ts and bs table
+        bs_restrict = []  # restrict to apply to baseline table
+        ts_restrict = []  # restrict to apply to timeseries table
+        for col, restrict_vals in restrict:
+            if col in self.ts_table.columns:  # prioritize ts table
+                ts_restrict.append([self.ts_table.c[col], restrict_vals])
+            else:
+                bs_restrict.append([self._get_gcol(col), restrict_vals])
+        return bs_restrict, ts_restrict
+
     def savings_shape(
         self,
         upgrade_id: int,
@@ -139,8 +155,10 @@ class ResStockSavings(ResStockAthena):
         weights: List[Tuple] = [],
         restrict: List[Tuple[str, List]] = [],
         run_async: bool = False,
-        applied_only=False,
-        get_query_only=False
+        applied_only: bool = False,
+        get_query_only: bool = False,
+        unload_to: str = '',
+        partition_by: List[str] = None,
     ) -> pd.DataFrame:
         """Calculate savings shape for an upgrade
         Args:
@@ -167,6 +185,9 @@ class ResStockSavings(ResStockAthena):
                        blocks otherwise.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
+            unload_to: Writes the ouput of the query to this location in s3. Consider using run_async = True with this
+                       to unload multiple queries simulataneuosly
+            partition_by: List of columns to partition when writing to s3. To be used with unload_to.
          Returns:
                 if get_query_only is True, returns the query_string, otherwise,
                     if run_async is True, it returns a (query_execution_id, future_object).
@@ -178,6 +199,7 @@ class ResStockSavings(ResStockAthena):
         upgrade_id = self.validate_upgrade(upgrade_id)
         enduses = self.validate_enduses(enduses, annual_only)
         group_by = self.validate_group_by(group_by)
+        partition_by = self.validate_partition_by(partition_by)
         total_weight = self._get_weight(weights)
         # cols_list = list(enduses)
         # groupby_list = list(group_by)
@@ -187,15 +209,12 @@ class ResStockSavings(ResStockAthena):
                 "sample_count"), safunc.sum(1 * total_weight).label("unit_count")]
 
         if annual_only:
-            ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(enduses, upgrade_id, applied_only)
+            ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(upgrade_id, applied_only)
         else:
-            ts_b, ts_u, tbljoin = self.get_timeseries_bs_up_table(enduses, upgrade_id, applied_only)
+            restrict, ts_restrict = self._interpret_restrict(restrict)
+            ts_b, ts_u, tbljoin = self.get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict)
 
-        if not annual_only:
-            group_by_selection.append(ts_b.c[self.timestamp_column_name].label(self.timestamp_column_name))
-
-        query_cols = list(group_by_selection)
-        query_cols += grouping_metrics_selection
+        query_cols = grouping_metrics_selection
         for col in enduses:
             savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
             query_cols.extend(
@@ -204,15 +223,30 @@ class ResStockSavings(ResStockAthena):
                     sa.func.sum(savings_col * total_weight).label(f"{self._simple_label(col.name)}__savings"),
                 ]
             )
-        query = (
-            sa.select(query_cols)
-            .select_from(tbljoin)
-        )
+
+        query_cols.extend(group_by_selection)
+        if not annual_only:
+            time_col = ts_b.c[self.timestamp_column_name].label(self.timestamp_column_name)
+            query_cols.insert(0, time_col)
+            group_by_selection.append(time_col)
+
+        query = sa.select(query_cols).select_from(tbljoin)
+
         query = self._add_join(query, join_list)
         query = self._add_restrict(query, restrict)
         query = self._add_group_by(query, group_by_selection)
         query = self._add_order_by(query, group_by_selection if sort else [])
-        if get_query_only:
-            return self._compile(query)
 
-        return self.execute(query, run_async=run_async)
+        compiled_query = self._compile(query)
+        if unload_to:
+            if partition_by:
+                compiled_query = f"UNLOAD ({compiled_query}) \n TO 's3://{unload_to}' \n "\
+                                 f"WITH (format = 'PARQUET', partitioned_by = ARRAY{partition_by})"
+            else:
+                compiled_query = f"UNLOAD ({compiled_query}) \n TO 's3://{unload_to}' \n "\
+                                 f"WITH (format = 'PARQUET')"
+
+        if get_query_only:
+            return compiled_query
+
+        return self.execute(compiled_query, run_async=run_async)

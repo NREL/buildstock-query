@@ -13,6 +13,7 @@ import boto3
 import pathlib
 from collections import Counter
 from pyathena.connection import Connection
+from pyathena.error import OperationalError
 from pyathena.sqlalchemy_athena import AthenaDialect
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
@@ -137,7 +138,7 @@ class ResStockAthena:
         pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
         pf.columns = [c[1] for c in pf.columns]  # Flatten the columns
         pf['Sum'] = pf.sum(axis=1)
-        return pf.reset_index()
+        return pf
 
     def _get_up_success_report(self, trim_missing_bs=True, get_query_only=False):
         up_query = sa.select([self.up_table.c['upgrade'], self.up_table.c['completed_status'],
@@ -187,9 +188,9 @@ class ResStockAthena:
         option_df = pd.DataFrame.from_dict({'Success': total_counts}, orient='columns')
         option_df = option_df.reset_index()
         option_df.columns = ['upgrade', 'option', 'Success']
-        upgrade_df = self.get_success_report(trim_missing_bs=trim_missing_bs)
+        upgrade_df = self.get_success_report(trim_missing_bs=trim_missing_bs).reset_index()
         upgrade_df = upgrade_df[upgrade_df['upgrade'] != '0']
-        upgrade_df = upgrade_df.reset_index()[['upgrade', 'Success', 'Fail', 'Unapplicaple']]
+        upgrade_df = upgrade_df[['upgrade', 'Success', 'Fail', 'Unapplicaple']]
         upgrade_df.insert(1, 'option', 'All')
         full_df = pd.concat([option_df, upgrade_df])
         full_df = full_df.sort_values(['upgrade', 'option'])
@@ -282,7 +283,7 @@ class ResStockAthena:
 
         pf = pd.concat([baseline_result, upgrade_result])
         pf = pf.rename(columns={'Invalid': 'Unapplicaple'})
-        return pf.reset_index()
+        return pf
 
     def _get_ts_report(self, get_query_only=False):
         ts_query = sa.select([self.ts_table.c['upgrade'],
@@ -292,7 +293,6 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(ts_query)
         df = self.execute(ts_query)
-        df['upgrade'] = df['upgrade'].map(lambda x: int(x))
         df = df.set_index('upgrade')
         df = df.rename(columns={'count': 'Success'})
         return df
@@ -330,7 +330,7 @@ class ResStockAthena:
                              " samples in baseline/upgrade table.")
                 check_pass = False
         if check_pass:
-            self.print_g("Annual and timeseries tables are verifited to have the same number of buildings.")
+            self.print_g("Annual and timeseries tables are verified to have the same number of buildings.")
         try:
             rowcount = self._get_rows_per_building()
             self.print_g(f"All buildings are verified to have the same number of ({rowcount}) timeseries rows.")
@@ -379,6 +379,8 @@ class ResStockAthena:
                 raise
 
     def _get_gcol(self, column_name):  # gcol => group by col
+        if isinstance(column_name, sa.Column):
+            return column_name  # already a col
         return self._get_col(f"build_existing_model.{column_name}")
 
     def _get_col(self, column_name):
@@ -614,7 +616,15 @@ class ResStockAthena:
                 return None, FutureDf(self._query_cache[query])
             # in case of asynchronous run, you get the execution id and futures object
             exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[''])
-            result_future.as_pandas = types.MethodType(lambda x: x.result().as_pandas(), result_future)
+
+            def get_pandas(future):
+                res = future.result()
+                if res.state != 'SUCCEEDED':
+                    raise OperationalError(f"{res.state}: {res.state_change_reason}")
+                else:
+                    return res.as_pandas()
+
+            result_future.as_pandas = types.MethodType(get_pandas, result_future)
             result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
             self._save_execution_id(exe_id)
             return exe_id, result_future
@@ -1081,6 +1091,15 @@ class ResStockAthena:
         query = query.where(*where_clauses)
         return query
 
+    def _get_name(self, col):
+        if isinstance(col, tuple):
+            return col[1]
+        if isinstance(col, str):
+            return col
+        if isinstance(col, sa.Column):
+            return col.name
+        raise ValueError(f"Invalid column {col}")
+
     def _add_join(self, query, join_list):
         for new_table_name, baseline_column_name, new_column_name in join_list:
             new_tbl = self._get_tbl(new_table_name)
@@ -1090,13 +1109,15 @@ class ResStockAthena:
 
     def _add_group_by(self, query, group_by):
         if group_by:
-            a = [sa.text(str(x + 1)) for x in range(len(group_by))]
+            slected_cols = [c.name for c in query.selected_columns]
+            a = [sa.text(str(slected_cols.index(self._get_name(g)) + 1)) for g in group_by]
             query = query.group_by(*a)
         return query
 
     def _add_order_by(self, query, order_by):
         if order_by:
-            a = [sa.text(str(x + 1)) for x in range(len(order_by))]
+            slected_cols = [c.name for c in query.selected_columns]
+            a = [sa.text(str(slected_cols.index(self._get_name(g)) + 1)) for g in order_by]
             query = query.order_by(*a)
         return query
 
