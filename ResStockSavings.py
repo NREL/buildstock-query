@@ -17,72 +17,6 @@ class ResStockSavings(ResStockAthena):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._available_upgrades = None
-        self._resstock_timestep = None
-
-    @property
-    def resstock_timestep(self):
-        if self._resstock_timestep is None:
-            sim_year, sim_interval_seconds = self._get_simulation_info()
-            self._resstock_timestep = int(sim_interval_seconds // 60)
-        return self._resstock_timestep
-
-    def get_available_upgrades(self) -> dict:
-        """Get the available upgrade scenarios and their identifier numbers
-        :return: Upgrade scenario names
-        :rtype: dict
-        """
-        return list(self.get_success_report().query("Success>0").index)
-
-    def get_groupby_cols(self) -> List[str]:
-        cols = set(y[21:] for y in filter(lambda x: x.startswith("build_existing_model."), self.bs_table.c.keys()))
-        cols.difference_update(["applicable", "sample_weight"])
-        return list(cols)
-
-    def get_ts_enduse_cols(self) -> List[str]:
-        ts_cols = list(map(str, filter(lambda x: "__" in x,
-                       self.ts_table.columns.keys())))
-        return ts_cols
-
-    def get_bs_enduse_cols(self) -> List[str]:
-        bs_cols = list(map(str, filter(lambda x: x.startswith("report_simulation_output.end_use") or
-                       x.startswith("report_simulation_output.fuel_use"),
-                       self.bs_table.columns.keys())))
-        return bs_cols
-
-    def validate_upgrade(self, upgrade_id):
-        available_upgrades = self.get_available_upgrades()
-        if upgrade_id not in set(available_upgrades):
-            raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade.")
-        return upgrade_id
-
-    def validate_enduses(self, enduses, annual_only):
-        if annual_only:
-            if not enduses:
-                return [self.bs_table.c["report_simulation_output.fuel_use_electricity_net_m_btu"]]
-            valid_cols = set(self.get_bs_enduse_cols())
-            enduses = [f"report_simulation_output.{e}" for e in enduses]
-            if not set(enduses).issubset(valid_cols):
-                invalid_cols = ", ".join(f'"{x}"' for x in set(enduses).difference(valid_cols))
-                raise ValueError(f"The following are not valid columns in the baseline table: {invalid_cols}")
-            enduses = self._get_enduse_cols(enduses, table='baseline')
-        else:
-            if not enduses:
-                return [self.ts_table.c["fuel_use__electricity__total__kwh"]]
-            valid_cols = set(self.get_ts_enduse_cols())
-            if not set(enduses).issubset(valid_cols):
-                invalid_cols = ", ".join(f'"{x}"' for x in set(enduses).difference(valid_cols))
-                raise ValueError(f"The following are not valid columns in the timeseries table: {invalid_cols}")
-            return self._get_enduse_cols(enduses, table='timeseries')
-
-    def validate_group_by(self, group_by):
-        valid_groupby_cols = self.get_groupby_cols()
-        group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
-        if not set(group_by_cols).issubset(valid_groupby_cols):
-            invalid_cols = ", ".join(f'"{x}"' for x in set(group_by).difference(valid_groupby_cols))
-            raise ValueError(f"The following are not valid columns in the database: {invalid_cols}")
-        return group_by
-        # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
-        # performance
 
     def validate_partition_by(self, partition_by):
         if not partition_by:
@@ -122,33 +56,24 @@ class ResStockSavings(ResStockAthena):
                 self.bs_table.join(
                     self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
                                            self.up_table.c[self.building_id_column_name],
-                                           self.up_table.c["upgrade"] == str(upgrade_id)))
+                                           self.up_table.c["upgrade"] == str(upgrade_id),
+                                           self.up_table.c["completed_status"] == "Success"))
             )
         else:
             tbljoin = (
                 self.bs_table.outerjoin(
                     self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
                                            self.up_table.c[self.building_id_column_name],
-                                           self.up_table.c["upgrade"] == str(upgrade_id)))
-            )
-        return self.bs_table, self.up_table, tbljoin
+                                           self.up_table.c["upgrade"] == str(upgrade_id),
+                                           self.up_table.c["completed_status"] == "Success")))
 
-    def _interpret_restrict(self, restrict):
-        # Some cols like "state" might be available in both ts and bs table
-        bs_restrict = []  # restrict to apply to baseline table
-        ts_restrict = []  # restrict to apply to timeseries table
-        for col, restrict_vals in restrict:
-            if col in self.ts_table.columns:  # prioritize ts table
-                ts_restrict.append([self.ts_table.c[col], restrict_vals])
-            else:
-                bs_restrict.append([self._get_gcol(col), restrict_vals])
-        return bs_restrict, ts_restrict
+        return self.bs_table, self.up_table, tbljoin
 
     def savings_shape(
         self,
         upgrade_id: int,
         enduses: List[str] = None,
-        group_by: List[str] = None,
+        group_by: List[str] = [],
         annual_only: bool = True,
         sort: bool = True,
         join_list: List[Tuple[str, str, str]] = [],
@@ -159,6 +84,7 @@ class ResStockSavings(ResStockAthena):
         get_query_only: bool = False,
         unload_to: str = '',
         partition_by: List[str] = None,
+        collapse_ts: bool = False,
     ) -> pd.DataFrame:
         """Calculate savings shape for an upgrade
         Args:
@@ -188,6 +114,8 @@ class ResStockSavings(ResStockAthena):
             unload_to: Writes the ouput of the query to this location in s3. Consider using run_async = True with this
                        to unload multiple queries simulataneuosly
             partition_by: List of columns to partition when writing to s3. To be used with unload_to.
+            collapse_ts: Only used when annual_only=False. When collapse_ts=True, the timeseries values are summed into
+                         a single annual value. Useful for quality checking and comparing with annual values.
          Returns:
                 if get_query_only is True, returns the query_string, otherwise,
                     if run_async is True, it returns a (query_execution_id, future_object).
@@ -197,24 +125,21 @@ class ResStockSavings(ResStockAthena):
         [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
 
         upgrade_id = self.validate_upgrade(upgrade_id)
-        enduses = self.validate_enduses(enduses, annual_only)
-        group_by = self.validate_group_by(group_by)
+        enduses = self._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
+        # group_by = self.validate_group_by(group_by)
         partition_by = self.validate_partition_by(partition_by)
         total_weight = self._get_weight(weights)
         # cols_list = list(enduses)
         # groupby_list = list(group_by)
-        group_by_selection = [self._get_gcol(g[0]).label(g[1]) if isinstance(
-                              g, tuple) else self._get_gcol(g).label(g) for g in group_by]
-        grouping_metrics_selection = [safunc.sum(1).label(
-                "sample_count"), safunc.sum(1 * total_weight).label("unit_count")]
+        group_by_selection = [self._get_gcol(g) for g in group_by]
 
         if annual_only:
             ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(upgrade_id, applied_only)
         else:
-            restrict, ts_restrict = self._interpret_restrict(restrict)
+            restrict, ts_restrict = self._split_restrict(restrict)
             ts_b, ts_u, tbljoin = self.get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict)
 
-        query_cols = grouping_metrics_selection
+        query_cols = []
         for col in enduses:
             savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
             query_cols.extend(
@@ -225,15 +150,30 @@ class ResStockSavings(ResStockAthena):
             )
 
         query_cols.extend(group_by_selection)
-        if not annual_only:
+        if annual_only:  # Use annual tables
+            grouping_metrics_selection = [safunc.sum(1).label(
+                    "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
+            query_cols = grouping_metrics_selection + query_cols
+        elif collapse_ts:  # Use timeseries tables but collapse timeseries
+            rows_per_building = self._get_rows_per_building()
+            grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
+                "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
+            query_cols = grouping_metrics_selection + query_cols
+        else:  # Use timeseries table and return timeseries results
+            grouping_metrics_selection = [safunc.sum(1).label(
+                "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
+            query_cols = grouping_metrics_selection + query_cols
             time_col = ts_b.c[self.timestamp_column_name].label(self.timestamp_column_name)
             query_cols.insert(0, time_col)
             group_by_selection.append(time_col)
 
         query = sa.select(query_cols).select_from(tbljoin)
+        # return query, group_by_selection
 
         query = self._add_join(query, join_list)
         query = self._add_restrict(query, restrict)
+        if annual_only:
+            query = query.where(self.bs_table.c["completed_status"] == "Success")
         query = self._add_group_by(query, group_by_selection)
         query = self._add_order_by(query, group_by_selection if sort else [])
 

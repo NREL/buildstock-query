@@ -38,6 +38,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+KWH2MBTU = 0.003412141633127942
+MBTU2KWH = 293.0710701722222
+
+
 class COLOR:
     YELLOW = '\033[93m'
     RED = '\033[91m'
@@ -86,6 +90,7 @@ class ResStockAthena:
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                     use .execution_history if not supplied.
         """
+        logger.info(f"Loading {table_name} ...")
         self.workgroup = workgroup
         self.buildstock_type = buildstock_type
         self._query_cache = dict()
@@ -140,12 +145,117 @@ class ResStockAthena:
         pf['Sum'] = pf.sum(axis=1)
         return pf
 
+    def _get_change_report(self, get_query_only=False):
+        """Returns counts of buildings to which upgrade didn't do any changes on energy consumption
+
+        Args:
+            get_query_only (bool, optional): _description_. Defaults to False.
+        """
+        queries = []
+        for ch_type in ["no-chng", "increase", "decrease", "null", "any"]:
+            up_query = sa.select([self.up_table.c['upgrade'], safunc.count().label(ch_type)])
+            up_query = up_query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
+            conditions = self._get_change_conditions(change_type=ch_type)
+            up_query = up_query.where(sa.and_(self.bs_table.c['completed_status'] == 'Success',
+                                              self.up_table.c['completed_status'] == 'Success',
+                                              conditions))
+            up_query = up_query.group_by(sa.text('1'))
+            up_query = up_query.order_by(sa.text('1'))
+            queries.append(self._compile(up_query))
+        if get_query_only:
+            return queries
+        change_df = self.execute(queries[0]).set_index('upgrade')
+        for query in queries[1:]:
+            df = self.execute(query)
+            df = df.set_index('upgrade')
+            change_df = change_df.join(df, how='outer')
+        return change_df.fillna(0)
+
+    def _get_change_details(self, upgrade, yml_file, change_type='no-chng'):
+        ua = self.get_upgrades_analyzer(yml_file)
+        bad_bids = self.get_buildings_by_change(upgrade, change_type=change_type)
+        good_bids = self.get_buildings_by_change(upgrade, change_type='decrease')
+        return ua.print_unique_characteristic(upgrade, good_bids, bad_bids)
+
+    def _get_upgrade_buildings(self, upgrade, trim_missing_bs=True, get_query_only=False):
+        up_query = sa.select([self.up_bldgid_column])
+        if trim_missing_bs:
+            up_query = up_query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
+            up_query = up_query.where(sa.and_(self.bs_table.c['completed_status'] == 'Success',
+                                              self.up_table.c['completed_status'] == 'Success',
+                                              self.up_table.c['upgrade'] == str(upgrade),
+                                              ))
+        else:
+            up_query = up_query.where(sa.and_(self.up_table.c['upgrade'] == str(upgrade),
+                                              self.up_table.c['completed_status'] == 'Success'))
+        if get_query_only:
+            return self._compile(up_query)
+        df = self.execute(up_query)
+        return df[self.bs_bldgid_column.name].values
+
+    def _get_change_conditions(self, change_type):
+        all_cols = [col.name for col in self.up_table.columns if 'report' in col.name and
+                    col.name.endswith(('btu', 'lb', 'kwh', 'kw', 'gal', 'hr', 'hour'))]
+        # total_cols = [col.name for col in self.get_cols(table='bs') if 'total' in col.name and 'fuel_use' in col.name]
+        # total_cols += ['qoi_report.qoi_average_maximum_daily_timing_heating_hour']
+        # # all_cols = total_cols
+
+        null_chng_conditions = sa.and_(*[sa.or_(self.up_table.c[col] == sa.null(),
+                                                self.bs_table.c[col] == sa.null()
+                                                ) for col in all_cols])
+
+        no_chng_conditions = sa.and_(*[safunc.coalesce(safunc.abs(self.up_table.c[col] -
+                                                                  self.bs_table.c[col]), 0) < 1e-12
+                                       for col in all_cols])
+        good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= 1e-12 for col in all_cols])
+        opp_chng_conditions = sa.and_(*[safunc.coalesce(self.bs_table.c[col] - self.up_table.c[col], -1) < 1e-12
+                                        for col in all_cols], sa.not_(no_chng_conditions))
+        if change_type == 'no-chng':
+            conditions = no_chng_conditions
+        elif change_type == 'increase':
+            conditions = opp_chng_conditions
+        elif change_type == 'decrease':
+            conditions = good_chng_conditions
+        elif change_type == 'null':
+            conditions = null_chng_conditions
+        elif change_type == 'any':
+            conditions = sa.true
+        else:
+            raise ValueError(f"Invalid {change_type=}")
+        return conditions
+
+    def get_buildings_by_change(self, upgrade, change_type='no-chng', get_query_only=False):
+        up_query = sa.select([self.bs_bldgid_column, self.bs_table.c['completed_status'],
+                              self.up_table.c['completed_status']])
+        up_query = up_query.join(self.up_table, self.bs_bldgid_column == self.up_bldgid_column)
+
+        conditions = self._get_change_conditions(change_type)
+        up_query = up_query.where(sa.and_(self.bs_table.c['completed_status'] == 'Success',
+                                          self.up_table.c['completed_status'] == 'Success',
+                                          self.up_table.c['upgrade'] == str(upgrade),
+                                          conditions))
+        if get_query_only:
+            return self._compile(up_query)
+        df = self.execute(up_query)
+        return df[self.bs_bldgid_column.name].values
+
     def _get_up_success_report(self, trim_missing_bs=True, get_query_only=False):
+        """Get success report for upgrades
+
+        Args:
+            trim_missing_bs (bool, optional): Ignore buildings that have no successful runs in the baseline.
+                Defaults to True.
+            get_query_only (bool, optional): Returns query only without the result. Defaults to False.
+
+        Returns:
+            Union[str, pd.DataFrame]: If get_query_only then returns the query string. Otherwise returns the dataframe.
+        """
         up_query = sa.select([self.up_table.c['upgrade'], self.up_table.c['completed_status'],
                               safunc.count().label("count")])
         if trim_missing_bs:
             up_query = up_query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
             up_query = up_query.where(self.bs_table.c['completed_status'] == 'Success')
+
         up_query = up_query.group_by(sa.text('1'), sa.text('2'))
         up_query = up_query.order_by(sa.text('1'), sa.text('2'))
         if get_query_only:
@@ -200,10 +310,10 @@ class ResStockAthena:
         results_df = self.get_results_csv()
         results_df = results_df[results_df["completed_status"] == "Success"]
         buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
-        buildstock_df = results_df[[self.building_id_column_name] + buildstock_cols]
+        buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [''.join(c.split(".")[1:]).replace("_", " ") for c in buildstock_df.columns
                            if c.startswith("build_existing_model.")]
-        buildstock_df.columns = [self.building_id_column_name] + buildstock_cols
+        buildstock_df.columns = buildstock_cols
         return buildstock_df
 
     def get_upgrades_analyzer(self, yaml_file):
@@ -267,14 +377,14 @@ class ResStockAthena:
                 trim_missing_bs = False
             else:
                 trim_missing_bs = True
-        upgrade_result = self._get_up_success_report(trim_missing_bs, get_query_only)
-
+        upgrade_result = self._get_up_success_report(trim_missing_bs, get_query_only).fillna(0)
+        change_result = self._get_change_report(get_query_only).fillna(0)
         if get_query_only:
-            return baseline_result, upgrade_result
+            return baseline_result, upgrade_result, change_result
         if 'Success' in upgrade_result.columns:
-            pa = round(100 * (upgrade_result['Fail'].fillna(0) + upgrade_result['Success'].fillna(0)) /
+            pa = round(100 * (upgrade_result['Fail'] + upgrade_result['Success']) /
                        upgrade_result['Sum'], 1)
-            upgrade_result['Percent Applied'] = pa
+            upgrade_result['Applied %'] = pa
 
         if 'Invalid' in upgrade_result.columns:
             baseline_result.insert(1, 'Invalid', 0)
@@ -283,6 +393,10 @@ class ResStockAthena:
 
         pf = pd.concat([baseline_result, upgrade_result])
         pf = pf.rename(columns={'Invalid': 'Unapplicaple'})
+        pf = pf.join(change_result).fillna(0)
+        pf['no-chng %'] = round(100 * pf['no-chng'] / pf['Success'], 1)
+        pf['increase %'] = round(100 * pf['increase'] / pf['Success'], 1)
+        pf['decrease %'] = round(100 * pf['decrease'] / pf['Success'], 1)
         return pf
 
     def _get_ts_report(self, get_query_only=False):
@@ -379,24 +493,37 @@ class ResStockAthena:
                 raise
 
     def _get_gcol(self, column_name):  # gcol => group by col
-        if isinstance(column_name, sa.Column):
+        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
             return column_name  # already a col
-        return self._get_col(f"build_existing_model.{column_name}")
+
+        if isinstance(column_name, tuple):
+            try:
+                return self._get_col(column_name[0]).label(column_name[1])
+            except ValueError:
+                new_name = f"build_existing_model.{column_name[0]}"
+                return self._get_col(new_name).label(column_name[1])
+        elif isinstance(column_name, str):
+            try:
+                return self._get_col(column_name)
+            except ValueError:
+                new_name = f"build_existing_model.{column_name}"
+                return self._get_col(new_name).label(column_name)
+        else:
+            raise ValueError(f"Invalid column name type {column_name}: {type(column_name)}")
 
     def _get_col(self, column_name):
-        matches = []
-        if isinstance(column_name, sa.Column):
+        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
             return column_name  # already a col
 
-        for name, table in self._tables.items():
-            if column_name in table.columns:
-                matches.append(table)
-        if not matches:
+        valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+
+        if not valid_tables:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
-        if len(matches) > 1:
+        if len(valid_tables) > 1:
             logger.warning(
-                f"Column {column_name} found in multiple tables {[t.name for t in matches]}. Using {matches[0].name}")
-        return matches[0].c[column_name]
+                f"Column {column_name} found in multiple tables {[t.name for t in valid_tables]}."
+                f"Using {valid_tables[0].name}")
+        return valid_tables[0].c[column_name]
 
     def _get_tables(self, table_name):
         self.engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
@@ -486,25 +613,24 @@ class ResStockAthena:
 
         if 'Contents' in s3_data and override is False:
             raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
-        else:
-            if 'Contents' in s3_data:
-                existing_objects = [{'Key': el['Key']} for el in s3_data['Contents']]
-                print(f"The following existing objects is being delete and replaced: {existing_objects}")
-                print(f"Saving s3://{s3_location}/{table_name}/{table_name}.parquet)")
-                self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={"Objects": existing_objects})
-            print(f"Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet")
-            table_df.to_parquet(f's3://{s3_location}/{table_name}/{table_name}.parquet', index=False)
-            print("Saving Done.")
+        if 'Contents' in s3_data:
+            existing_objects = [{'Key': el['Key']} for el in s3_data['Contents']]
+            print(f"The following existing objects is being delete and replaced: {existing_objects}")
+            print(f"Saving s3://{s3_location}/{table_name}/{table_name}.parquet)")
+            self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={"Objects": existing_objects})
+        print(f"Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet")
+        table_df.to_parquet(f's3://{s3_location}/{table_name}/{table_name}.parquet', index=False)
+        print("Saving Done.")
 
         column_formats = []
         for column_name, dtype in table_df.dtypes.items():
             if np.issubdtype(dtype, np.integer):
-                type = "int"
+                col_type = "int"
             elif np.issubdtype(dtype, np.floating):
-                type = "double"
+                col_type = "double"
             else:
-                type = "string"
-            column_formats.append(f"`{column_name}` {type}")
+                col_type = "string"
+            column_formats.append(f"`{column_name}` {col_type}")
 
         column_formats = ",".join(column_formats)
 
@@ -613,7 +739,7 @@ class ResStockAthena:
 
         if run_async:
             if query in self._query_cache:
-                return None, FutureDf(self._query_cache[query])
+                return "CACHED", FutureDf(self._query_cache[query].copy())
             # in case of asynchronous run, you get the execution id and futures object
             exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[''])
 
@@ -691,7 +817,10 @@ class ResStockAthena:
             running_count = 0
             other = 0
             for exe_id in stats['submitted_execution_ids']:
-                completion_stat = self.get_query_status(exe_id)
+                if exe_id == 'CACHED':
+                    completion_stat = "SUCCEEDED"
+                else:
+                    completion_stat = self.get_query_status(exe_id)
                 if completion_stat == 'RUNNING':
                     running_count += 1
                 elif completion_stat == 'SUCCEEDED':
@@ -711,7 +840,7 @@ class ResStockAthena:
 
             return result
         else:
-            return None
+            raise ValueError(f"{batch_id=} not found.")
 
     def did_batch_query_complete(self, batch_id):
         """
@@ -784,12 +913,17 @@ class ResStockAthena:
             raise ValueError("No query was submitted successfully")
         res_df_array = []
         for index, exe_id in enumerate(query_exe_ids):
-            df = query_futures[index].result().as_pandas()
-            df['query_id'] = index
+            df = query_futures[index].as_pandas()
+            if combine:
+                if len(df) == 0:
+                    df = pd.DataFrame({'query_id': [index]})
+                else:
+                    df['query_id'] = index
             logger.info(f"Got result from Query [{index}] ({exe_id})")
             res_df_array.append(df)
         if combine:
             logger.info("Concatenating the results.")
+            # return res_df_array
             return pd.concat(res_df_array)
         else:
             return res_df_array
@@ -1025,12 +1159,12 @@ class ResStockAthena:
         if get_query_only:
             return compiled_query
         if compiled_query in self._query_cache:
-            return self._query_cache[compiled_query]
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query ...")
-        return self.execute(query)
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, restrict: List[Tuple[str, Union[List, str, int]]] = [],
-                         get_query_only: bool = False, run_async: bool = False):
+    def get_upgrades_csv(self, upgrade=None, restrict: List[Tuple[str, Union[List, str, int]]] = [],
+                         get_query_only: bool = False):
         """
         Returns the results_csv table for the resstock run
         Args:
@@ -1042,12 +1176,17 @@ class ResStockAthena:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
         query = sa.select(['*']).select_from(self.up_table)
+        if upgrade:
+            query = query.where(self.up_table.c['upgrade'] == str(upgrade))
+
         query = self._add_restrict(query, restrict)
-
+        compiled_query = self._compile(query)
         if get_query_only:
-            return self._compile(query)
-
-        return self.execute(query, run_async)
+            return compiled_query
+        if compiled_query in self._query_cache:
+            return self._query_cache[compiled_query].copy()
+        logger.info("Making results_csv query for upgrade ...")
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
 
     def get_building_ids(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
         """
@@ -1096,9 +1235,9 @@ class ResStockAthena:
             return col[1]
         if isinstance(col, str):
             return col
-        if isinstance(col, sa.Column):
+        if isinstance(col, (sa.Column, sa.sql.elements.Label)):
             return col.name
-        raise ValueError(f"Invalid column {col}")
+        raise ValueError(f"Can't get name for {col} of type {type(col)}")
 
     def _add_join(self, query, join_list):
         for new_table_name, baseline_column_name, new_column_name in join_list:
@@ -1122,11 +1261,17 @@ class ResStockAthena:
         return query
 
     def _get_enduse_cols(self, enduses, table='baseline'):
-        tbl = self.bs_table if table == 'baseline' else self.ts_table
-        if not enduses:
-            enduse_cols = self.get_cols(table=table, fuel_type='electricity')
-        else:
+        tbls_dict = {'baseline': self.bs_table,
+                     'upgrade': self.up_table,
+                     'timeseries': self.ts_table}
+        tbl = tbls_dict[table]
+        try:
             enduse_cols = [tbl.c[e] for e in enduses]
+        except KeyError as e:
+            if table in ['baseline', 'upgrade']:
+                enduse_cols = [tbl.c[f"report_simulation_output.{e}"] for e in enduses]
+            else:
+                raise ValueError(f"Invalid enduse column names for {table} table") from e
         return enduse_cols
 
     def _get_weight(self, weights):
@@ -1139,10 +1284,51 @@ class ResStockAthena:
                 total_weight *= self._get_col(weight_col)
         return total_weight
 
+    def get_groupby_cols(self) -> List[str]:
+        cols = {y.removeprefix("build_existing_model.") for y in self.bs_table.c.keys()
+                if y.startswith("build_existing_model.")}
+        return list(cols)
+
+    def validate_group_by(self, group_by):
+        valid_groupby_cols = self.get_groupby_cols()
+        group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
+        if not set(group_by_cols).issubset(valid_groupby_cols):
+            invalid_cols = ", ".join(f'"{x}"' for x in set(group_by).difference(valid_groupby_cols))
+            raise ValueError(f"The following are not valid columns in the database: {invalid_cols}")
+        return group_by
+        # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
+        # performance
+
+    def get_available_upgrades(self) -> dict:
+        """Get the available upgrade scenarios and their identifier numbers
+        :return: Upgrade scenario names
+        :rtype: dict
+        """
+        return list(self.get_success_report().query("Success>0").index)
+
+    def validate_upgrade(self, upgrade_id):
+        available_upgrades = self.get_available_upgrades()
+        if str(upgrade_id) not in set(available_upgrades):
+            raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade."
+                             "It doesn't exist or have no successful run")
+        return str(upgrade_id)
+
+    def _split_restrict(self, restrict):
+        # Some cols like "state" might be available in both ts and bs table
+        bs_restrict = []  # restrict to apply to baseline table
+        ts_restrict = []  # restrict to apply to timeseries table
+        for col, restrict_vals in restrict:
+            if col in self.ts_table.columns:  # prioritize ts table
+                ts_restrict.append([self.ts_table.c[col], restrict_vals])
+            else:
+                bs_restrict.append([self._get_gcol(col), restrict_vals])
+        return bs_restrict, ts_restrict
+
     def aggregate_annual(self,
                          enduses: List[str] = None,
                          group_by: List[str] = None,
                          sort: bool = False,
+                         upgrade_id: str = None,
                          join_list: List[Tuple[str, str, str]] = [],
                          weights: List[Tuple] = [],
                          restrict: List[Tuple[str, List]] = [],
@@ -1157,6 +1343,8 @@ class ResStockAthena:
             group_by: The list of columns to group the aggregation by.
 
             sort: Whether to sort the results by group_by colummns
+
+            upgrade_id: The upgrade to query for. Only valid with runs with upgrade.
 
             join_list: Additional table to join to baseline table to perform operation. All the inputs (`enduses`,
                        `group_by` etc) can use columns from these additional tables. It should be specified as a list of
@@ -1186,7 +1374,12 @@ class ResStockAthena:
         """
 
         [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
-        enduses = self._get_enduse_cols(enduses)
+        if upgrade_id in {None, 0, '0'}:
+            enduses = self._get_enduse_cols(enduses, table='baseline')
+        else:
+            upgrade_id = self.validate_upgrade(upgrade_id)
+            enduses = self._get_enduse_cols(enduses, table='upgrade')
+
         total_weight = self._get_weight(weights)
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._simple_label(enduse.name))
                             for enduse in enduses]
@@ -1195,17 +1388,25 @@ class ResStockAthena:
 
         if not group_by:
             query = sa.select(grouping_metrics_selction + enduse_selection)
+            group_by_selection = []
         else:
-            group_by_selection = [self._get_col(g[0]).label(g[1]) if isinstance(
-                g, tuple) else self._get_col(g) for g in group_by]
+            group_by_selection = [self._get_gcol(g) for g in group_by]
             query = sa.select(group_by_selection + grouping_metrics_selction + enduse_selection)
         # jj = self.bs_table.join(self.ts_table, self.ts_table.c['building_id']==self.bs_table.c['building_id'])
         # self._compile(query.select_from(jj))
-        # query = query.select_from(self.bs_table)
+        if upgrade_id not in [None, 0, '0']:
+            tbljoin = self.bs_table.join(
+                self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
+                                       self.up_table.c[self.building_id_column_name],
+                                       self.up_table.c["upgrade"] == str(upgrade_id),
+                                       self.up_table.c["completed_status"] == "Success"))
+            query = query.select_from(tbljoin)
+
+        restrict = [[self.bs_table.c['completed_status'], ('Success',)]] + restrict
         query = self._add_join(query, join_list)
         query = self._add_restrict(query, restrict)
-        query = self._add_group_by(query, group_by)
-        query = self._add_order_by(query, group_by if sort else [])
+        query = self._add_group_by(query, group_by_selection)
+        query = self._add_order_by(query, group_by_selection if sort else [])
 
         if get_query_only:
             return self._compile(query)

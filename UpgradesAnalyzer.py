@@ -23,8 +23,12 @@ class UpgradesAnalyzer:
         if isinstance(buildstock, str):
             self.buildstock_df = pd.read_csv(buildstock)
             self.buildstock_df.columns = [c.lower() for c in self.buildstock_df.columns]
+            self.buildstock_df.rename(columns={'building': 'building_id'}, inplace=True)
+            self.buildstock_df.set_index('building_id', inplace=True)
         elif isinstance(buildstock, pd.DataFrame):
             self.buildstock_df = buildstock
+            if 'building_id' in self.buildstock_df.columns:
+                self.buildstock_df.set_index('building_id', inplace=True)
         self.total_samples = len(self.buildstock_df)
         self.logic_cache = {}
 
@@ -35,10 +39,7 @@ class UpgradesAnalyzer:
 
     @staticmethod
     def _get_eq_str(condition):
-        try:
-            para, option = condition.split('|')
-        except ValueError:
-            raise ValueError(f"Condition {condition} is invalid")
+        para, option = UpgradesAnalyzer._get_para_option(condition)
         return f"`{para.lower()}`=='{option}'"
 
     @staticmethod
@@ -48,6 +49,83 @@ class UpgradesAnalyzer:
         except ValueError:
             raise ValueError(f"Condition {condition} is invalid")
         return para.lower(), option
+
+    @staticmethod
+    def get_mentioned_parameters(logic):
+        if not logic:
+            return []
+
+        if isinstance(logic, str):
+            return [UpgradesAnalyzer._get_para_option(logic)[0]]
+        elif isinstance(logic, list):
+            all_params = []
+            for el in logic:
+                all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
+            return list(dict.fromkeys(all_params))  # remove duplicates
+        elif isinstance(logic, dict):
+            return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
+        else:
+            raise ValueError("Invalid logic type")
+
+    def print_unique_characteristic(self, upgrade_num, chng_type, base_bldg_list, compare_bldg_list):
+        cfg = self.read_cfg()
+        if upgrade_num == 0:
+            raise ValueError(f"Upgrades are 1-indexed. Got {upgrade_num}")
+
+        try:
+            upgrade_cfg = cfg['upgrades'][upgrade_num - 1]
+        except KeyError:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.")
+        parameter_list = []
+        for option_cfg in upgrade_cfg['options']:
+            parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg['option'])[0])
+            parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get('apply_logic')))
+        parameter_list = list(dict.fromkeys(parameter_list))
+        res_df = self.buildstock_df
+        compare_df = res_df.loc[compare_bldg_list]
+        base_df = res_df.loc[base_bldg_list]
+        print(f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.")
+        unique_vals_dict = dict()
+        for col in res_df.columns:
+            no_change_set = set(compare_df[col].fillna('').unique())
+            other_set = set(base_df[col].fillna('').unique())
+            only_in_no_change = no_change_set - other_set
+            if only_in_no_change:
+                print(f"Only {chng_type} buildings have {col} in {sorted(only_in_no_change)}")
+                unique_vals_dict[(col,)] = set([(entry,) for entry in only_in_no_change])
+
+        if not unique_vals_dict:
+            print("No 1-column unique chracteristics found.")
+
+        for combi_size in range(2, min(len(parameter_list) + 1, 5)):
+            print(f"Checking {combi_size} column combinations out of {parameter_list}")
+            found_uniq_chars = 0
+            for cols in combinations(parameter_list, combi_size):
+                compare_tups = compare_df[list(cols)].fillna('').drop_duplicates().itertuples(index=False, name=None)
+                other_tups = base_df[list(cols)].fillna('').drop_duplicates().itertuples(index=False, name=None)
+                only_in_compare = set(compare_tups) - set(other_tups)
+
+                # remove cases arisen out of uniqueness found earlier with smaller susbset of cols
+                for sub_combi_size in range(1, len(cols)):
+                    for sub_cols in combinations(cols, sub_combi_size):
+                        if sub_cols in unique_vals_dict.keys():
+                            new_set = set()
+                            for val in only_in_compare:
+                                relevant_val = tuple([val[cols.index(sub_col)] for sub_col in sub_cols])
+                                if relevant_val not in unique_vals_dict[sub_cols]:
+                                    new_set.add(val)
+                                else:
+                                    pass  # drop this entry because it is coming from known uniqueness of subset of cols
+                            only_in_compare = new_set
+
+                if only_in_compare:
+                    print(f"Only {chng_type} buildings have {cols} in {sorted(only_in_compare)} \n")
+                    found_uniq_chars += 1
+                    unique_vals_dict[cols] = only_in_compare
+
+            if not found_uniq_chars:
+                print(f"No {combi_size}-column unique chracteristics found.")
+        return compare_df, base_df, parameter_list
 
     def reduce_logic(self, logic, parent=None):
         cache_key = str(logic) if parent is None else parent + "[" + str(logic) + "]"
@@ -128,13 +206,18 @@ class UpgradesAnalyzer:
     def flatten_lists(logic):
         if isinstance(logic, list):
             flat_list = []
-            [flat_list.extend(UpgradesAnalyzer.flatten_lists(el)) for el in logic]
+            for el in logic:
+                val = UpgradesAnalyzer.flatten_lists(el)
+                if isinstance(val, list):
+                    flat_list.extend(val)
+                else:
+                    flat_list.append(val)
             return flat_list
         elif isinstance(logic, dict):
             new_dict = {key: UpgradesAnalyzer.flatten_lists(value) for key, value in logic.items()}
-            return [new_dict]
+            return new_dict
         else:
-            return [logic]
+            return logic
 
     def _print_options_combination_report(self, logic_dict, comb_type='and'):
         n_options = len(logic_dict)
@@ -154,7 +237,7 @@ class UpgradesAnalyzer:
                     combined_logic = reduce(lambda c1, c2: c1 | c2, [logic_dict[opt_indx] for opt_indx in group])
                 count = combined_logic.sum()
                 text = f" {comb_type} ". join([f"Option {opt_indx + 1}" for opt_indx in group])
-                print(f"{text}: {count} ({self.to_pct(count)}%)")
+                print(f"{text}: {count} ({self.to_pct(count, len(combined_logic))}%)")
         print("-"*len(header))
         return
 
@@ -225,8 +308,9 @@ class UpgradesAnalyzer:
         print('-'*len(footer_str))
         return logic_array
 
-    def to_pct(self, count):
-        return round(100 * count / self.total_samples, 1)
+    def to_pct(self, count, total=None):
+        total = total or self.total_samples
+        return round(100 * count / total, 1)
 
     def _get_logic_report(self, logic, parent=None):
         logic_array = np.ones((1, self.total_samples), dtype=bool)
@@ -236,7 +320,8 @@ class UpgradesAnalyzer:
         if isinstance(logic, str):
             logic_condition = UpgradesAnalyzer._get_eq_str(logic)
             logic_array = self.buildstock_df.eval(logic_condition, engine='python')
-            logic_str = [logic]
+            count = logic_array.sum()
+            logic_str = [logic + " => " + f"{count} ({self.to_pct(count)}%)"]
         elif isinstance(logic, list):
             if len(logic) == 1:
                 logic_array, logic_str = self._get_logic_report(logic[0])
@@ -258,14 +343,15 @@ class UpgradesAnalyzer:
             key = list(logic.keys())[0]
             sub_logic = self._get_logic_report(logic[key], parent=key)
             sub_logic_str = sub_logic[1]
-            logic_str = [key] + [f"  {ls}" for ls in sub_logic_str]
             logic_array = sub_logic[0]
-
-        if parent == 'not':
-            logic_array = ~logic_array
+            if key == 'not':
+                logic_array = ~logic_array
+            count = logic_array.sum()
+            header_str = key + " => " + f"{count} ({self.to_pct(count)}%)"
+            logic_str = [header_str] + [f"  {ls}" for ls in sub_logic_str]
 
         count = logic_array.sum()
-        if parent is None and (not isinstance(logic, list) or len(logic) > 1):
+        if parent is None and isinstance(logic, list) and len(logic) > 1:
             logic_str[0] = logic_str[0] + " => " + f"{count} ({self.to_pct(count)}%)"
 
         return logic_array, logic_str
