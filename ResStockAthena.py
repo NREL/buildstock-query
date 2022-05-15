@@ -8,8 +8,10 @@ new class can be created by inheriting ResStockAthena and adding in the project 
 :author: Rajendra.Adhikari@nrel.gov
 """
 
+
 import re
 import boto3
+import contextlib
 import pathlib
 from collections import Counter
 from pyathena.connection import Connection
@@ -93,7 +95,7 @@ class ResStockAthena:
         logger.info(f"Loading {table_name} ...")
         self.workgroup = workgroup
         self.buildstock_type = buildstock_type
-        self._query_cache = dict()
+        self._query_cache = {}
         self._aws_s3 = boto3.client('s3')
         self._aws_athena = boto3.client('athena', region_name=region_name)
         self._aws_glue = boto3.client('glue', region_name=region_name)
@@ -196,9 +198,6 @@ class ResStockAthena:
     def _get_change_conditions(self, change_type):
         all_cols = [col.name for col in self.up_table.columns if 'report' in col.name and
                     col.name.endswith(('btu', 'lb', 'kwh', 'kw', 'gal', 'hr', 'hour'))]
-        # total_cols = [col.name for col in self.get_cols(table='bs') if 'total' in col.name and 'fuel_use' in col.name]
-        # total_cols += ['qoi_report.qoi_average_maximum_daily_timing_heating_hour']
-        # # all_cols = total_cols
 
         null_chng_conditions = sa.and_(*[sa.or_(self.up_table.c[col] == sa.null(),
                                                 self.bs_table.c[col] == sa.null()
@@ -280,9 +279,6 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(query)
         df = self.execute(query)
-        # pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
-        # pf = pf.rename(columns={'Invalid': 'Unapplicaple'})
-        # pf['sum'] = pf.sum(axis=1)
         simple_names = [f"option{i+1}" for i in range(len(opt_name_cols))]
         df.columns = ['upgrade'] + simple_names + ['Success']
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
@@ -473,9 +469,7 @@ class ResStockAthena:
             except ValueError:
                 logger.error("Sample weight column not found. Using weight of 1.")
                 return sa.literal(1)
-        elif isinstance(sample_weight, int):
-            return sa.literal(sample_weight)
-        elif isinstance(sample_weight, float):
+        elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
 
     def _get_tbl(self, table_name, missing_ok=False):
@@ -544,11 +538,7 @@ class ResStockAthena:
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
-        if not execution_history:
-            self.execution_history_file = '.execution_history'
-        else:
-            self.execution_history_file = execution_history
-
+        self.execution_history_file = execution_history or '.execution_history'
         self.execution_cost = {'GB': 0, 'Dollars': 0}  # Tracks the cost of current session. Only used for Athena query
         self.seen_execution_ids = set()  # set to prevent double counting same execution id
         self.cache = {}  # To store small but frequently queried result, such as total number of timesteps
@@ -558,13 +548,10 @@ class ResStockAthena:
                 existing_entries = f.readlines()
             valid_entries = []
             for entry in existing_entries:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     entry_time, _ = entry.split(',')
                     if time.time() - float(entry_time) < 24 * 60 * 60:  # discard history if more than a day old
                         valid_entries += entry
-                except (ValueError, TypeError):
-                    pass
-
             with open(self.execution_history_file, 'w') as f:
                 f.writelines(valid_entries)
 
@@ -652,16 +639,15 @@ class ResStockAthena:
             DROP TABLE {self.db_name}.{table_name};
             """
             result, reason = self.execute_raw(delete_table_query)
-            if result.upper() == "SUCCEEDED":
-                result, reason = self.execute_raw(table_create_query)
-                if result.upper() == "SUCCEEDED":
-                    return "SUCCEEDED"
-                else:
-                    raise Exception(f"There was an existing table named {table_name} which is now successfully deleted,"
-                                    f"but new table failed to be created. Reason: {reason}")
-            else:
+            if result.upper() != "SUCCEEDED":
                 raise Exception(f"There was an existing table named {table_name}. Deleting it failed."
                                 f" Reason: {reason}")
+            result, reason = self.execute_raw(table_create_query)
+            if result.upper() == "SUCCEEDED":
+                return "SUCCEEDED"
+            else:
+                raise Exception(f"There was an existing table named {table_name} which is now successfully deleted,"
+                                f"but new table failed to be created. Reason: {reason}")
         elif result.upper() == "SUCCEEDED":
             return "SUCCEEDED"
         else:
@@ -810,37 +796,35 @@ class ResStockAthena:
         Returns:
             A dictionary detailing status of the queries.
         """
-        stats = self._batch_query_status_map.get(batch_id, None)
-        if stats:
-            success_count = 0
-            fail_count = 0
-            running_count = 0
-            other = 0
-            for exe_id in stats['submitted_execution_ids']:
-                if exe_id == 'CACHED':
-                    completion_stat = "SUCCEEDED"
-                else:
-                    completion_stat = self.get_query_status(exe_id)
-                if completion_stat == 'RUNNING':
-                    running_count += 1
-                elif completion_stat == 'SUCCEEDED':
-                    success_count += 1
-                elif completion_stat in ['FAILED', 'CANCELLED']:
-                    fail_count += 1
-                else:
-                    # for example: QUEUED
-                    other += 1
-
-            result = {'Submitted': len(stats['submitted_ids']),
-                      'Running': running_count,
-                      'Pending': len(stats['to_submit_ids']) + other,
-                      'Completed': success_count,
-                      'Failed': fail_count
-                      }
-
-            return result
-        else:
+        if not (stats := self._batch_query_status_map.get(batch_id, None)):
             raise ValueError(f"{batch_id=} not found.")
+        success_count = 0
+        fail_count = 0
+        running_count = 0
+        other = 0
+        for exe_id in stats['submitted_execution_ids']:
+            if exe_id == 'CACHED':
+                completion_stat = "SUCCEEDED"
+            else:
+                completion_stat = self.get_query_status(exe_id)
+            if completion_stat == 'RUNNING':
+                running_count += 1
+            elif completion_stat == 'SUCCEEDED':
+                success_count += 1
+            elif completion_stat in ['FAILED', 'CANCELLED']:
+                fail_count += 1
+            else:
+                # for example: QUEUED
+                other += 1
+
+        result = {'Submitted': len(stats['submitted_ids']),
+                  'Running': running_count,
+                  'Pending': len(stats['to_submit_ids']) + other,
+                  'Completed': success_count,
+                  'Failed': fail_count
+                  }
+
+        return result
 
     def did_batch_query_complete(self, batch_id):
         """
@@ -921,12 +905,11 @@ class ResStockAthena:
                     df['query_id'] = index
             logger.info(f"Got result from Query [{index}] ({exe_id})")
             res_df_array.append(df)
-        if combine:
-            logger.info("Concatenating the results.")
-            # return res_df_array
-            return pd.concat(res_df_array)
-        else:
+        if not combine:
             return res_df_array
+        logger.info("Concatenating the results.")
+        # return res_df_array
+        return pd.concat(res_df_array)
 
     def submit_batch_query(self, queries: List[str]):
         """
@@ -1038,7 +1021,7 @@ class ResStockAthena:
             List of query execution ids of all the queries that are currently running in Athena.
         """
         exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
-        exe_ids = [exe_id for exe_id in exe_ids]
+        exe_ids = list(exe_ids)
 
         running_ids = [i for i in exe_ids if i in self.execution_ids_history and
                        self.get_query_status(i) == "RUNNING"]
@@ -1107,11 +1090,7 @@ class ResStockAthena:
 
     def get_distinct_count(self, column: str, table_name: str = None, weight_column: str = None,
                            get_query_only: bool = False):
-        if table_name is None:
-            tbl = self.bs_table
-        else:
-            tbl = self._get_tbl(table_name)
-
+        tbl = self.bs_table if table_name is None else self._get_tbl(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label("sample_count"),
                            safunc.sum(self.sample_wt).label("weighted_count")])
         query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
@@ -1121,7 +1100,7 @@ class ResStockAthena:
         r = self.execute(query, run_async=False)
         return r
 
-    def get_successful_simulation_count(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+    def get_successful_simulation_count(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
         """
         Returns the results_csv table for the resstock run
         Args:
@@ -1134,7 +1113,7 @@ class ResStockAthena:
         """
         query = sa.select(safunc.count().label("count"))
 
-        restrict = list(restrict)
+        restrict = list(restrict) if restrict else []
         restrict.insert(0, ('completed_status', ['Success']))
         query = self._add_restrict(query, restrict)
         if get_query_only:
@@ -1142,7 +1121,7 @@ class ResStockAthena:
 
         return self.execute(query)
 
-    def get_results_csv(self, restrict: List[Tuple[str, Union[List, str, int]]] = [], get_query_only: bool = False):
+    def get_results_csv(self, restrict: List[Tuple[str, Union[List, str, int]]] = None, get_query_only: bool = False):
         """
         Returns the results_csv table for the resstock run
         Args:
@@ -1153,6 +1132,7 @@ class ResStockAthena:
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
+        restrict = list(restrict) if restrict else []
         query = sa.select(['*']).select_from(self.bs_table)
         query = self._add_restrict(query, restrict)
         compiled_query = self._compile(query)
@@ -1163,7 +1143,7 @@ class ResStockAthena:
         logger.info("Making results_csv query ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade=None, restrict: List[Tuple[str, Union[List, str, int]]] = [],
+    def get_upgrades_csv(self, upgrade=None, restrict: List[Tuple[str, Union[List, str, int]]] = None,
                          get_query_only: bool = False):
         """
         Returns the results_csv table for the resstock run
@@ -1175,6 +1155,7 @@ class ResStockAthena:
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
+        restrict = list(restrict) if restrict else []
         query = sa.select(['*']).select_from(self.up_table)
         if upgrade:
             query = query.where(self.up_table.c['upgrade'] == str(upgrade))
@@ -1188,7 +1169,7 @@ class ResStockAthena:
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: List[Tuple[str, List]] = [], get_query_only: bool = False):
+    def get_building_ids(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
         """
         Returns the list of buildings based on the restrict list
         Args:
@@ -1200,6 +1181,7 @@ class ResStockAthena:
             Pandas dataframe consisting of the building ids belonging to the provided list of locations.
 
         """
+        restrict = list(restrict) if restrict else []
         query = sa.select(self.bs_bldgid_column)
         query = self._add_restrict(query, restrict)
         if get_query_only:
@@ -1220,7 +1202,7 @@ class ResStockAthena:
 
         where_clauses = []
         for col, criteria in restrict:
-            if isinstance(criteria, list) or isinstance(criteria, tuple):
+            if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
                     where_clauses.append(self._get_col(col).in_(criteria))
                     continue
@@ -1329,9 +1311,9 @@ class ResStockAthena:
                          group_by: List[str] = None,
                          sort: bool = False,
                          upgrade_id: str = None,
-                         join_list: List[Tuple[str, str, str]] = [],
-                         weights: List[Tuple] = [],
-                         restrict: List[Tuple[str, List]] = [],
+                         join_list: List[Tuple[str, str, str]] = None,
+                         weights: List[Tuple] = None,
+                         restrict: List[Tuple[str, List]] = None,
                          run_async: bool = False,
                          get_query_only: bool = False):
         """
@@ -1372,6 +1354,9 @@ class ResStockAthena:
                     if run_async is False, it returns the result_dataframe
 
         """
+        join_list = list(join_list) if join_list else []
+        weights = list(weights) if weights else []
+        restrict = list(restrict) if restrict else []
 
         [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
         if upgrade_id in {None, 0, '0'}:
@@ -1439,23 +1424,19 @@ class ResStockAthena:
                 new_group_by.append(col[1])
                 continue
 
-            match = re.search(r'"[\w\.]*"\."([\w\.]*)"', col)
-            if not match:
-                match = re.search(r'"([\w\.]*)"', col)
-
-            if match:
+            if match := re.search(r'"[\w\.]*"\."([\w\.]*)"', col) or re.search(r'"([\w\.]*)"', col):
                 new_group_by.append(match.group(1))
             else:
                 new_group_by.append(col)
         return new_group_by
 
     def aggregate_timeseries_light(self,
-                                   enduses: List[str] = [],
-                                   group_by: List[str] = [],
+                                   enduses: List[str] = None,
+                                   group_by: List[str] = None,
                                    sort: bool = False,
-                                   join_list: List[Tuple[str, str, str]] = [],
-                                   weights: List[str] = [],
-                                   restrict: List[Tuple[str, List]] = [],
+                                   join_list: List[Tuple[str, str, str]] = None,
+                                   weights: List[str] = None,
+                                   restrict: List[Tuple[str, List]] = None,
                                    run_async: bool = False,
                                    get_query_only: bool = False,
                                    limit=None
@@ -1464,6 +1445,11 @@ class ResStockAthena:
         Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
         Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
         """
+        enduses = list(enduses) if enduses else []
+        group_by = list(group_by) if group_by else []
+        join_list = list(join_list) if join_list else []
+        weights = list(weights) if weights else []
+        restrict = list(restrict) if restrict else []
 
         if run_async:
             raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
@@ -1472,7 +1458,7 @@ class ResStockAthena:
         enduses = self._get_enduse_cols(enduses, table='timeseries')
         print(enduses)
         batch_queries_to_submit = []
-        for indx, enduse in enumerate(enduses):
+        for enduse in enduses:
             query = self.aggregate_timeseries(enduses=[enduse.name],
                                               group_by=group_by,
                                               sort=sort,
@@ -1506,12 +1492,12 @@ class ResStockAthena:
         return joined_enduses_df.reset_index()
 
     def aggregate_timeseries(self,
-                             enduses: List[str] = [],
-                             group_by: List[str] = [],
+                             enduses: List[str] = None,
+                             group_by: List[str] = None,
                              sort: bool = False,
-                             join_list: List[Tuple[str, str, str]] = [],
-                             weights: List[str] = [],
-                             restrict: List[Tuple[str, List]] = [],
+                             join_list: List[Tuple[str, str, str]] = None,
+                             weights: List[str] = None,
+                             restrict: List[Tuple[str, List]] = None,
                              run_async: bool = False,
                              split_enduses: bool = False,
                              get_query_only: bool = False,
@@ -1554,6 +1540,11 @@ class ResStockAthena:
                     if run_async is False, it returns the result_dataframe
 
         """
+        enduses = list(enduses) if enduses else []
+        group_by = list(group_by) if group_by else []
+        join_list = list(join_list) if join_list else []
+        weights = list(weights) if weights else []
+        restrict = list(restrict) if restrict else []
 
         if split_enduses:
             return self.aggregate_timeseries_light(enduses=enduses, group_by=group_by, sort=sort,
@@ -1607,8 +1598,8 @@ class ResStockAthena:
         query = query.group_by(self.ts_bldgid_column)
         sim_timesteps_count = self.execute(query)
         bld0_step_count = sim_timesteps_count['count'].iloc[0]
-
-        if not sum(sim_timesteps_count['count'] == bld0_step_count) == len(sim_timesteps_count):
+        n_buildings_with_same_count = sum(sim_timesteps_count['count'] == bld0_step_count)
+        if n_buildings_with_same_count != len(sim_timesteps_count):
             logger.warning("Not all buildings have the same number of timestamps. This can cause wrong"
                            "scaled_units_count and other problems.")
 
@@ -1635,8 +1626,7 @@ class ResStockAthena:
     def delete_everything(self):
         info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=self.bs_table.name)
         self.pth = pathlib.Path(info['Table']['StorageDescriptor']['Location']).parent
-        tables_to_delete = []
-        tables_to_delete.append(self.bs_table.name)
+        tables_to_delete = [self.bs_table.name]
         if self.ts_table is not None:
             tables_to_delete.append(self.ts_table.name)
         if self.up_table is not None:

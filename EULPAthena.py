@@ -222,7 +222,7 @@ class EULPAthena(ResStockAthena):
         res = self.execute(query)
         return res
 
-    def get_eiaids(self, restrict: List[Tuple[str, List]] = []):
+    def get_eiaids(self, restrict: List[Tuple[str, List]] = None):
         """
         Returns the list of building
         Args:
@@ -233,6 +233,7 @@ class EULPAthena(ResStockAthena):
         Returns:
             Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
         """
+        restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
 
         if 'eiaids' in self.cache:

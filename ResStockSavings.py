@@ -24,7 +24,8 @@ class ResStockSavings(ResStockAthena):
         [self._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=[]):
+    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None):
+        restrict = list(restrict) if restrict else []
         ts = self.ts_table
         base = self.bs_table
 
@@ -73,12 +74,12 @@ class ResStockSavings(ResStockAthena):
         self,
         upgrade_id: int,
         enduses: List[str] = None,
-        group_by: List[str] = [],
+        group_by: List[str] = None,
         annual_only: bool = True,
         sort: bool = True,
-        join_list: List[Tuple[str, str, str]] = [],
-        weights: List[Tuple] = [],
-        restrict: List[Tuple[str, List]] = [],
+        join_list: List[Tuple[str, str, str]] = None,
+        weights: List[Tuple] = None,
+        restrict: List[Tuple[str, List]] = None,
         run_async: bool = False,
         applied_only: bool = False,
         get_query_only: bool = False,
@@ -121,16 +122,18 @@ class ResStockSavings(ResStockAthena):
                     if run_async is True, it returns a (query_execution_id, future_object).
                     if run_async is False, it returns the result_dataframe
         """
+        enduses = list(enduses) if enduses else []
+        group_by = list(group_by) if group_by else []
+        join_list = list(join_list) if join_list else []
+        weights = list(weights) if weights else []
+        restrict = list(restrict) if restrict else []
 
         [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
 
         upgrade_id = self.validate_upgrade(upgrade_id)
         enduses = self._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
-        # group_by = self.validate_group_by(group_by)
         partition_by = self.validate_partition_by(partition_by)
         total_weight = self._get_weight(weights)
-        # cols_list = list(enduses)
-        # groupby_list = list(group_by)
         group_by_selection = [self._get_gcol(g) for g in group_by]
 
         if annual_only:
@@ -168,7 +171,6 @@ class ResStockSavings(ResStockAthena):
             group_by_selection.append(time_col)
 
         query = sa.select(query_cols).select_from(tbljoin)
-        # return query, group_by_selection
 
         query = self._add_join(query, join_list)
         query = self._add_restrict(query, restrict)

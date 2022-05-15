@@ -74,8 +74,9 @@ class UpgradesAnalyzer:
 
         try:
             upgrade_cfg = cfg['upgrades'][upgrade_num - 1]
-        except KeyError:
-            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.")
+        except KeyError as e:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.") from e
+
         parameter_list = []
         for option_cfg in upgrade_cfg['options']:
             parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg['option'])[0])
@@ -85,14 +86,13 @@ class UpgradesAnalyzer:
         compare_df = res_df.loc[compare_bldg_list]
         base_df = res_df.loc[base_bldg_list]
         print(f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.")
-        unique_vals_dict = dict()
+        unique_vals_dict = {}
         for col in res_df.columns:
             no_change_set = set(compare_df[col].fillna('').unique())
             other_set = set(base_df[col].fillna('').unique())
-            only_in_no_change = no_change_set - other_set
-            if only_in_no_change:
+            if only_in_no_change := no_change_set - other_set:
                 print(f"Only {chng_type} buildings have {col} in {sorted(only_in_no_change)}")
-                unique_vals_dict[(col,)] = set([(entry,) for entry in only_in_no_change])
+                unique_vals_dict[(col,)] = {(entry,) for entry in only_in_no_change}
 
         if not unique_vals_dict:
             print("No 1-column unique chracteristics found.")
@@ -108,14 +108,12 @@ class UpgradesAnalyzer:
                 # remove cases arisen out of uniqueness found earlier with smaller susbset of cols
                 for sub_combi_size in range(1, len(cols)):
                     for sub_cols in combinations(cols, sub_combi_size):
-                        if sub_cols in unique_vals_dict.keys():
+                        if sub_cols in unique_vals_dict:
                             new_set = set()
                             for val in only_in_compare:
-                                relevant_val = tuple([val[cols.index(sub_col)] for sub_col in sub_cols])
+                                relevant_val = tuple(val[cols.index(sub_col)] for sub_col in sub_cols)
                                 if relevant_val not in unique_vals_dict[sub_cols]:
                                     new_set.add(val)
-                                else:
-                                    pass  # drop this entry because it is coming from known uniqueness of subset of cols
                             only_in_compare = new_set
 
                 if only_in_compare:
@@ -222,12 +220,11 @@ class UpgradesAnalyzer:
     def _print_options_combination_report(self, logic_dict, comb_type='and'):
         n_options = len(logic_dict)
         assert comb_type in ['and', 'or']
-        if n_options >= 2:
-            header = f"Options '{comb_type}' combination report"
-            print("-"*len(header))
-            print(header)
-        else:
+        if n_options < 2:
             return
+        header = f"Options '{comb_type}' combination report"
+        print("-"*len(header))
+        print(header)
         for combination_size in range(2, n_options + 1):
             print("-"*len(header))
             for group in combinations(list(range(n_options)), combination_size):
@@ -275,8 +272,8 @@ class UpgradesAnalyzer:
         try:
             upgrade = cfg['upgrades'][upgrade_num - 1]
             opt = upgrade['options'][option_num - 1]
-        except (KeyError, IndexError, TypeError):
-            raise ValueError(f"The yaml doesn't have {upgrade_num}/{option_num} upgrade/option")
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f"The yaml doesn't have {upgrade_num}/{option_num} upgrade/option") from e
 
         ugrade_name = upgrade.get('upgrade_name')
         header = f"Option Apply Report for - Upgrade{upgrade_num}:'{ugrade_name}', Option{option_num}:'{opt['option']}'"
