@@ -34,7 +34,7 @@ import numpy as np
 from collections import OrderedDict
 import types
 from eulpda.smart_query.upgrades_analyzer import UpgradesAnalyzer
-from eulpda.smart_query.utils import FutureDf, COLOR, DataExistsException, CustomCompiler
+from eulpda.smart_query.utils import FutureDf, DataExistsException, CustomCompiler, print_r, print_g
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,15 +101,6 @@ class ResStockAthena:
             print(self.get_success_report())
             if self.ts_table is not None:
                 self.check_integrity()
-
-    def print_r(self, text):  # print in Red
-        print(f"{COLOR.RED}{text}{COLOR.END}")
-
-    def print_y(self, text):  # print in Yellow
-        print(f"{COLOR.YELLOW}{text}{COLOR.END}")
-
-    def print_g(self, text):  # print in Green
-        print(f"{COLOR.GREEN}{text}{COLOR.END}")
 
     def _get_bs_success_report(self, get_query_only=False):
         bs_query = sa.select([self.bs_table.c['completed_status'], safunc.count().label("count")])
@@ -305,7 +296,7 @@ class ResStockAthena:
             if applied_to != row.applicable_to:
                 diff = row.applicable_to - applied_to
                 if row.option == 'All' and diff == upgrade_failures:
-                    self.print_g(
+                    print_g(
                         f"Upgrade {row.upgrade} was was supposed to be applied to "
                         f"{row.applicable_to} samples, but applied to {applied_to} samples. This difference of {diff}"
                         f" exactly matches with {upgrade_failures} failures in Upgrade {row.upgrade}. It's all good."
@@ -313,7 +304,7 @@ class ResStockAthena:
                     continue
                 elif row.option == 'All':
                     serious = True
-                    self.print_r(
+                    print_r(
                         f"SERIOUS ISSUE: Upgrade {row.upgrade} was was supposed to be applied to "
                         f"{row.applicable_to} samples, but applied to {applied_to} samples. This difference of {diff}"
                         f" doesn't match with {upgrade_failures} failures in Upgrade {row.upgrade}"
@@ -325,14 +316,14 @@ class ResStockAthena:
                     print(f"The difference of {diff} is likely because Upgrade {row.upgrade} caused {upgrade_failures} "
                           f"failures.")
                 else:
-                    self.print_r(f"SERIOUS ISSUE: Upgrade {row.upgrade} caused only {upgrade_failures} failures, so a "
-                                 f"difference of {diff} indicates problem in simulation.")
+                    print_r(f"SERIOUS ISSUE: Upgrade {row.upgrade} caused only {upgrade_failures} failures, so a "
+                            f"difference of {diff} indicates problem in simulation.")
                     serious = True
         if not serious:
-            self.print_g("Integrity check passed.")
+            print_g("Integrity check passed.")
             return True
         else:
-            self.print_r("Integrity check failed. Please check the serious issues above.")
+            print_r("Integrity check failed. Please check the serious issues above.")
             return False
 
     def get_success_report(self, trim_missing_bs='auto', get_query_only=False):
@@ -412,17 +403,17 @@ class ResStockAthena:
         check_pass = True
         for upgrade, count in ts_dict.items():
             if count != bs_dict.get(upgrade, 0):
-                self.print_r(f"Upgrade {upgrade} has {count} samples in timeseries table, but {bs_dict.get(upgrade, 0)}"
-                             " samples in baseline/upgrade table.")
+                print_r(f"Upgrade {upgrade} has {count} samples in timeseries table, but {bs_dict.get(upgrade, 0)}"
+                        " samples in baseline/upgrade table.")
                 check_pass = False
         if check_pass:
-            self.print_g("Annual and timeseries tables are verified to have the same number of buildings.")
+            print_g("Annual and timeseries tables are verified to have the same number of buildings.")
         try:
             rowcount = self._get_rows_per_building()
-            self.print_g(f"All buildings are verified to have the same number of ({rowcount}) timeseries rows.")
+            print_g(f"All buildings are verified to have the same number of ({rowcount}) timeseries rows.")
         except ValueError:
             check_pass = False
-            self.print_r("Different buildings have different number of timeseries rows.")
+            print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
     def _initialize_tables(self):

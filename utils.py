@@ -37,6 +37,18 @@ class COLOR:
     END = '\033[0m'
 
 
+def print_r(text):  # print in Red
+    print(f"{COLOR.RED}{text}{COLOR.END}")
+
+
+def print_y(text):  # print in Yellow
+    print(f"{COLOR.YELLOW}{text}{COLOR.END}")
+
+
+def print_g(text):  # print in Green
+    print(f"{COLOR.GREEN}{text}{COLOR.END}")
+
+
 class CustomCompiler(AthenaDialect().statement_compiler):
     def render_literal_value(self, value, type_):
         if isinstance(value, (datetime.datetime)):
