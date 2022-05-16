@@ -34,7 +34,7 @@ import numpy as np
 from collections import OrderedDict
 import types
 from eulpda.smart_query.UpgradesAnalyzer import UpgradesAnalyzer
-from eulpda.smart_query.utils import FutureDf
+from eulpda.smart_query.utils import FutureDf, COLOR, DataExistsException, CustomCompiler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,26 +42,6 @@ logger = logging.getLogger(__name__)
 
 KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
-
-
-class COLOR:
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    END = '\033[0m'
-
-
-class CustomCompiler(AthenaDialect().statement_compiler):
-    def render_literal_value(self, value, type_):
-        if isinstance(value, (datetime.datetime)):
-            return "timestamp '%s'" % str(value).replace("'", "''")
-        return super(CustomCompiler, self).render_literal_value(value, type_)
-
-
-class DataExistsException(Exception):
-    def __init__(self, message, existing_data=None):
-        super(DataExistsException, self).__init__(message)
-        self.existing_data = existing_data
 
 
 class ResStockAthena:

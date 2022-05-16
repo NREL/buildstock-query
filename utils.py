@@ -1,5 +1,7 @@
 
 from concurrent.futures import Future
+from pyathena.sqlalchemy_athena import AthenaDialect
+import datetime
 
 
 class FutureDf(Future):
@@ -22,3 +24,23 @@ class FutureDf(Future):
 
     def as_pandas(self):
         return self.df
+
+
+class COLOR:
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    END = '\033[0m'
+
+
+class CustomCompiler(AthenaDialect().statement_compiler):
+    def render_literal_value(self, value, type_):
+        if isinstance(value, (datetime.datetime)):
+            return "timestamp '%s'" % str(value).replace("'", "''")
+        return super(CustomCompiler, self).render_literal_value(value, type_)
+
+
+class DataExistsException(Exception):
+    def __init__(self, message, existing_data=None):
+        super(DataExistsException, self).__init__(message)
+        self.existing_data = existing_data

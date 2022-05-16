@@ -18,13 +18,13 @@ class ResStockSavings(ResStockAthena):
         super().__init__(*args, **kwargs)
         self._available_upgrades = None
 
-    def validate_partition_by(self, partition_by):
+    def _validate_partition_by(self, partition_by):
         if not partition_by:
             return []
         [self._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    def get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None):
+    def __get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None):
         restrict = list(restrict) if restrict else []
         ts = self.ts_table
         base = self.bs_table
@@ -51,7 +51,7 @@ class ResStockSavings(ResStockAthena):
             )
         return ts_b, ts_u, tbljoin
 
-    def get_annual_bs_up_table(self, upgrade_id, applied_only):
+    def __get_annual_bs_up_table(self, upgrade_id, applied_only):
         if applied_only:
             tbljoin = (
                 self.bs_table.join(
@@ -132,15 +132,15 @@ class ResStockSavings(ResStockAthena):
 
         upgrade_id = self.validate_upgrade(upgrade_id)
         enduses = self._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
-        partition_by = self.validate_partition_by(partition_by)
+        partition_by = self._validate_partition_by(partition_by)
         total_weight = self._get_weight(weights)
         group_by_selection = [self._get_gcol(g) for g in group_by]
 
         if annual_only:
-            ts_b, ts_u, tbljoin = self.get_annual_bs_up_table(upgrade_id, applied_only)
+            ts_b, ts_u, tbljoin = self.__get_annual_bs_up_table(upgrade_id, applied_only)
         else:
             restrict, ts_restrict = self._split_restrict(restrict)
-            ts_b, ts_u, tbljoin = self.get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict)
+            ts_b, ts_u, tbljoin = self.__get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict)
 
         query_cols = []
         for col in enduses:
