@@ -9,7 +9,7 @@ EULP project should be implemented as member function of this class.
 :author: Anthony.Fontanini@nrel.gov
 """
 
-from eulpda.smart_query.ResStockAthena import ResStockAthena
+from eulpda.smart_query.resstock_athena import ResStockAthena
 import logging
 from typing import List, Any, Tuple
 import pandas as pd

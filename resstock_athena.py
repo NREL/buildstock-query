@@ -33,7 +33,7 @@ import datetime
 import numpy as np
 from collections import OrderedDict
 import types
-from eulpda.smart_query.UpgradesAnalyzer import UpgradesAnalyzer
+from eulpda.smart_query.upgrades_analyzer import UpgradesAnalyzer
 from eulpda.smart_query.utils import FutureDf, COLOR, DataExistsException, CustomCompiler
 
 logging.basicConfig(level=logging.INFO)

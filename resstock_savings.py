@@ -6,7 +6,7 @@ A class to calculate savings shapes for various upgrade runs.
 :author: Rajendra.Adhikari@nrel.gov
 :author: Noel.Merket@nrel.gov
 """
-from eulpda.smart_query.ResStockAthena import ResStockAthena
+from eulpda.smart_query.resstock_athena import ResStockAthena
 import pandas as pd
 import sqlalchemy as sa
 from typing import List, Tuple
