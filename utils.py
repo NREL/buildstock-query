@@ -4,6 +4,10 @@ from pyathena.sqlalchemy_athena import AthenaDialect
 import datetime
 
 
+KWH2MBTU = 0.003412141633127942
+MBTU2KWH = 293.0710701722222
+
+
 class FutureDf(Future):
     def __init__(self, df, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

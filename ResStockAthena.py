@@ -40,10 +40,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-KWH2MBTU = 0.003412141633127942
-MBTU2KWH = 293.0710701722222
-
-
 class ResStockAthena:
     def __init__(self, workgroup: str,
                  db_name: str,
