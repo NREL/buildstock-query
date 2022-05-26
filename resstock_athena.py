@@ -108,11 +108,8 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(bs_query)
         df = self.execute(bs_query)
-        df.insert(0, 'upgrade', '0')
-        pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
-        pf.columns = [c[1] for c in pf.columns]  # Flatten the columns
-        pf['Sum'] = pf.sum(axis=1)
-        return pf
+        df.insert(0, 'upgrade', 0)
+        return self.process_report(df)
 
     def _get_change_report(self, get_query_only=False):
         """Returns counts of buildings to which upgrade didn't do any changes on energy consumption
@@ -121,8 +118,9 @@ class ResStockAthena:
             get_query_only (bool, optional): _description_. Defaults to False.
         """
         queries = []
-        for ch_type in ["no-chng", "increase", "decrease", "null", "any"]:
-            up_query = sa.select([self.up_table.c['upgrade'], safunc.count().label(ch_type)])
+        chng_types = ["no-chng", "bad-chng", "ok-chng", "null", "any"]
+        for ch_type in chng_types:
+            up_query = sa.select([self.up_table.c['upgrade'], safunc.count().label("change")])
             up_query = up_query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
             conditions = self._get_change_conditions(change_type=ch_type)
             up_query = up_query.where(sa.and_(self.bs_table.c['completed_status'] == 'Success',
@@ -133,18 +131,20 @@ class ResStockAthena:
             queries.append(self._compile(up_query))
         if get_query_only:
             return queries
-        change_df = self.execute(queries[0]).set_index('upgrade')
-        for query in queries[1:]:
+        change_df = None
+        for chng_type, query in zip(chng_types, queries):
             df = self.execute(query)
-            df = df.set_index('upgrade')
-            change_df = change_df.join(df, how='outer')
+            df.rename(columns={"change": chng_type}, inplace=True)
+            df['upgrade'] = df['upgrade'].map(int)
+            df = df.set_index('upgrade').sort_index()
+            change_df = change_df.join(df, how='outer') if change_df is not None else df
         return change_df.fillna(0)
 
-    def _get_change_details(self, upgrade, yml_file, change_type='no-chng'):
+    def print_change_details(self, upgrade, yml_file, change_type='no-chng'):
         ua = self.get_upgrades_analyzer(yml_file)
         bad_bids = self.get_buildings_by_change(upgrade, change_type=change_type)
-        good_bids = self.get_buildings_by_change(upgrade, change_type='decrease')
-        return ua.print_unique_characteristic(upgrade, good_bids, bad_bids)
+        good_bids = self.get_buildings_by_change(upgrade, change_type='ok-chng')
+        ua.print_unique_characteristic(upgrade, change_type, good_bids, bad_bids)
 
     def _get_upgrade_buildings(self, upgrade, trim_missing_bs=True, get_query_only=False):
         up_query = sa.select([self.up_bldgid_column])
@@ -163,24 +163,24 @@ class ResStockAthena:
         return df[self.bs_bldgid_column.name].values
 
     def _get_change_conditions(self, change_type):
-        all_cols = [col.name for col in self.up_table.columns if 'report' in col.name and
-                    col.name.endswith(('btu', 'lb', 'kwh', 'kw', 'gal', 'hr', 'hour'))]
-
+        threshold = 1e-3
+        all_cols = [col.name for col in self.up_table.columns if col.name.startswith('report_simulation_output') and
+                    col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
         null_chng_conditions = sa.and_(*[sa.or_(self.up_table.c[col] == sa.null(),
                                                 self.bs_table.c[col] == sa.null()
                                                 ) for col in all_cols])
 
         no_chng_conditions = sa.and_(*[safunc.coalesce(safunc.abs(self.up_table.c[col] -
-                                                                  self.bs_table.c[col]), 0) < 1e-12
+                                                                  self.bs_table.c[col]), 0) < threshold
                                        for col in all_cols])
-        good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= 1e-12 for col in all_cols])
-        opp_chng_conditions = sa.and_(*[safunc.coalesce(self.bs_table.c[col] - self.up_table.c[col], -1) < 1e-12
+        good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= threshold for col in all_cols])
+        opp_chng_conditions = sa.and_(*[safunc.coalesce(self.bs_table.c[col] - self.up_table.c[col], -1) < threshold
                                         for col in all_cols], sa.not_(no_chng_conditions))
         if change_type == 'no-chng':
             conditions = no_chng_conditions
-        elif change_type == 'increase':
+        elif change_type == 'bad-chng':
             conditions = opp_chng_conditions
-        elif change_type == 'decrease':
+        elif change_type == 'ok-chng':
             conditions = good_chng_conditions
         elif change_type == 'null':
             conditions = null_chng_conditions
@@ -227,9 +227,16 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(up_query)
         df = self.execute(up_query)
+        return self.process_report(df)
+
+    def process_report(self, df):
+        df['upgrade'] = df['upgrade'].map(int)
         pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
-        pf.columns = [c[1] for c in pf.columns]  # Flatten the columns
+        pf.columns = [c[1] for c in pf.columns]
         pf['Sum'] = pf.sum(axis=1)
+        for col in ['Fail', 'Invalid']:
+            if col not in pf.columns:
+                pf.insert(1, col, 0)
         return pf
 
     def _get_full_options_report(self, trim_missing_bs=True, get_query_only=False):
@@ -349,17 +356,12 @@ class ResStockAthena:
                        upgrade_result['Sum'], 1)
             upgrade_result['Applied %'] = pa
 
-        if 'Invalid' in upgrade_result.columns:
-            baseline_result.insert(1, 'Invalid', 0)
-        if 'Fail' not in baseline_result.columns:
-            baseline_result.insert(1, 'Fail', 0)
-
         pf = pd.concat([baseline_result, upgrade_result])
         pf = pf.rename(columns={'Invalid': 'Unapplicaple'})
         pf = pf.join(change_result).fillna(0)
         pf['no-chng %'] = round(100 * pf['no-chng'] / pf['Success'], 1)
-        pf['increase %'] = round(100 * pf['increase'] / pf['Success'], 1)
-        pf['decrease %'] = round(100 * pf['decrease'] / pf['Success'], 1)
+        pf['bad-chng %'] = round(100 * pf['bad-chng'] / pf['Success'], 1)
+        pf['ok-chng %'] = round(100 * pf['ok-chng'] / pf['Success'], 1)
         return pf
 
     def _get_ts_report(self, get_query_only=False):
@@ -370,6 +372,7 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(ts_query)
         df = self.execute(ts_query)
+        df['upgrade'] = df['upgrade'].map(int)
         df = df.set_index('upgrade')
         df = df.rename(columns={'count': 'Success'})
         return df
@@ -1257,7 +1260,7 @@ class ResStockAthena:
 
     def validate_upgrade(self, upgrade_id):
         available_upgrades = self.get_available_upgrades()
-        if str(upgrade_id) not in set(available_upgrades):
+        if upgrade_id not in set(available_upgrades):
             raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade."
                              "It doesn't exist or have no successful run")
         return str(upgrade_id)

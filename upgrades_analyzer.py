@@ -37,10 +37,11 @@ class UpgradesAnalyzer:
             self.buildstock_df.rename(columns={'building': 'building_id'}, inplace=True)
             self.buildstock_df.set_index('building_id', inplace=True)
         elif isinstance(buildstock, pd.DataFrame):
-            self.buildstock_df = buildstock.reset_index().rename(columns=str.lower).astype(str)
+            self.buildstock_df = buildstock.reset_index().rename(columns=str.lower)
             self.buildstock_df.rename(columns={'building': 'building_id'}, inplace=True)
             if 'building_id' in self.buildstock_df.columns:
                 self.buildstock_df.set_index('building_id', inplace=True)
+            self.buildstock_df = self.buildstock_df.astype(str)
         self.total_samples = len(self.buildstock_df)
         self._logic_cache = {}
 
@@ -85,7 +86,7 @@ class UpgradesAnalyzer:
             all_params = []
             for el in logic:
                 all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
-            return list(dict.fromkeys(all_params))  # remove duplicates
+            return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
         elif isinstance(logic, dict):
             return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
         else:
@@ -105,8 +106,9 @@ class UpgradesAnalyzer:
         for option_cfg in upgrade_cfg['options']:
             parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg['option'])[0])
             parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get('apply_logic')))
-        parameter_list = list(dict.fromkeys(parameter_list))
         res_df = self.buildstock_df
+        # remove duplicates (dict.fromkeys) and remove parameters not existing in buildstock_df
+        parameter_list = [param for param in dict.fromkeys(parameter_list) if param in res_df.columns]
         compare_df = res_df.loc[compare_bldg_list]
         base_df = res_df.loc[base_bldg_list]
         print(f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.")
@@ -147,7 +149,6 @@ class UpgradesAnalyzer:
 
             if not found_uniq_chars:
                 print(f"No {combi_size}-column unique chracteristics found.")
-        return compare_df, base_df, parameter_list
 
     def _reduce_logic(self, logic, parent=None):
         cache_key = str(logic) if parent is None else parent + "[" + str(logic) + "]"
