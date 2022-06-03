@@ -166,8 +166,8 @@ class ResStockAthena:
         threshold = 1e-3
         fuel_cols = [col.name for col in self.up_table.columns if col.name.startswith('report_simulation_output') and
                      col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
-        unmet_hours_cols = ['report_simulation_output.unmet_hours_cooling_hr', 
-                       'report_simulation_output.unmet_hours_heating_hr']
+        unmet_hours_cols = ['report_simulation_output.unmet_hours_cooling_hr',
+                            'report_simulation_output.unmet_hours_heating_hr']
         all_cols = fuel_cols + unmet_hours_cols
         null_chng_conditions = sa.and_(*[sa.or_(self.up_table.c[col] == sa.null(),
                                                 self.bs_table.c[col] == sa.null()
