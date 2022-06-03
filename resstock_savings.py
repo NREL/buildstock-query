@@ -82,6 +82,7 @@ class ResStockSavings(ResStockAthena):
         restrict: List[Tuple[str, List]] = None,
         run_async: bool = False,
         applied_only: bool = False,
+        get_quartiles: bool = False,
         get_query_only: bool = False,
         unload_to: str = '',
         partition_by: List[str] = None,
@@ -112,6 +113,9 @@ class ResStockSavings(ResStockAthena):
                        blocks otherwise.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
+            get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
+                           [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
+                           is the maximum.
             unload_to: Writes the ouput of the query to this location in s3. Consider using run_async = True with this
                        to unload multiple queries simulataneuosly
             partition_by: List of columns to partition when writing to s3. To be used with unload_to.
@@ -151,6 +155,12 @@ class ResStockSavings(ResStockAthena):
                     sa.func.sum(savings_col * total_weight).label(f"{self._simple_label(col.name)}__savings"),
                 ]
             )
+            if get_quartiles:
+                query_cols.extend(
+                    [sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).
+                     label(f"{self._simple_label(col.name)}__savings__quartiles")
+                     ]
+                )
 
         query_cols.extend(group_by_selection)
         if annual_only:  # Use annual tables

@@ -118,7 +118,7 @@ class ResStockAthena:
             get_query_only (bool, optional): _description_. Defaults to False.
         """
         queries = []
-        chng_types = ["no-chng", "bad-chng", "ok-chng", "null", "any"]
+        chng_types = ["no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng", "null", "any"]
         for ch_type in chng_types:
             up_query = sa.select([self.up_table.c['upgrade'], safunc.count().label("change")])
             up_query = up_query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
@@ -164,24 +164,35 @@ class ResStockAthena:
 
     def _get_change_conditions(self, change_type):
         threshold = 1e-3
-        all_cols = [col.name for col in self.up_table.columns if col.name.startswith('report_simulation_output') and
-                    col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
+        fuel_cols = [col.name for col in self.up_table.columns if col.name.startswith('report_simulation_output') and
+                     col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
+        unmet_hours_cols = ['report_simulation_output.unmet_hours_cooling_hr', 
+                       'report_simulation_output.unmet_hours_heating_hr']
+        all_cols = fuel_cols + unmet_hours_cols
         null_chng_conditions = sa.and_(*[sa.or_(self.up_table.c[col] == sa.null(),
                                                 self.bs_table.c[col] == sa.null()
-                                                ) for col in all_cols])
+                                                ) for col in fuel_cols])
 
         no_chng_conditions = sa.and_(*[safunc.coalesce(safunc.abs(self.up_table.c[col] -
                                                                   self.bs_table.c[col]), 0) < threshold
-                                       for col in all_cols])
-        good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= threshold for col in all_cols])
+                                       for col in fuel_cols])
+        good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= threshold for col in fuel_cols])
         opp_chng_conditions = sa.and_(*[safunc.coalesce(self.bs_table.c[col] - self.up_table.c[col], -1) < threshold
-                                        for col in all_cols], sa.not_(no_chng_conditions))
+                                        for col in fuel_cols], sa.not_(no_chng_conditions))
+        true_good_chng_conditions = sa.or_(*[self.bs_table.c[col] - self.up_table.c[col] >= threshold
+                                             for col in all_cols])
+        true_opp_chng_conditions = sa.and_(*[safunc.coalesce(self.bs_table.c[col] - self.up_table.c[col], -1) <
+                                             threshold for col in all_cols], sa.not_(no_chng_conditions))
         if change_type == 'no-chng':
             conditions = no_chng_conditions
         elif change_type == 'bad-chng':
             conditions = opp_chng_conditions
+        elif change_type == 'true-bad-chng':
+            conditions = true_opp_chng_conditions
         elif change_type == 'ok-chng':
             conditions = good_chng_conditions
+        elif change_type == 'true-ok-chng':
+            conditions = true_good_chng_conditions
         elif change_type == 'null':
             conditions = null_chng_conditions
         elif change_type == 'any':
@@ -362,6 +373,8 @@ class ResStockAthena:
         pf['no-chng %'] = round(100 * pf['no-chng'] / pf['Success'], 1)
         pf['bad-chng %'] = round(100 * pf['bad-chng'] / pf['Success'], 1)
         pf['ok-chng %'] = round(100 * pf['ok-chng'] / pf['Success'], 1)
+        pf['true-ok-chng %'] = round(100 * pf['true-ok-chng'] / pf['Success'], 1)
+        pf['true-bad-chng %'] = round(100 * pf['true-bad-chng'] / pf['Success'], 1)
         return pf
 
     def _get_ts_report(self, get_query_only=False):
@@ -1284,6 +1297,7 @@ class ResStockAthena:
                          join_list: List[Tuple[str, str, str]] = None,
                          weights: List[Tuple] = None,
                          restrict: List[Tuple[str, List]] = None,
+                         get_quartiles: bool = False,
                          run_async: bool = False,
                          get_query_only: bool = False):
         """
@@ -1311,7 +1325,9 @@ class ResStockAthena:
 
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
-
+            get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
+                           [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
+                           is the maximum.
             run_async: Whether to run the query in the background. Returns immediately if running in background,
                        blocks otherwise.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
@@ -1338,6 +1354,9 @@ class ResStockAthena:
         total_weight = self._get_weight(weights)
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._simple_label(enduse.name))
                             for enduse in enduses]
+        if get_quartiles:
+            enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).
+                                 label(self._simple_label(enduse.name)+"__quartiles") for enduse in enduses]
         grouping_metrics_selction = [safunc.sum(1).label("sample_count"),
                                      safunc.sum(total_weight).label("units_count")]
 

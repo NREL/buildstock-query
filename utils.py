@@ -53,6 +53,8 @@ class CustomCompiler(AthenaDialect().statement_compiler):
     def render_literal_value(self, value, type_):
         if isinstance(value, (datetime.datetime)):
             return "timestamp '%s'" % str(value).replace("'", "''")
+        if isinstance(value, list):
+            return f"ARRAY[{','.join([str(v) for v in value])}]"
         return super(CustomCompiler, self).render_literal_value(value, type_)
 
 
