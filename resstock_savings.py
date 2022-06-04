@@ -132,13 +132,13 @@ class ResStockSavings(ResStockAthena):
         weights = list(weights) if weights else []
         restrict = list(restrict) if restrict else []
 
-        [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
+        [self.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
 
         upgrade_id = self.validate_upgrade(upgrade_id)
         enduses = self._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
         partition_by = self._validate_partition_by(partition_by)
         total_weight = self._get_weight(weights)
-        group_by_selection = [self._get_gcol(g) for g in group_by]
+        group_by_selection = self._process_groupby_cols(group_by, annual_only=annual_only)
 
         if annual_only:
             ts_b, ts_u, tbljoin = self.__get_annual_bs_up_table(upgrade_id, applied_only)
@@ -165,7 +165,7 @@ class ResStockSavings(ResStockAthena):
         query_cols.extend(group_by_selection)
         if annual_only:  # Use annual tables
             grouping_metrics_selection = [safunc.sum(1).label(
-                    "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
+                "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
             query_cols = grouping_metrics_selection + query_cols
         elif collapse_ts:  # Use timeseries tables but collapse timeseries
             rows_per_building = self._get_rows_per_building()

@@ -445,17 +445,17 @@ class ResStockAthena:
 
     def _get_sample_weight(self, sample_weight):
         if not sample_weight:
-            return sa.Integer(1)
+            return sa.literal(1)
         elif isinstance(sample_weight, str):
             try:
-                return self._get_col(sample_weight)
+                return self.get_column(sample_weight)
             except ValueError:
                 logger.error("Sample weight column not found. Using weight of 1.")
                 return sa.literal(1)
         elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
 
-    def _get_tbl(self, table_name, missing_ok=False):
+    def get_table(self, table_name, missing_ok=False):
 
         if isinstance(table_name, sa.schema.Table):
             return table_name  # already a table
@@ -475,24 +475,28 @@ class ResStockAthena:
 
         if isinstance(column_name, tuple):
             try:
-                return self._get_col(column_name[0]).label(column_name[1])
+                return self.get_column(column_name[0]).label(column_name[1])
             except ValueError:
                 new_name = f"build_existing_model.{column_name[0]}"
-                return self._get_col(new_name).label(column_name[1])
+                return self.get_column(new_name).label(column_name[1])
         elif isinstance(column_name, str):
             try:
-                return self._get_col(column_name)
+                return self.get_column(column_name).label(self._simple_label(column_name))
             except ValueError:
-                new_name = f"build_existing_model.{column_name}"
-                return self._get_col(new_name).label(column_name)
+                if not column_name.startswith("build_existing_model."):
+                    new_name = f"build_existing_model.{column_name}"
+                    return self.get_column(new_name).label(column_name)
+                raise ValueError(f"Invalid column name {column_name}")
         else:
             raise ValueError(f"Invalid column name type {column_name}: {type(column_name)}")
 
-    def _get_col(self, column_name):
+    def get_column(self, column_name, table_name=None):
         if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
             return column_name  # already a col
-
-        valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+        if table_name:
+            valid_tables = [self.get_table(table_name)]
+        else:
+            valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
 
         if not valid_tables:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
@@ -507,13 +511,13 @@ class ResStockAthena:
                                                  workgroup=self.workgroup)
         self.meta = sa.MetaData(bind=self.engine)
         if isinstance(table_name, str):
-            baseline_table = self._get_tbl(f'{table_name}_baseline')
-            ts_table = self._get_tbl(f'{table_name}_timeseries', missing_ok=True)
-            upgrade_table = self._get_tbl(f'{table_name}_upgrades', missing_ok=True)
+            baseline_table = self.get_table(f'{table_name}_baseline')
+            ts_table = self.get_table(f'{table_name}_timeseries', missing_ok=True)
+            upgrade_table = self.get_table(f'{table_name}_upgrades', missing_ok=True)
         elif isinstance(table_name, tuple):
-            baseline_table = self._get_tbl(f'{table_name[0]}')
-            ts_table = self._get_tbl(f'{table_name[1]}', missing_ok=True)
-            upgrade_table = self._get_tbl(f'{table_name[2]}', missing_ok=True)
+            baseline_table = self.get_table(f'{table_name[0]}')
+            ts_table = self.get_table(f'{table_name[1]}', missing_ok=True)
+            upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True)
         else:
             baseline_table = None
             ts_table = None
@@ -1058,12 +1062,12 @@ class ResStockAthena:
                 cols = [c for c in cols if fuel_type in c.name]
             return cols
         else:
-            tbl = self._get_tbl(table)
+            tbl = self.get_table(table)
             return tbl.columns
 
     def get_distinct_vals(self, column: str, table_name: str = None, get_query_only: bool = False):
         table_name = self.bs_table.name if table_name is None else table_name
-        tbl = self._get_tbl(table_name)
+        tbl = self.get_table(table_name)
         query = sa.select(tbl.c[column]).distinct()
         if get_query_only:
             return self._compile(query)
@@ -1073,7 +1077,7 @@ class ResStockAthena:
 
     def get_distinct_count(self, column: str, table_name: str = None, weight_column: str = None,
                            get_query_only: bool = False):
-        tbl = self.bs_table if table_name is None else self._get_tbl(table_name)
+        tbl = self.bs_table if table_name is None else self.get_table(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label("sample_count"),
                            safunc.sum(self.sample_wt).label("weighted_count")])
         query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
@@ -1148,7 +1152,7 @@ class ResStockAthena:
         if get_query_only:
             return compiled_query
         if compiled_query in self._query_cache:
-            return self._query_cache[compiled_query].copy()
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
@@ -1174,8 +1178,8 @@ class ResStockAthena:
 
     @staticmethod
     def _simple_label(label):
-        if label.startswith('report_simulation_output') or '.' in label:
-            return label.split('.')[1]
+        if '.' in label:
+            return ''.join(label.split('.')[1:])
         else:
             return label
 
@@ -1187,11 +1191,11 @@ class ResStockAthena:
         for col, criteria in restrict:
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
-                    where_clauses.append(self._get_col(col).in_(criteria))
+                    where_clauses.append(self.get_column(col).in_(criteria))
                     continue
                 else:
                     criteria = criteria[0]
-            where_clauses.append(self._get_col(col) == criteria)
+            where_clauses.append(self.get_column(col) == criteria)
         query = query.where(*where_clauses)
         return query
 
@@ -1206,7 +1210,7 @@ class ResStockAthena:
 
     def _add_join(self, query, join_list):
         for new_table_name, baseline_column_name, new_column_name in join_list:
-            new_tbl = self._get_tbl(new_table_name)
+            new_tbl = self.get_table(new_table_name)
             query = query.join(new_tbl, self.bs_table.c[baseline_column_name]
                                == new_tbl.c[new_column_name])
         return query
@@ -1243,10 +1247,10 @@ class ResStockAthena:
         total_weight = self.sample_wt
         for weight_col in weights:
             if isinstance(weight_col, tuple):
-                tbl = self._get_tbl(weight_col[1])
+                tbl = self.get_table(weight_col[1])
                 total_weight *= tbl.c[weight_col[0]]
             else:
-                total_weight *= self._get_col(weight_col)
+                total_weight *= self.get_column(weight_col)
         return total_weight
 
     def get_groupby_cols(self) -> List[str]:
@@ -1277,6 +1281,21 @@ class ResStockAthena:
             raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade."
                              "It doesn't exist or have no successful run")
         return str(upgrade_id)
+
+    def _process_groupby_cols(self, group_by, annual_only=False):
+        if not group_by:
+            return []
+        if annual_only:
+            new_group_by = []
+            for entry in group_by:
+                if isinstance(entry, str) and not entry.startswith("build_existing_model."):
+                    new_group_by.append("build_existing_model." + entry)
+                elif isinstance(entry, tuple) and not entry[0].startswith("build_existing_model."):
+                    new_group_by.append(("build_existing_model." + entry[0], entry[1]))
+                else:
+                    new_group_by.append(entry)
+            group_by = new_group_by
+        return [self._get_gcol(entry) for entry in group_by]
 
     def _split_restrict(self, restrict):
         # Some cols like "state" might be available in both ts and bs table
@@ -1344,7 +1363,7 @@ class ResStockAthena:
         weights = list(weights) if weights else []
         restrict = list(restrict) if restrict else []
 
-        [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
+        [self.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
         if upgrade_id in {None, 0, '0'}:
             enduses = self._get_enduse_cols(enduses, table='baseline')
         else:
@@ -1364,7 +1383,7 @@ class ResStockAthena:
             query = sa.select(grouping_metrics_selction + enduse_selection)
             group_by_selection = []
         else:
-            group_by_selection = [self._get_gcol(g) for g in group_by]
+            group_by_selection = self._process_groupby_cols(group_by, annual_only=True)
             query = sa.select(group_by_selection + grouping_metrics_selction + enduse_selection)
         # jj = self.bs_table.join(self.ts_table, self.ts_table.c['building_id']==self.bs_table.c['building_id'])
         # self._compile(query.select_from(jj))
@@ -1540,14 +1559,14 @@ class ResStockAthena:
                                                    join_list=join_list, weights=weights, restrict=restrict,
                                                    run_async=run_async, get_query_only=get_query_only,
                                                    limit=limit)
-        [self._get_tbl(jl[0]) for jl in join_list]  # ingress all tables in join list
+        [self.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
         enduses = self._get_enduse_cols(enduses, table='timeseries')
         total_weight = self._get_weight(weights)
 
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._simple_label(enduse.name))
                             for enduse in enduses]
-        group_by_selection = [self._get_col(g[0]).label(g[1]) if isinstance(
-            g, tuple) else self._get_col(g) for g in group_by]
+        group_by_selection = [self.get_column(g[0]).label(g[1]) if isinstance(
+            g, tuple) else self.get_column(g) for g in group_by]
 
         if self.timestamp_column.name not in group_by:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
@@ -1743,7 +1762,7 @@ class ResStockAthena:
         batch_id = self.submit_batch_query(queries)
         if exact_times:
             vals, = self.get_batch_query_result(batch_id, combine=False)
-            return vals.drop(columns=['query_id'])
+            return vals
         else:
             lower_vals, upper_vals = self.get_batch_query_result(batch_id, combine=False)
             avg_upper_weight = np.mean([min_of_hour / sim_interval_seconds for hour in at_hour if
@@ -1751,4 +1770,4 @@ class ResStockAthena:
             avg_lower_weight = 1 - avg_upper_weight
             # modify the lower vals to make it weighted average of upper and lower vals
             lower_vals[enduses] = lower_vals[enduses] * avg_lower_weight + upper_vals[enduses] * avg_upper_weight
-            return lower_vals.drop(columns=['query_id'])
+            return lower_vals

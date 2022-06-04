@@ -167,8 +167,8 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
-
-        result = self.aggregate_annual([], group_by=['eiaid'] + group_by,
+        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
+        result = self.aggregate_annual([], group_by=[eiaid_col] + group_by,
                                        sort=True,
                                        join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
                                        weights=['weight'],
@@ -192,7 +192,8 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        result = self.aggregate_annual(enduses=enduses, group_by=['eiaid'] + group_by,
+        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
+        result = self.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
                                        join_list=join_list,
                                        weights=['weight'],
                                        sort=True,
@@ -216,7 +217,7 @@ class EULPAthena(ResStockAthena):
         query = sa.select(['*']).select_from(self.bs_table)
         query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self._get_col("weight") > 0)
+        query = query.where(self.get_column("weight") > 0)
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
@@ -235,7 +236,7 @@ class EULPAthena(ResStockAthena):
         """
         restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-
+        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
         if 'eiaids' in self.cache:
             if self.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
                 return self.cache['eiaids'][self.db_name + '/' + eiaid_map_table_name]
@@ -243,7 +244,7 @@ class EULPAthena(ResStockAthena):
             self.cache['eiaids'] = {}
 
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
-        annual_agg = self.aggregate_annual(enduses=[], group_by=['eiaid'],
+        annual_agg = self.aggregate_annual(enduses=[], group_by=[eiaid_col],
                                            restrict=restrict,
                                            join_list=join_list,
                                            weights=['weight'],
@@ -264,7 +265,7 @@ class EULPAthena(ResStockAthena):
 
         """
         query = sa.select([self.bs_bldgid_column])
-        query = query.where(self._get_col(location_col).in_(locations))
+        query = query.where(self.get_column(location_col).in_(locations))
         query = self._add_order_by(query, [self.bs_bldgid_column])
         if get_query_only:
             return self._compile(query)
@@ -288,7 +289,7 @@ class EULPAthena(ResStockAthena):
         query = sa.select([self.bs_bldgid_column.distinct()])
         query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self._get_col("weight") > 0)
+        query = query.where(self.get_column("weight") > 0)
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
@@ -309,10 +310,10 @@ class EULPAthena(ResStockAthena):
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        self._get_tbl(eiaid_map_table_name)
-        query = sa.select([self._get_col(map_eiaid_column).distinct()])
+        self.get_table(eiaid_map_table_name)
+        query = sa.select([self.get_column(map_eiaid_column).distinct()])
         query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self._get_col("weight") > 0)
+        query = query.where(self.get_column("weight") > 0)
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
