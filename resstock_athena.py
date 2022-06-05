@@ -553,7 +553,6 @@ class ResStockAthena:
         self.execution_history_file = execution_history or '.execution_history'
         self.execution_cost = {'GB': 0, 'Dollars': 0}  # Tracks the cost of current session. Only used for Athena query
         self.seen_execution_ids = set()  # set to prevent double counting same execution id
-        self.cache = {}  # To store small but frequently queried result, such as total number of timesteps
 
         if os.path.exists(self.execution_history_file):
             with open(self.execution_history_file, 'r') as f:
@@ -1620,12 +1619,6 @@ class ResStockAthena:
         return self.execute(query, run_async=run_async)
 
     def _get_simulation_timesteps_count(self):
-        if "simulation_timesteps_count" in self.cache:
-            if self.db_name + "/" + self.ts_table.name in self.cache["simulation_timesteps_count"]:
-                return self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name]
-        else:
-            self.cache['simulation_timesteps_count'] = {}
-
         # find the simulation time interval
         query = sa.select([self.ts_bldgid_column, safunc.sum(1).label('count')])
         query = query.group_by(self.ts_bldgid_column)
@@ -1636,7 +1629,6 @@ class ResStockAthena:
             logger.warning("Not all buildings have the same number of timestamps. This can cause wrong"
                            "scaled_units_count and other problems.")
 
-        self.cache['simulation_timesteps_count'][self.db_name + "/" + self.ts_table.name] = bld0_step_count
         return bld0_step_count
 
     def _get_simulation_info(self, get_query_only=False):
