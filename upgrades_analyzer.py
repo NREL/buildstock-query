@@ -208,7 +208,7 @@ class UpgradesAnalyzer:
                 applied_bldgs &= package_applied_bldgs
                 count = applied_bldgs.sum()
                 all_applied_bldgs |= applied_bldgs
-                record = {'upgrade': str(indx+1), 'upgrade_name': upgrade['upgrade_name'],
+                record = {'upgrade': indx+1, 'upgrade_name': upgrade['upgrade_name'],
                           'option_num': opt_index + 1,
                           'option': option['option'], 'applicable_to': count,
                           'applicable_percent': self._to_pct(count),
@@ -217,7 +217,7 @@ class UpgradesAnalyzer:
                 records.append(record)
 
             count = all_applied_bldgs.sum()
-            record = {'upgrade': str(indx+1), 'upgrade_name': upgrade['upgrade_name'],
+            record = {'upgrade': indx+1, 'upgrade_name': upgrade['upgrade_name'],
                       'option_num': -1,
                       'option': "All", 'applicable_to': count,
                       'applicable_percent': self._to_pct(count)}

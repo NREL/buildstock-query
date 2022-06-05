@@ -2,6 +2,8 @@
 from concurrent.futures import Future
 from pyathena.sqlalchemy_athena import AthenaDialect
 import datetime
+import pickle
+import os
 
 
 KWH2MBTU = 0.003412141633127942
@@ -62,3 +64,15 @@ class DataExistsException(Exception):
     def __init__(self, message, existing_data=None):
         super(DataExistsException, self).__init__(message)
         self.existing_data = existing_data
+
+
+def save_pickle(path, obj):
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+
+
+def load_pickle(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File {path} not found for loading table")
+    with open(path, "rb") as f:
+        return pickle.load(f)

@@ -35,6 +35,8 @@ from collections import OrderedDict
 import types
 from eulpda.smart_query.upgrades_analyzer import UpgradesAnalyzer
 from eulpda.smart_query.utils import FutureDf, DataExistsException, CustomCompiler, print_r, print_g
+from eulpda.smart_query.utils import save_pickle, load_pickle
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ class ResStockAthena:
         self.workgroup = workgroup
         self.buildstock_type = buildstock_type
         self._query_cache = {}
+
         self._aws_s3 = boto3.client('s3')
         self._aws_athena = boto3.client('athena', region_name=region_name)
         self._aws_glue = boto3.client('glue', region_name=region_name)
@@ -94,13 +97,34 @@ class ResStockAthena:
         self.sample_weight = sample_weight
         self.table_name = table_name
         self._initialize_tables()
-        # self.print_report()
         self._initialize_book_keeping(execution_history)
+
+        with contextlib.suppress(FileNotFoundError):
+            self.load_cache()
+
         if not skip_reports:
             logger.info("Getting Success counts...")
             print(self.get_success_report())
             if self.ts_table is not None:
                 self.check_integrity()
+        self.save_cache()
+
+    def load_cache(self, path=None):
+        path = path or f"{self.table_name}_query_cache.pkl"
+        before_count = len(self._query_cache)
+        saved_cache = load_pickle(path)
+        logger.info(f"{len(saved_cache)} queries cache read from {path}.")
+        self._query_cache.update(saved_cache)
+        after_count = len(self._query_cache)
+        if diff := after_count - before_count:
+            logger.info(f"{diff} queries cache is updated.")
+        else:
+            logger.info("Cache already upto date.")
+
+    def save_cache(self, path=None):
+        path = path or f"{self.table_name}_query_cache.pkl"
+        save_pickle(path, self._query_cache)
+        logger.info(f"{len(self._query_cache)} queries cache saved to {path}")
 
     def _get_bs_success_report(self, get_query_only=False):
         bs_query = sa.select([self.bs_table.c['completed_status'], safunc.count().label("count")])
@@ -109,7 +133,7 @@ class ResStockAthena:
             return self._compile(bs_query)
         df = self.execute(bs_query)
         df.insert(0, 'upgrade', 0)
-        return self.process_report(df)
+        return self._process_report(df)
 
     def _get_change_report(self, get_query_only=False):
         """Returns counts of buildings to which upgrade didn't do any changes on energy consumption
@@ -238,9 +262,9 @@ class ResStockAthena:
         if get_query_only:
             return self._compile(up_query)
         df = self.execute(up_query)
-        return self.process_report(df)
+        return self._process_report(df)
 
-    def process_report(self, df):
+    def _process_report(self, df):
         df['upgrade'] = df['upgrade'].map(int)
         pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
         pf.columns = [c[1] for c in pf.columns]
@@ -266,6 +290,7 @@ class ResStockAthena:
         df = self.execute(query)
         simple_names = [f"option{i+1}" for i in range(len(opt_name_cols))]
         df.columns = ['upgrade'] + simple_names + ['Success']
+        df['upgrade'] = df['upgrade'].map(int)
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
         return df[applied_rows]
 
@@ -280,7 +305,7 @@ class ResStockAthena:
         option_df = option_df.reset_index()
         option_df.columns = ['upgrade', 'option', 'Success']
         upgrade_df = self.get_success_report(trim_missing_bs=trim_missing_bs).reset_index()
-        upgrade_df = upgrade_df[upgrade_df['upgrade'] != '0']
+        upgrade_df = upgrade_df[upgrade_df['upgrade'] != 0]
         upgrade_df = upgrade_df[['upgrade', 'Success', 'Fail', 'Unapplicaple']]
         upgrade_df.insert(1, 'option', 'All')
         full_df = pd.concat([option_df, upgrade_df])
@@ -309,8 +334,8 @@ class ResStockAthena:
         opt_report_dict = opt_report_df.set_index(['upgrade', 'option']).to_dict()
         serious = False
         for indx, row in ua_df.iterrows():
-            applied_to = opt_report_dict['Success'].get((str(row.upgrade), row.option), 0)
-            upgrade_failures = opt_report_dict['Fail'].get((str(row.upgrade), 'All'), 0)
+            applied_to = opt_report_dict['Success'].get((row.upgrade, row.option), 0)
+            upgrade_failures = opt_report_dict['Fail'].get((row.upgrade, 'All'), 0)
             if applied_to != row.applicable_to:
                 diff = row.applicable_to - applied_to
                 if row.option == 'All' and diff == upgrade_failures:
