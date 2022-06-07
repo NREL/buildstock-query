@@ -419,3 +419,14 @@ class UpgradesAnalyzer:
             logic_str[0] = logic_str[0] + " => " + f"{count} ({self._to_pct(count)}%)"
 
         return logic_array, logic_str
+
+    def save_detailed_report_all(self, file_path):
+        cfg = self.get_cfg()
+        all_report = ""
+        for upgrade in range(1, len(cfg['upgrades']) + 1):
+            logger.info(f"Getting report for upgrade {upgrade}")
+            _, report = self.get_detailed_report(upgrade)
+            all_report += report + "\n"
+        print(f"Saving report to {file_path}")
+        with open(file_path, 'w') as file:
+            file.write(all_report)
