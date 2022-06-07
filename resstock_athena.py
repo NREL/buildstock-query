@@ -1360,7 +1360,8 @@ class ResStockAthena:
         return list(self.get_success_report().query("Success>0").index)
 
     def validate_upgrade(self, upgrade_id):
-        available_upgrades = self.get_available_upgrades()
+        upgrade_id = 0 if upgrade_id in (None, '0') else upgrade_id
+        available_upgrades = self.get_available_upgrades() or [0]
         if upgrade_id not in set(available_upgrades):
             raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade."
                              "It doesn't exist or have no successful run")
@@ -1424,7 +1425,7 @@ class ResStockAthena:
 
             sort: Whether to sort the results by group_by colummns
 
-            upgrade_id: The upgrade to query for. Only valid with runs with upgrade.
+            upgrade_id: The upgrade to query for. Only valid with runs with upgrade. If not provided, use the baseline
 
             join_list: Additional table to join to baseline table to perform operation. All the inputs (`enduses`,
                        `group_by` etc) can use columns from these additional tables. It should be specified as a list of
@@ -1597,12 +1598,14 @@ class ResStockAthena:
     def aggregate_timeseries(self,
                              enduses: List[str] = None,
                              group_by: List[str] = None,
+                             upgrade_id: int = None,
                              sort: bool = False,
                              join_list: List[Tuple[str, str, str]] = None,
                              weights: List[str] = None,
                              restrict: List[Tuple[str, List]] = None,
                              run_async: bool = False,
                              split_enduses: bool = False,
+                             collapse_ts: bool = False,
                              get_query_only: bool = False,
                              limit: int = None
                              ):
@@ -1613,6 +1616,8 @@ class ResStockAthena:
             enduses: The list of enduses to aggregate. Defaults to all electricity enduses
 
             group_by: The list of columns to group the aggregation by.
+
+            upgrade_id: The upgrade to query for. Only valid with runs with upgrade. If not provided, use the baseline
 
             order_by: The columns by which to sort the result.
 
@@ -1648,6 +1653,7 @@ class ResStockAthena:
         join_list = list(join_list) if join_list else []
         weights = list(weights) if weights else []
         restrict = list(restrict) if restrict else []
+        upgrade_id = self.validate_upgrade(upgrade_id)
 
         if split_enduses:
             return self.aggregate_timeseries_light(enduses=enduses, group_by=group_by, sort=sort,
@@ -1660,25 +1666,33 @@ class ResStockAthena:
 
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._simple_label(enduse.name))
                             for enduse in enduses]
-        group_by_selection = self._process_groupby_cols(group_by, annual_only=False)
-        # group_by_selection = [self.get_column(g[0]).label(g[1]) if isinstance(
-        #     g, tuple) else self.get_column(g) for g in group_by]
 
-        if self.timestamp_column.name not in group_by:
+        if self.timestamp_column_name not in group_by and collapse_ts:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
-            # The aggregation is done across time so we should compensate unit count by dividing by the total number
-            # of distinct timestamps per unit
+            # The aggregation is done across time so we should correct sample_count and units_count 
             rows_per_building = self._get_rows_per_building()
             grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
                 "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
+        elif self.timestamp_column_name not in group_by:
+            group_by.append(self.timestamp_column_name)
+            grouping_metrics_selection = [safunc.sum(1).label(
+                "sample_count"), safunc.sum(total_weight).label("units_count")]
+        elif self.timestamp_column_name in group_by and collapse_ts:
+            raise ValueError("collapse_ts is true, but there is timestamp column in group_by.")
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
+        group_by_selection = self._process_groupby_cols(group_by, annual_only=False)
 
         query = sa.select(group_by_selection + grouping_metrics_selection + enduse_selection)
         query = query.join(self.bs_table, self.bs_bldgid_column == self.ts_bldgid_column)
         if join_list:
             query = self._add_join(query, join_list)
+
+        if self.up_table is not None:
+            if not any([entry[0] == 'ugrade' for entry in restrict]):
+                logger.info(f"Restricting query to Upgrade {upgrade_id}.")
+                restrict.append((self.ts_table.c['upgrade'], [upgrade_id]))
 
         query = self._add_restrict(query, restrict)
         query = self._add_group_by(query, group_by_selection)
