@@ -92,7 +92,16 @@ class UpgradesAnalyzer:
         else:
             raise ValueError("Invalid logic type")
 
-    def print_unique_characteristic(self, upgrade_num, chng_type, base_bldg_list, compare_bldg_list):
+    def print_unique_characteristic(self, upgrade_num: int, name: str, 
+                                    base_bldg_list: list, compare_bldg_list: list):
+        """Finds and prints what's unique among a list of buildings compared to baseline buildings.
+           Useful for debugging why a certain set of buildings' energy consumption went up for an upgrade, for example.
+        Args:
+            upgrade_num (int): The upgrade for which the analysis is being done. 
+            name (str): Some name to identify the building set (only used for printing)
+            base_bldg_list (list): The set of 'normal' buildings id to compare against.
+            compare_bldg_list (list): The set of buildings whose unique characteristics is to be printed.
+        """
         cfg = self.get_cfg()
         if upgrade_num == 0:
             raise ValueError(f"Upgrades are 1-indexed. Got {upgrade_num}")
@@ -117,7 +126,7 @@ class UpgradesAnalyzer:
             no_change_set = set(compare_df[col].fillna('').unique())
             other_set = set(base_df[col].fillna('').unique())
             if only_in_no_change := no_change_set - other_set:
-                print(f"Only {chng_type} buildings have {col} in {sorted(only_in_no_change)}")
+                print(f"Only {name} buildings have {col} in {sorted(only_in_no_change)}")
                 unique_vals_dict[(col,)] = {(entry,) for entry in only_in_no_change}
 
         if not unique_vals_dict:
@@ -143,7 +152,7 @@ class UpgradesAnalyzer:
                             only_in_compare = new_set
 
                 if only_in_compare:
-                    print(f"Only {chng_type} buildings have {cols} in {sorted(only_in_compare)} \n")
+                    print(f"Only {name} buildings have {cols} in {sorted(only_in_compare)} \n")
                     found_uniq_chars += 1
                     unique_vals_dict[cols] = only_in_compare
 
@@ -184,7 +193,13 @@ class UpgradesAnalyzer:
             self._logic_cache[cache_key] = logic_array.copy()
         return logic_array
 
-    def get_report(self):
+    def get_report(self) -> pd.DataFrame:
+        """Analyses which how many buildings various options in all the upgrades is going to apply to and returns
+        a report in DataFrame format.
+
+        Returns:
+            pd.DataFrame: The upgrade and options report.
+        """
         cfg = self.get_cfg()
         self._logic_cache = {}
         if 'upgrades' not in cfg:
@@ -251,16 +266,17 @@ class UpgradesAnalyzer:
         else:
             return logic
 
-    def _print_options_combination_report(self, logic_dict, comb_type='and'):
+    def _get_options_combination_report(self, logic_dict, comb_type='and'):
+        report_str = ""
         n_options = len(logic_dict)
         assert comb_type in ['and', 'or']
         if n_options < 2:
-            return
+            return ""
         header = f"Options '{comb_type}' combination report"
-        print("-"*len(header))
-        print(header)
+        report_str += "-"*len(header) + "\n"
+        report_str += header + "\n"
         for combination_size in range(2, n_options + 1):
-            print("-"*len(header))
+            report_str += "-"*len(header) + "\n"
             for group in combinations(list(range(n_options)), combination_size):
                 if comb_type == 'and':
                     combined_logic = reduce(lambda c1, c2: c1 & c2, [logic_dict[opt_indx] for opt_indx in group])
@@ -268,41 +284,30 @@ class UpgradesAnalyzer:
                     combined_logic = reduce(lambda c1, c2: c1 | c2, [logic_dict[opt_indx] for opt_indx in group])
                 count = combined_logic.sum()
                 text = f" {comb_type} ". join([f"Option {opt_indx + 1}" for opt_indx in group])
-                print(f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)")
-        print("-"*len(header))
-        return
+                report_str += f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)" + "\n"
+        report_str += "-"*len(header) + "\n"
+        return report_str
 
-    def print_detailed_report(self, upgrade_num, option_num=None):
+    def get_detailed_report(self, upgrade_num: int, option_num: int = None) -> tuple[np.ndarray, str]:
+        """Prints detailed report for a particular upgrade (and optionally, an option)
+        Args:
+            upgrade_num (int): The 1-indexed upgrade for which to print the report. 
+            option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                        will print report for all options.
+        Returns:
+            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+        """
         cfg = self.get_cfg()
+        if upgrade_num <= 0 or upgrade_num > len(cfg['upgrades']) + 1:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
+
+        if option_num is None:
+            return self._get_detailed_report_all(upgrade_num)
+
         self._logic_cache = {}
         if upgrade_num == 0 or option_num == 0:
             raise ValueError(f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}")
-
-        if option_num is None:
-            conds_dict = {}
-            n_options = len(cfg['upgrades'][upgrade_num - 1]['options'])
-            or_array = np.zeros((1, self.total_samples), dtype=bool)
-            and_array = np.ones((1, self.total_samples), dtype=bool)
-            for option_indx in range(n_options):
-                logic_array = self.print_detailed_report(upgrade_num, option_indx + 1)
-                if n_options <= MAX_COMBINATION_REPORT_COUNT:
-                    conds_dict[option_indx] = logic_array
-                or_array |= logic_array
-                and_array &= logic_array
-            and_count = and_array.sum()
-            or_count = or_array.sum()
-            if n_options <= MAX_COMBINATION_REPORT_COUNT:
-                self._print_options_combination_report(conds_dict, 'and')
-                self._print_options_combination_report(conds_dict, 'or')
-            else:
-                text = f"Combination report not printed because {n_options} options would require "\
-                       f"{2**n_options - n_options - 1} rows."
-                print(text)
-                print("-"*len(text))
-            print(f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)")
-            print(f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)")
-            return
-
+        report_str = ""
         try:
             upgrade = cfg['upgrades'][upgrade_num - 1]
             opt = upgrade['options'][option_num - 1]
@@ -311,15 +316,15 @@ class UpgradesAnalyzer:
 
         ugrade_name = upgrade.get('upgrade_name')
         header = f"Option Apply Report for - Upgrade{upgrade_num}:'{ugrade_name}', Option{option_num}:'{opt['option']}'"
-        print("-"*len(header))
-        print(header)
-        print("-"*len(header))
+        report_str += "-"*len(header) + "\n"
+        report_str += header + "\n"
+        report_str += "-"*len(header) + "\n"
         if "apply_logic" in opt:
             logic = UpgradesAnalyzer._normalize_lists(opt['apply_logic'])
             logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
-            print("\n".join(logic_str))
-            print("-"*footer_len)
+            report_str += "\n".join(logic_str) + "\n"
+            report_str += "-"*footer_len + "\n"
         else:
             logic_array = np.ones((1, self.total_samples), dtype=bool)
 
@@ -327,17 +332,45 @@ class UpgradesAnalyzer:
             logic = UpgradesAnalyzer._normalize_lists(upgrade['package_apply_logic'])
             package_logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
-            print("Package Apply Logic Report")
-            print("--------------------------")
-            print("\n".join(logic_str))
-            print("-"*footer_len)
+            report_str += "Package Apply Logic Report" + "\n"
+            report_str += "--------------------------" + "\n"
+            report_str += "\n".join(logic_str) + "\n"
+            report_str += "-"*footer_len + "\n"
             logic_array = logic_array & package_logic_array
 
         count = logic_array.sum()
         footer_str = f"Overall applied to => {count} ({self._to_pct(count)}%)."
-        print(footer_str)
-        print('-'*len(footer_str))
-        return logic_array
+        report_str += footer_str + "\n"
+        report_str += '-'*len(footer_str) + "\n"
+        return logic_array, report_str
+
+    def _get_detailed_report_all(self, upgrade_num):
+        conds_dict = {}
+        cfg = self.get_cfg()
+        report_str = ""
+        n_options = len(cfg['upgrades'][upgrade_num - 1]['options'])
+        or_array = np.zeros((1, self.total_samples), dtype=bool)
+        and_array = np.ones((1, self.total_samples), dtype=bool)
+        for option_indx in range(n_options):
+            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1)
+            report_str += sub_report_str + "\n"
+            if n_options <= MAX_COMBINATION_REPORT_COUNT:
+                conds_dict[option_indx] = logic_array
+            or_array |= logic_array
+            and_array &= logic_array
+        and_count = and_array.sum()
+        or_count = or_array.sum()
+        if n_options <= MAX_COMBINATION_REPORT_COUNT:
+            report_str += self._get_options_combination_report(conds_dict, 'and') + "\n"
+            report_str += self._get_options_combination_report(conds_dict, 'or') + "\n"
+        else:
+            text = f"Combination report not printed because {n_options} options would require "\
+                   f"{2**n_options - n_options - 1} rows."
+            report_str += text + "\n"
+            report_str += "-"*len(text) + "\n"
+        report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
+        report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
+        return or_array, report_str
 
     def _to_pct(self, count, total=None):
         total = total or self.total_samples
