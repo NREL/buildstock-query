@@ -195,13 +195,14 @@ class UpgradesAnalyzer:
             all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
             package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
             if "package_apply_logic" in upgrade:
-                package_flat_logic = UpgradesAnalyzer._flatten_lists(upgrade['package_apply_logic'])
+                package_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade['package_apply_logic'])
                 package_applied_bldgs = self._reduce_logic(package_flat_logic, parent=None)
 
             for opt_index, option in enumerate(upgrade['options']):
+                applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
                 if 'apply_logic' in option:
-                    flat_logic = UpgradesAnalyzer._flatten_lists(option['apply_logic'])
-                    applied_bldgs = self._reduce_logic(flat_logic, parent=None)
+                    flat_logic = UpgradesAnalyzer._normalize_lists(option['apply_logic'])
+                    applied_bldgs &= self._reduce_logic(flat_logic, parent=None)
                 else:
                     applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
 
@@ -212,7 +213,7 @@ class UpgradesAnalyzer:
                           'option_num': opt_index + 1,
                           'option': option['option'], 'applicable_to': count,
                           'applicable_percent': self._to_pct(count),
-                          'cost': option.get('cost', 0),
+                          'applicable_buildings': set(self.buildstock_df.loc[applied_bldgs[0]].index),
                           'lifetime': option.get('lifetime', float('inf'))}
                 records.append(record)
 
@@ -220,24 +221,32 @@ class UpgradesAnalyzer:
             record = {'upgrade': indx+1, 'upgrade_name': upgrade['upgrade_name'],
                       'option_num': -1,
                       'option': "All", 'applicable_to': count,
+                      'applicable_buildings': set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
                       'applicable_percent': self._to_pct(count)}
             records.append(record)
         report_df = pd.DataFrame.from_records(records)
         return report_df
 
     @staticmethod
-    def _flatten_lists(logic):
+    def _normalize_lists(logic, parent=None):
+        """Any list that is not in a or block is considered to be in an and block.
+           This block will normalize this pattern by adding "and" wherever required.
+        Args:
+            logic (_type_): Logic structure (dict, list etc)
+            parent (_type_, optional): The parent of the current logic block. If it is a list, and there is no parent,
+            the list will be wrapped in a and block.
+
+        Returns:
+            _type_: _description_
+        """
         if isinstance(logic, list):
-            flat_list = []
-            for el in logic:
-                val = UpgradesAnalyzer._flatten_lists(el)
-                if isinstance(val, list):
-                    flat_list.extend(val)
-                else:
-                    flat_list.append(val)
-            return flat_list
+            # If it is a single element list, just unwrap and return
+            if len(logic) == 1:
+                return UpgradesAnalyzer._normalize_lists(logic[0])
+            new_logic = [UpgradesAnalyzer._normalize_lists(el) for el in logic]
+            return {"and": new_logic} if parent is None else new_logic
         elif isinstance(logic, dict):
-            new_dict = {key: UpgradesAnalyzer._flatten_lists(value) for key, value in logic.items()}
+            new_dict = {key: UpgradesAnalyzer._normalize_lists(value, parent=key) for key, value in logic.items()}
             return new_dict
         else:
             return logic
@@ -306,7 +315,7 @@ class UpgradesAnalyzer:
         print(header)
         print("-"*len(header))
         if "apply_logic" in opt:
-            logic = UpgradesAnalyzer._flatten_lists(opt['apply_logic'])
+            logic = UpgradesAnalyzer._normalize_lists(opt['apply_logic'])
             logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             print("\n".join(logic_str))
@@ -315,7 +324,7 @@ class UpgradesAnalyzer:
             logic_array = np.ones((1, self.total_samples), dtype=bool)
 
         if "package_apply_logic" in upgrade:
-            logic = UpgradesAnalyzer._flatten_lists(upgrade['package_apply_logic'])
+            logic = UpgradesAnalyzer._normalize_lists(upgrade['package_apply_logic'])
             package_logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             print("Package Apply Logic Report")
