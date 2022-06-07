@@ -24,12 +24,12 @@ class ResStockSavings(ResStockAthena):
         [self._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    def __get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None):
+    def __get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None, ts_group_by=None):
         restrict = list(restrict) if restrict else []
+        ts_group_by = list(ts_group_by) if ts_group_by else []
         ts = self.ts_table
         base = self.bs_table
-
-        sa_ts_cols = [ts.c[self.building_id_column_name], ts.c[self.timestamp_column_name]]
+        sa_ts_cols = [ts.c[self.building_id_column_name], ts.c[self.timestamp_column_name]] + ts_group_by
         sa_ts_cols.extend(enduses)
         ucol = ts.c["upgrade"]
         ts_b = self._add_restrict(sa.select(sa_ts_cols), [[ucol, ("0")]] + restrict).alias("ts_b")
@@ -144,8 +144,11 @@ class ResStockSavings(ResStockAthena):
             ts_b, ts_u, tbljoin = self.__get_annual_bs_up_table(upgrade_id, applied_only)
         else:
             restrict, ts_restrict = self._split_restrict(restrict)
-            ts_b, ts_u, tbljoin = self.__get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict)
-
+            bs_group_by, ts_group_by = self._split_group_by(group_by_selection)
+            ts_b, ts_u, tbljoin = self.__get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict,
+                                                                    ts_group_by)
+            ts_group_by = [ts_b.c[c.name] for c in ts_group_by]  # Refer to the columns using ts_b table
+            group_by_selection = bs_group_by + ts_group_by
         query_cols = []
         for col in enduses:
             savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
