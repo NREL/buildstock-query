@@ -13,7 +13,7 @@ import re
 import boto3
 import contextlib
 import pathlib
-from collections import Counter
+from collections import Counter, defaultdict
 from pyathena.connection import Connection
 from pyathena.error import OperationalError
 from pyathena.sqlalchemy_athena import AthenaDialect
@@ -36,7 +36,8 @@ import types
 from eulpda.smart_query.upgrades_analyzer import UpgradesAnalyzer
 from eulpda.smart_query.utils import FutureDf, DataExistsException, CustomCompiler, print_r, print_g
 from eulpda.smart_query.utils import save_pickle, load_pickle
-
+from ast import literal_eval
+from functools import reduce
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -73,7 +74,8 @@ class ResStockAthena:
         logger.info(f"Loading {table_name} ...")
         self.workgroup = workgroup
         self.buildstock_type = buildstock_type
-        self._query_cache = {}
+        self._query_cache = {}  # {"query": query_result_df} to cache queries
+        self._session_queries = set()  # Set of all queries that is run in current session.
 
         self._aws_s3 = boto3.client('s3')
         self._aws_athena = boto3.client('athena', region_name=region_name)
@@ -106,10 +108,15 @@ class ResStockAthena:
             logger.info("Getting Success counts...")
             print(self.get_success_report())
             if self.ts_table is not None:
-                self.check_integrity()
+                self.check_ts_bs_integrity()
         self.save_cache()
 
-    def load_cache(self, path=None):
+    def load_cache(self, path: str = None):
+        """Read and update query cache from pickle file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, reads from current directory.
+        """
         path = path or f"{self.table_name}_query_cache.pkl"
         before_count = len(self._query_cache)
         saved_cache = load_pickle(path)
@@ -121,8 +128,23 @@ class ResStockAthena:
         else:
             logger.info("Cache already upto date.")
 
-    def save_cache(self, path=None):
+    def save_cache(self, path: str = None, trim_excess: bool = False):
+        """Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
+        session these queries won't have to be run on Athena and can be directly loaded from the file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, the file will be saved on the current
+            directory.
+            trim_excess (bool, optional): If true, any queries in the cache that is not run in current session will be
+            remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
+            several sessions that are no longer used. Defaults to False.
+        """
         path = path or f"{self.table_name}_query_cache.pkl"
+        if trim_excess:
+            if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
+                for query in excess_queries:
+                    del self._query_cache[query]
+                logger.info(f"{len(excess_queries)} excess queries removed from cache.")
         save_pickle(path, self._query_cache)
         logger.info(f"{len(self._query_cache)} queries cache saved to {path}")
 
@@ -277,7 +299,8 @@ class ResStockAthena:
     def _get_full_options_report(self, trim_missing_bs=True, get_query_only=False):
         opt_name_cols = [c for c in self.up_table.columns if c.name.startswith("upgrade_costs.option_")
                          and c.name.endswith("name")]
-        query = sa.select([self.up_table.c['upgrade']] + opt_name_cols + [safunc.count().label("Success")])
+        query = sa.select([self.up_table.c['upgrade']] + opt_name_cols + [safunc.count().label("Success")]
+                          + [safunc.array_agg(self.up_bldgid_column)])
         if trim_missing_bs:
             query = query.join(self.bs_table, self.bs_bldgid_column == self.up_bldgid_column)
             query = query.where(self.bs_table.c['completed_status'] == 'Success')
@@ -289,8 +312,9 @@ class ResStockAthena:
             return self._compile(query)
         df = self.execute(query)
         simple_names = [f"option{i+1}" for i in range(len(opt_name_cols))]
-        df.columns = ['upgrade'] + simple_names + ['Success']
+        df.columns = ['upgrade'] + simple_names + ['Success', "applied_buildings"]
         df['upgrade'] = df['upgrade'].map(int)
+        df['applied_buildings'] = df['applied_buildings'].map(lambda x: literal_eval(x))
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
         return df[applied_rows]
 
@@ -298,17 +322,26 @@ class ResStockAthena:
         full_report = self._get_full_options_report(trim_missing_bs=trim_missing_bs)
         option_cols = [c for c in full_report.columns if c.startswith("option")]
         total_counts = Counter()
+        bldg_array = defaultdict(list)
         for option in option_cols:
-            counts = Counter(full_report.groupby(['upgrade', option])['Success'].sum().to_dict())
-            total_counts += counts
-        option_df = pd.DataFrame.from_dict({'Success': total_counts}, orient='columns')
+            grouped_dict = full_report.groupby(['upgrade', option]).aggregate({'Success': 'sum',
+                                                                               'applied_buildings': 'sum'}).to_dict()
+            total_counts += Counter(grouped_dict['Success'])
+            for key, val in grouped_dict['applied_buildings'].items():
+                bldg_array[key] += val
+
+        option_df = pd.DataFrame.from_dict({'Success': total_counts,
+                                            'applied_buildings': bldg_array,
+                                            }, orient='columns')
+        option_df['applied_buildings'] = option_df['applied_buildings'].map(lambda x: set(x))
         option_df = option_df.reset_index()
-        option_df.columns = ['upgrade', 'option', 'Success']
-        upgrade_df = self.get_success_report(trim_missing_bs=trim_missing_bs).reset_index()
-        upgrade_df = upgrade_df[upgrade_df['upgrade'] != 0]
-        upgrade_df = upgrade_df[['upgrade', 'Success', 'Fail', 'Unapplicaple']]
-        upgrade_df.insert(1, 'option', 'All')
-        full_df = pd.concat([option_df, upgrade_df])
+        option_df.columns = ['upgrade', 'option', 'Success', 'applied_buildings']
+        # Aggregate for upgrade
+        agg = option_df.groupby('upgrade').aggregate({'applied_buildings': lambda x: reduce(set.union, x)})
+        agg = agg.reset_index()
+        agg.insert(1, 'Success', agg['applied_buildings'].map(lambda x: len(x)))
+        agg.insert(0, 'option', 'All')
+        full_df = pd.concat([option_df, agg])
         full_df = full_df.sort_values(['upgrade', 'option'])
         return full_df
 
@@ -327,41 +360,64 @@ class ResStockAthena:
         ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
         return ua
 
-    def check_options_integrity(self, yaml_file):
+    def get_option_integrity_report(self, yaml_file):
         ua_df = self.get_upgrades_analyzer(yaml_file).get_report()
-        ua_df = ua_df[['upgrade', 'option', 'applicable_to']]
+        ua_df = ua_df.groupby(['upgrade', 'option']).aggregate({'applicable_to': 'sum',
+                                                                'applicable_buildings': lambda x: reduce(set.union, x)})
+        assert (ua_df['applicable_to'] == ua_df['applicable_buildings'].map(lambda x: len(x))).all()
         opt_report_df = self.get_options_report().fillna(0)
-        opt_report_dict = opt_report_df.set_index(['upgrade', 'option']).to_dict()
-        serious = False
-        for indx, row in ua_df.iterrows():
-            applied_to = opt_report_dict['Success'].get((row.upgrade, row.option), 0)
-            upgrade_failures = opt_report_dict['Fail'].get((row.upgrade, 'All'), 0)
-            if applied_to != row.applicable_to:
-                diff = row.applicable_to - applied_to
-                if row.option == 'All' and diff == upgrade_failures:
-                    print_g(
-                        f"Upgrade {row.upgrade} was was supposed to be applied to "
-                        f"{row.applicable_to} samples, but applied to {applied_to} samples. This difference of {diff}"
-                        f" exactly matches with {upgrade_failures} failures in Upgrade {row.upgrade}. It's all good."
-                    )
-                    continue
-                elif row.option == 'All':
-                    serious = True
-                    print_r(
-                        f"SERIOUS ISSUE: Upgrade {row.upgrade} was was supposed to be applied to "
-                        f"{row.applicable_to} samples, but applied to {applied_to} samples. This difference of {diff}"
-                        f" doesn't match with {upgrade_failures} failures in Upgrade {row.upgrade}"
-                    )
+        opt_report_df = opt_report_df.set_index(['upgrade', 'option'])
+        diff_df = pd.DataFrame(index=ua_df.index)
+        diff_df['applicable_buildings'] = ua_df['applicable_buildings']
+        diff_df['applied_buildings'] = opt_report_df['applied_buildings']
+        diff_df['overapplied_bldgs'] = opt_report_df['applied_buildings'] - ua_df['applicable_buildings']
+        diff_df['unapplied_bldgs'] = ua_df['applicable_buildings'] - opt_report_df['applied_buildings']
+        for col in diff_df.columns:
+            diff_df[f"{col}_count"] = diff_df[col].map(lambda x: len(x) if isinstance(x, set) else 0)
+        success_report_df = self.get_success_report()
+        fail_report = success_report_df[['Fail', 'Success']].rename(columns={'Fail': "Upgrade Failures",
+                                                                             'Success': "Upgrade Success"})
+        diff_df = diff_df.join(fail_report)
+        return diff_df
 
-                print(f"Upgrade {row.upgrade}, option {row.option} was supposed to be applied to {row.applicable_to} "
-                      f"samples. But it was applied to {applied_to} samples.")
-                if 0 < diff <= upgrade_failures:
-                    print(f"The difference of {diff} is likely because Upgrade {row.upgrade} caused {upgrade_failures} "
-                          f"failures.")
+    def check_options_integrity(self, yaml_file):
+        intg_df = self.get_option_integrity_report(yaml_file).reset_index()
+        all_intg_df = intg_df[intg_df['option'] == 'All']
+        blank_opt_upgrades = all_intg_df[all_intg_df['applied_buildings_count'] < all_intg_df['Upgrade Success']]
+        assert (all_intg_df['applied_buildings_count'] >= all_intg_df['Upgrade Success']).all()
+        if len(blank_opt_upgrades) > 0:
+            print_r("BLANK OPTIONS: The following upgrades have fewere 'applied_buildings_count' than 'Upgrade Success'"
+                    "This indicates that some buildings in these upgrades didn't have any option applied")
+        serious = False
+        for indx, row in intg_df.iterrows():
+            upgrade_failures = row['Upgrade Failures']
+            applicable_count = row.applicable_buildings_count
+            applied_count = row.applied_buildings_count
+            unapplied_count = row.unapplied_bldgs_count
+            overapplied_count = row.overapplied_bldgs_count
+            if row.unapplied_bldgs_count > 0:
+                if row.option == 'All' and row.unapplied_bldgs_count == upgrade_failures:
+                    print_r(
+                        f"OPTION UNDERAPPLICATION: Upgrade {row.upgrade} was was supposed to be applied to "
+                        f"{applicable_count} samples but applied to {applied_count} samples")
+                    print_g(f"This difference of {unapplied_count} exactly matches with {upgrade_failures}"
+                            f" failures in Upgrade {row.upgrade}. It's all good.")
                 else:
-                    print_r(f"SERIOUS ISSUE: Upgrade {row.upgrade} caused only {upgrade_failures} failures, so a "
-                            f"difference of {diff} indicates problem in simulation.")
-                    serious = True
+                    print_r(f"OPTION UNDERAPPLICATION: Upgrade {row.upgrade}, {row.option} didn't apply to "
+                            f"{unapplied_count} samples that it was supposed to apply to.")
+                    if upgrade_failures > 0:
+                        if unapplied_count > upgrade_failures:
+                            print_r(f"{upgrade_failures} failures in Upgrade {row.upgrade} can't account for this.")
+                            serious = True
+                        else:
+                            print_g(f"{upgrade_failures} failures in Upgrade {row.upgrade} may account for this.")
+                    else:
+                        serious = True
+
+            if overapplied_count > 0:
+                print_r(f"OPTION OVERAPPLICATION: Upgrade {row.upgrade}, {row.option} applied to"
+                        f" {unapplied_count} samples that it was supposed to NOT apply to.")
+                serious = True
         if not serious:
             print_g("Integrity check passed.")
             return True
@@ -435,7 +491,7 @@ class ResStockAthena:
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    def check_integrity(self):
+    def check_ts_bs_integrity(self):
         logger.info("Checking integrity with ts_tables ...")
         raw_ts_report = self._get_ts_report()
         raw_success_report = self.get_success_report(trim_missing_bs=False)
@@ -494,26 +550,29 @@ class ResStockAthena:
             else:
                 raise
 
-    def _get_gcol(self, column_name):  # gcol => group by col
-        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
-            return column_name  # already a col
+    def _get_gcol(self, column):  # gcol => group by col
+        if isinstance(column, sa.Column):
+            return column.label(self._simple_label(column.name))  # already a col
 
-        if isinstance(column_name, tuple):
+        if isinstance(column, sa.sql.elements.Label):
+            return column
+
+        if isinstance(column, tuple):
             try:
-                return self.get_column(column_name[0]).label(column_name[1])
+                return self.get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f"build_existing_model.{column_name[0]}"
-                return self.get_column(new_name).label(column_name[1])
-        elif isinstance(column_name, str):
+                new_name = f"build_existing_model.{column[0]}"
+                return self.get_column(new_name).label(column[1])
+        elif isinstance(column, str):
             try:
-                return self.get_column(column_name).label(self._simple_label(column_name))
-            except ValueError:
-                if not column_name.startswith("build_existing_model."):
-                    new_name = f"build_existing_model.{column_name}"
-                    return self.get_column(new_name).label(column_name)
-                raise ValueError(f"Invalid column name {column_name}")
+                return self.get_column(column).label(self._simple_label(column))
+            except ValueError as e:
+                if not column.startswith("build_existing_model."):
+                    new_name = f"build_existing_model.{column}"
+                    return self.get_column(new_name).label(column)
+                raise ValueError(f"Invalid column name {column}") from e
         else:
-            raise ValueError(f"Invalid column name type {column_name}: {type(column_name)}")
+            raise ValueError(f"Invalid column name type {column}: {type(column)}")
 
     def get_column(self, column_name, table_name=None):
         if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
@@ -734,6 +793,7 @@ class ResStockAthena:
         if not isinstance(query, str):
             query = self._compile(query)
 
+        self._session_queries.add(query)
         if run_async:
             if query in self._query_cache:
                 return "CACHED", FutureDf(self._query_cache[query].copy())
@@ -1239,17 +1299,17 @@ class ResStockAthena:
                                == new_tbl.c[new_column_name])
         return query
 
-    def _add_group_by(self, query, group_by):
-        if group_by:
-            slected_cols = [c.name for c in query.selected_columns]
-            a = [sa.text(str(slected_cols.index(self._get_name(g)) + 1)) for g in group_by]
+    def _add_group_by(self, query, group_by_selection):
+        if group_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in group_by_selection]
             query = query.group_by(*a)
         return query
 
-    def _add_order_by(self, query, order_by):
-        if order_by:
-            slected_cols = [c.name for c in query.selected_columns]
-            a = [sa.text(str(slected_cols.index(self._get_name(g)) + 1)) for g in order_by]
+    def _add_order_by(self, query, order_by_selection):
+        if order_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in order_by_selection]
             query = query.order_by(*a)
         return query
 
@@ -1331,6 +1391,17 @@ class ResStockAthena:
             else:
                 bs_restrict.append([self._get_gcol(col), restrict_vals])
         return bs_restrict, ts_restrict
+
+    def _split_group_by(self, processed_group_by):
+        # Some cols like "state" might be available in both ts and bs table
+        ts_group_by = []  # restrict to apply to baseline table
+        bs_group_by = []  # restrict to apply to timeseries table
+        for g in processed_group_by:
+            if g.name in self.ts_table.columns:
+                ts_group_by.append(g)
+            else:
+                bs_group_by.append(g)
+        return bs_group_by, ts_group_by
 
     def aggregate_annual(self,
                          enduses: List[str] = None,
@@ -1589,8 +1660,9 @@ class ResStockAthena:
 
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._simple_label(enduse.name))
                             for enduse in enduses]
-        group_by_selection = [self.get_column(g[0]).label(g[1]) if isinstance(
-            g, tuple) else self.get_column(g) for g in group_by]
+        group_by_selection = self._process_groupby_cols(group_by, annual_only=False)
+        # group_by_selection = [self.get_column(g[0]).label(g[1]) if isinstance(
+        #     g, tuple) else self.get_column(g) for g in group_by]
 
         if self.timestamp_column.name not in group_by:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
@@ -1609,8 +1681,8 @@ class ResStockAthena:
             query = self._add_join(query, join_list)
 
         query = self._add_restrict(query, restrict)
-        query = self._add_group_by(query, group_by)
-        query = self._add_order_by(query, group_by if sort else [])
+        query = self._add_group_by(query, group_by_selection)
+        query = self._add_order_by(query, group_by_selection if sort else [])
         query = query.limit(limit) if limit else query
 
         if get_query_only:
