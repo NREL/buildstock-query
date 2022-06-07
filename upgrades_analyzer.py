@@ -92,12 +92,12 @@ class UpgradesAnalyzer:
         else:
             raise ValueError("Invalid logic type")
 
-    def print_unique_characteristic(self, upgrade_num: int, name: str, 
+    def print_unique_characteristic(self, upgrade_num: int, name: str,
                                     base_bldg_list: list, compare_bldg_list: list):
         """Finds and prints what's unique among a list of buildings compared to baseline buildings.
            Useful for debugging why a certain set of buildings' energy consumption went up for an upgrade, for example.
         Args:
-            upgrade_num (int): The upgrade for which the analysis is being done. 
+            upgrade_num (int): The upgrade for which the analysis is being done.
             name (str): Some name to identify the building set (only used for printing)
             base_bldg_list (list): The set of 'normal' buildings id to compare against.
             compare_bldg_list (list): The set of buildings whose unique characteristics is to be printed.
@@ -291,7 +291,7 @@ class UpgradesAnalyzer:
     def get_detailed_report(self, upgrade_num: int, option_num: int = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
-            upgrade_num (int): The 1-indexed upgrade for which to print the report. 
+            upgrade_num (int): The 1-indexed upgrade for which to print the report.
             option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
                                         will print report for all options.
         Returns:

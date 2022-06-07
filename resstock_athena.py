@@ -1670,7 +1670,7 @@ class ResStockAthena:
 
         if self.timestamp_column_name not in group_by and collapse_ts:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
-            # The aggregation is done across time so we should correct sample_count and units_count 
+            # The aggregation is done across time so we should correct sample_count and units_count
             rows_per_building = self._get_rows_per_building()
             grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
                 "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
