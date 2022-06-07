@@ -1207,6 +1207,7 @@ class ResStockAthena:
         query = sa.select(['*']).select_from(self.bs_table)
         query = self._add_restrict(query, restrict)
         compiled_query = self._compile(query)
+        self._session_queries.add(query)
         if get_query_only:
             return compiled_query
         if compiled_query in self._query_cache:
