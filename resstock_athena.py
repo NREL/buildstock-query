@@ -1207,9 +1207,9 @@ class ResStockAthena:
         query = sa.select(['*']).select_from(self.bs_table)
         query = self._add_restrict(query, restrict)
         compiled_query = self._compile(query)
-        self._session_queries.add(query)
         if get_query_only:
             return compiled_query
+        self._session_queries.add(compiled_query)
         if compiled_query in self._query_cache:
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query ...")
@@ -1236,10 +1236,21 @@ class ResStockAthena:
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
+        self._session_queries.add(compiled_query)
         if compiled_query in self._query_cache:
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_applied_options(self, upgrade, bldg_ids):
+        all_applied_options = []
+        up_csv = self.get_upgrades_csv(upgrade)
+        for bldg_id in bldg_ids:
+            applied_options = [val for key, val in up_csv.loc[bldg_id].items() if
+                               key.startswith("upgrade_costs.option_") and key.endswith("_name")
+                               and not (isinstance(val, float) and np.isnan(val))]
+            all_applied_options.append(set(applied_options))
+        return all_applied_options
 
     def get_building_ids(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
         """
