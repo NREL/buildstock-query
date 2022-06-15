@@ -10,8 +10,7 @@ from eulpda.smart_query.resstock_savings import ResStockSavings
 import numpy as np
 import re
 from collections import defaultdict, Counter
-from jupyter_dash import JupyterDash
-from dash import dcc
+from dash import dcc, Dash
 import dash_bootstrap_components as dbc
 from dash import html
 from dash.dependencies import Input, Output, State
@@ -247,7 +246,7 @@ def get_baseline_chars(bldg_id, char_types=None):
     return return_list
 
 
-app = JupyterDash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = html.Div([dbc.Container(html.Div([
     dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
     dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
@@ -667,4 +666,4 @@ euss_athena.save_cache()
 
 
 if __name__ == '__main__':
-    app.run_server(mode='external', debug=False)
+    app.run_server(debug=False)
