@@ -1216,7 +1216,7 @@ class ResStockAthena:
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
     def get_upgrades_csv(self, upgrade=None, restrict: List[Tuple[str, Union[List, str, int]]] = None,
-                         get_query_only: bool = False):
+                         get_query_only: bool = False, copy=True):
         """
         Returns the results_csv table for the resstock run
         Args:
@@ -1242,15 +1242,51 @@ class ResStockAthena:
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_applied_options(self, upgrade, bldg_ids):
+    def get_applied_options(self, upgrade, bldg_ids, include_base_opt=False):
         all_applied_options = []
         up_csv = self.get_upgrades_csv(upgrade)
+        base_csv = self.get_results_csv() if include_base_opt else None
+
+        def get_base_char(bldg, option):
+            char = 'build_existing_model.' + '_'.join(option.split('|')[0].lower().split())
+            try:
+                return base_csv.loc[bldg][char]
+            except KeyError:
+                return ""
+
         for bldg_id in bldg_ids:
-            applied_options = [val for key, val in up_csv.loc[bldg_id].items() if
-                               key.startswith("upgrade_costs.option_") and key.endswith("_name")
-                               and not (isinstance(val, float) and np.isnan(val))]
-            all_applied_options.append(set(applied_options))
+            if include_base_opt:
+                applied_options = {val: get_base_char(bldg_id, val) for key, val in up_csv.loc[bldg_id].items() if
+                                   key.startswith("upgrade_costs.option_") and key.endswith("_name")
+                                   and not (isinstance(val, float) and np.isnan(val))}
+            else:
+                applied_options = {val for key, val in up_csv.loc[bldg_id].items() if
+                                   key.startswith("upgrade_costs.option_") and key.endswith("_name")
+                                   and not (isinstance(val, float) and np.isnan(val))}
+            all_applied_options.append(applied_options)
         return all_applied_options
+
+    def get_enduses_by_change(self, upgrade, change_type='changed', bldg_list=None):
+        up_csv = self.get_upgrades_csv(upgrade)
+        bs_csv = self.get_results_csv()
+        if bldg_list:
+            up_csv = up_csv.loc[bldg_list]
+            bs_csv = bs_csv.loc[bldg_list]
+        end_use_cols = [c for c in up_csv.columns if ('end_use' in c) or ('fuel_use' in c) or ('unmet_hours_' in c)]
+        up_csv = up_csv[end_use_cols]
+        bs_csv = bs_csv[end_use_cols]
+        diff = up_csv - bs_csv
+        change_dict = {}
+        for bldg, row in diff.iterrows():
+            if change_type == 'decreased':
+                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[row < -1e-12].keys()}
+            elif change_type == 'increased':
+                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[row > 1e-12].keys()}
+            elif change_type == 'changed':
+                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[abs(row) > 1e-12].keys()}
+            else:
+                raise ValueError("Invalid change type. Only 'increase', 'decrease' and 'changed' is allowed")
+        return change_dict
 
     def get_building_ids(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
         """
