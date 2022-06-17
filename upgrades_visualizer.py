@@ -10,14 +10,27 @@ from eulpda.smart_query.resstock_savings import ResStockSavings
 import numpy as np
 import re
 from collections import defaultdict, Counter
-from dash import dcc, Dash
+from dash import dcc
 import dash_bootstrap_components as dbc
 from dash import html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-import dash
 import plotly.graph_objects as go
+from dash_extensions.enrich import MultiplexerTransform, DashProxy
+# import os
+# os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
+# from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
+# app = DashProxy(transforms=[
+#     # TriggerTransform(),  # enable use of Trigger objects
+#     MultiplexerTransform(),  # makes it possible to target an output multiple times in callbacks
+#     # ServersideOutputTransform(),  # enable use of ServersideOutput objects
+#     # NoOutputTransform(),  # enable callbacks without output
+#     # BlockingCallbackTransform(),  # makes it possible to skip callback invocations while a callback is running
+#     # LogTransform()  # makes it possible to write log messages to a Dash component
+# ])
 
+
+# yaml_path = "/Users/radhikar/Documents/eulpda/EULP-data-analysis/notebooks/EUSS-project-file-example.yml"
 yaml_path = "notebooks/EUSS-project-file-example.yml"
 default_end_use = "fuel_use_electricity_total_m_btu"
 
@@ -64,17 +77,27 @@ build_cols = [c for c in res_csv_df.columns if c.startswith('build_existing_mode
 build_df = res_csv_df[build_cols]
 
 res_csv_df = res_csv_df.rename(columns=lambda x: x.split('.')[1] if '.' in x else x)
+res_csv_df = res_csv_df.drop(columns=['applicable'])  # These are useless columns
 all_up_csvs = [res_csv_df]
 
 upgrade2res = {0: res_csv_df}
 for i in range(1, 11):
     print(f"Getting up_csv for {i}")
     up_csv = euss_athena.get_upgrades_csv(i)
+    # print(list(up_csv.columns))
+    # print(list(res_csv_df.columns))
+    # print("upgrade", i, set(up_csv.columns)  - set(res_csv_df.columns))
+    # print("upgrade", i, set(res_csv_df.columns)  - set(up_csv.columns))
     up_csv = up_csv.loc[res_csv_df.index]
-    sub_build_df = build_df.loc[up_csv.index]
     up_csv = up_csv.join(build_df)
     up_csv = up_csv.rename(columns=lambda x: x.split('.')[1] if '.' in x else x)
+    up_csv = up_csv.drop(columns=['applicable'])
     up_csv['upgrade'] = up_csv['upgrade'].map(lambda x: int(x))
+    invalid_rows_keys = up_csv['completed_status'] == 'Invalid'
+    invalid_rows = up_csv[invalid_rows_keys].copy()
+    invalid_rows.update(res_csv_df[invalid_rows_keys])
+    invalid_rows['completed_status'] = 'Invalid'
+    up_csv[invalid_rows_keys] = invalid_rows
     # up_csv = up_csv.reset_index().set_index(['upgrade'])
     upgrade2res[i] = up_csv
 
@@ -91,35 +114,64 @@ char_cols = [c.removeprefix('build_existing_model.') for c in build_cols]
 fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
 
-def get_distribution(end_use, savings_type='', applied_only=False, change_type='any', show_all_points=False,
-                     comp_upgrade=None, filter_bldg=None):
-    fig = go.Figure()
-    # base_df = up_csv_df.loc[0].set_index('building_id')[end_use].sum(axis=1, skipna=False)
-    base_vals = upgrade2res[0][end_use].sum(axis=1, skipna=False)
-#     building_ids = up_csv_df.loc[0]['building_id'].map(lambda x: f"Building: {x}")
-    for upgrade in [0] + available_upgrades:
-        # sub_df = up_csv_df.loc[upgrade].set_index('building_id')[end_use].sum(axis=1, skipna=False)
-        if upgrade >= 1 and change_type != 'any':
-            bldg_list = filter_bldg or chng2bldg[(upgrade, change_type)]
-            res_df = upgrade2res[upgrade].loc[bldg_list]
-            base_df = base_vals.loc[bldg_list]
-        elif change_type == 'any':
-            res_df = upgrade2res[upgrade]
-            base_df = base_vals
+def get_res(upgrade, applied_only=False):
+    if upgrade == 0:
+        return upgrade2res[0]
+    elif applied_only:
+        res = upgrade2res[int(upgrade)]
+        res = res[res['completed_status'] != 'Invalid']
+        return res
+    else:
+        return upgrade2res[int(upgrade)]
 
-        else:
-            sync_bldg_list = filter_bldg or chng2bldg[(int(comp_upgrade), change_type)]
-            res_df = upgrade2res[upgrade].loc[sync_bldg_list]
-            base_df = base_vals.loc[sync_bldg_list]
+
+def upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None):
+    base_vals = get_res(0)[end_use].sum(axis=1, skipna=False)
+#     building_ids = up_csv_df.loc[0]['building_id'].map(lambda x: f"Building: {x}")
+    base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
+    upgrade_list = list(available_upgrades)
+    if savings_type not in ['Savings', 'Percent Savings'] and not change_type:
+        upgrade_list.insert(0, 0)
+
+    for upgrade in upgrade_list:
+        # sub_df = up_csv_df.loc[upgrade].set_index('building_id')[end_use].sum(axis=1, skipna=False)
+        res_df = get_res(upgrade, applied_only)
+        # print(f"res_df for {upgrade} is {len(res_df)}")
+        if change_type:
+            chng_upgrade = int(sync_upgrade) if sync_upgrade else upgrade
+            change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
+            res_df = res_df.loc[res_df.index.intersection(change_bldg_list)]
+            # print(f"res_df for {upgrade} downselected to {len(res_df)} due to chng of {len(change_bldg_list)}")
+
+        if filter_bldg is not None:
+            res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
+            # print(f"Futher Down selected to {len(res_df)} due to {len(filter_bldg)}")
+
         sub_df = res_df[end_use].sum(axis=1, skipna=False)
         if savings_type == 'Savings':
-            sub_df = base_df - sub_df
-            if not applied_only:
-                sub_df = sub_df.fillna(0)
+            sub_df = base_df[sub_df.index] - sub_df
         elif savings_type == 'Percent Savings':
-            sub_df = 100 * (base_df - sub_df) / base_df
-            if not applied_only:
-                sub_df = sub_df.fillna(0)
+            sub_df = 100 * (base_df[sub_df.index] - sub_df) / base_df[sub_df.index]
+        yield upgrade, sub_df
+
+
+def get_ylabel(end_use):
+    if len(end_use) == 1:
+        return end_use[0]
+    pure_end_use_name = end_use[0].removeprefix("end_use_")
+    pure_end_use_name = pure_end_use_name.removeprefix("fuel_use_")
+    pure_end_use_name = "_".join(pure_end_use_name.split("_")[1:])
+    return f"{len(end_use)}_fuels_{pure_end_use_name}"
+
+
+def get_distribution(end_use, savings_type='', applied_only=False, change_type='any', show_all_points=False,
+                     sync_upgrade=None, filter_bldg=None):
+    # print("Get dist got:", end_use, savings_type, applied_only, change_type, show_all_points,
+    # sync_upgrade, len(filter_bldg) if filter_bldg else 'None')
+    fig = go.Figure()
+    # base_df = up_csv_df.loc[0].set_index('building_id')[end_use].sum(axis=1, skipna=False)
+    for upgrade, sub_df in upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                                 filter_bldg):
         building_ids = list(sub_df.index)
         count = sum(sub_df < float('inf'))
         points = 'all' if show_all_points else 'suspectedoutliers'
@@ -132,45 +184,18 @@ def get_distribution(end_use, savings_type='', applied_only=False, change_type='
                        for bid in building_ids],
             hoverinfo="all"
         ))
-    pure_end_use_name = end_use[0].removeprefix("end_use_")
-    pure_end_use_name = pure_end_use_name.removeprefix("fuel_use_")
-    ylabel = end_use[0] if len(end_use) == 1 else f"All_fuel_{pure_end_use_name}"
-    fig.update_layout(yaxis_title=ylabel,
-                      title='Distribution by upgrade')
+    fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}",
+                      title='Distribution')
     return fig
 
 
 def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, change_type='any',
-             comp_upgrade=None, filter_bldg=None):
+             sync_upgrade=None, filter_bldg=None):
     fig = go.Figure()
 #     end_use = end_use or "fuel_use_electricity_total_m_btu"
-    base_vals = upgrade2res[0][end_use].sum(axis=1, skipna=False)
-
-    for upgrade in range(11):
-        if upgrade >= 1 and change_type != 'any':
-            bldg_list = filter_bldg or chng2bldg[(upgrade, change_type)]
-            res_df = upgrade2res[upgrade].loc[bldg_list]
-            base_df = base_vals.loc[bldg_list]
-        elif change_type == 'any':
-            res_df = upgrade2res[upgrade]
-            base_df = base_vals
-
-        else:
-            sync_bldg_list = filter_bldg or chng2bldg[(int(comp_upgrade), change_type)]
-            res_df = upgrade2res[upgrade].loc[sync_bldg_list]
-            base_df = base_vals.loc[sync_bldg_list]
-        if savings_type == 'Savings':
-            up_vals = base_df - res_df[end_use].sum(axis=1, skipna=False)
-        elif savings_type == 'Percent Savings':
-            up_vals = 100 * (base_df - res_df[end_use].sum(axis=1, skipna=False)) / base_df
-        else:
-            up_vals = res_df[end_use].sum(axis=1, skipna=False)
-
-        if not applied_only and savings_type:
-            up_vals = up_vals.fillna(0)
-
-        count = sum(up_vals < float('inf'))  # number of not na
-
+    for upgrade, up_vals in upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                                  filter_bldg):
+        count = len(up_vals)
         if value_type.lower() == 'total':
             val = up_vals.sum() * sample_weight
         elif value_type.lower() == 'count':
@@ -185,11 +210,9 @@ def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, ch
             f"<br> Units Count: {count * sample_weight}.",
             hoverinfo="all"
         ))
-    pure_end_use_name = end_use[0].removeprefix("end_use_")
-    pure_end_use_name = pure_end_use_name.removeprefix("fuel_use_")
-    ylabel = end_use[0] if len(end_use) == 1 else f"All_fuel_{pure_end_use_name}"
-    fig.update_layout(yaxis_title=f"{ylabel}" + f"_{value_type}",
-                      title=f'{value_type} value by upgrade')
+
+    fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}_{value_type}", title=f'{value_type}')
+
     return fig
 
 
@@ -246,74 +269,68 @@ def get_baseline_chars(bldg_id, char_types=None):
     return return_list
 
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = DashProxy(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], transforms=[MultiplexerTransform()])
 app.layout = html.Div([dbc.Container(html.Div([
     dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
     dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
-             dbc.Col(radio_graph_type := dcc.RadioItems(["Mean", "Total", "Count", "Distribution"], "Mean",
-                                                        id="radio_graph_type"), width='auto'),
-             dbc.Col(dbc.Collapse(children=[check_all_points := dcc.Checklist(['Show all points'], [],
-                                                                              inline=True, id='check_all_points')
+             dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution"], "Mean",
+                                    id="radio_graph_type"), width='auto'),
+             dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
+                                                          inline=True, id='check_all_points')
                                             ],
                                   id="collapse_points", is_open=False), width='auto'),
              dbc.Col(dbc.Label("Value Type: "), width='auto'),
-             dbc.Col(radio_savings := dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",
-                                                     id='radio_savings'), width='auto'),
-             dbc.Col(dbc.Collapse(id="collapse_applied_only",
-                                  children=[radio_applied_only := dcc.RadioItems(options=['All', 'Applied Only'],
-                                                                                 value='All',
-                                                                                 id='radio_applied'), ],
-                                  is_open=False), width='auto')
+             dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",
+                                    id='radio_savings'), width='auto'),
+             dbc.Col(dcc.Checklist(options=['Applied Only'], value=[],
+                                   inline=True, id='chk_applied_only'), width='auto')
              ]),
     dbc.Row([dbc.Col(html.Br())]),
-    dbc.Row([dbc.Col(dcc.Loading(id='graph-loader', children=[loader_label := html.Div(id='loader_label')]))]),
+    dbc.Row([dbc.Col(dcc.Loading(id='graph-loader', children=[html.Div(id='loader_label')]))]),
     dbc.Row([dbc.Col(dcc.Graph(id='graph'))]),
 
 
 ])),
     dbc.Row([dbc.Col(
-        tab_view_type := dcc.Tabs(id='tab_view_type', value='energy', children=[
-            energy_tab := dcc.Tab(id='energy_tab', label='Energy', value='energy', children=[
-                radio_fuel := dcc.RadioItems(fuels_types + ['All'], "electricity")]
+        dcc.Tabs(id='tab_view_type', value='energy', children=[
+            dcc.Tab(id='energy_tab', label='Energy', value='energy', children=[
+                dcc.RadioItems(fuels_types + ['All'], "electricity", id='radio_fuel')]
             ),
-            water_tab := dcc.Tab(label='Water Usage', value='water', children=[]
-                                 ),
-            load_tab := dcc.Tab(label='Load', value='load', children=[]
-                                ),
-            extra_tab := dcc.Tab(label='Peak', value='peak', children=[]
-                                 ),
-            extra_tab := dcc.Tab(label='Unmet Hours', value='unmet_hours', children=[]
-                                 ),
-            area_tab := dcc.Tab(label='Area', value='area', children=[]
-                                ),
-            size_tab := dcc.Tab(label='Size', value='size', children=[]
-                                ),
-            qoi_tab := dcc.Tab(label='QOI', value='qoi', children=[]
-                               ),
-            emissions_tab := dcc.Tab(label='emissions', value='emissions', children=[]
-                                     ),
+            dcc.Tab(label='Water Usage', value='water', children=[]
+                    ),
+            dcc.Tab(label='Load', value='load', children=[]
+                    ),
+            dcc.Tab(label='Peak', value='peak', children=[]
+                    ),
+            dcc.Tab(label='Unmet Hours', value='unmet_hours', children=[]
+                    ),
+            dcc.Tab(label='Area', value='area', children=[]
+                    ),
+            dcc.Tab(label='Size', value='size', children=[]
+                    ),
+            dcc.Tab(label='QOI', value='qoi', children=[]
+                    ),
+            dcc.Tab(label='emissions', value='emissions', children=[]
+                    ),
         ])
     )
     ]),
-    dbc.Row([dbc.Col(dropdown_enduse := dcc.Dropdown(id='dropdown_enduses'))]),
+    dbc.Row([dbc.Col(dcc.Dropdown(id='dropdown_enduse'))]),
     dbc.Row([
         dbc.Col(
-            tab_view_filter := dcc.Tabs(id='tab_view_filter', value='change', children=[
+            dcc.Tabs(id='tab_view_filter', value='change', children=[
                 dcc.Tab(label='Change', value='change', children=[
-                    dbc.Row([dbc.Col(radio_chng_type := dcc.RadioItems(change_types, "any",
-                                                                       id='radio_chng_type'), width='auto'),
-                             dbc.Collapse(id="collapse_focus_on", is_open=False, children=[
-                                 dbc.Row([
-                                     dbc.Col(html.Div("Basline Sync To: "), width='auto'),
-                                     dbc.Col(dcc.Dropdown(id='comp_upgrade', value='1',
-                                                          options=upgrade2name))
-                                 ])
+                    dbc.Row([dbc.Col(html.Div("Restrict to buildings that have "), width='auto'),
+                             dbc.Col(dcc.Dropdown(change_types, "", placeholder="Select change type...",
+                                                  id='dropdown_chng_type'), width='2'),
+                             dbc.Col(html.Div(" in "), width='auto'),
+                             dbc.Col(dcc.Dropdown(id='sync_upgrade', value='',
+                                                  options={}))
                              ]
-                    )
-                    ])
-                ]
-                ),
+                            )
+                ]),
                 dcc.Tab(label='Characteristics', value='char', children=[
+                    html.Div(" ... and have these characteristics"),
                     dbc.Row([
                         dbc.Col(dcc.Dropdown(id='drp_chr_1', options=char_cols, value=None), width=3),
                         dbc.Col(html.Div(" = "), width='auto'),
@@ -332,46 +349,44 @@ app.layout = html.Div([dbc.Container(html.Div([
                 ]
                 ),
                 dcc.Tab(label='Option', value='option', children=[
+                    html.Div("... and which got applied these options "),
                     dbc.Row([
-                        dbc.Col(dcc.Dropdown(id='upgrade_1', options=char_cols, value=None), width=3),
+                        dbc.Col(dcc.Dropdown(id='upgrade_1', options=[], value=None, placeholder="coming soon"),
+                                width=3),
                         dbc.Col(html.Div(" "), width='auto'),
-                        dbc.Col(dcc.Dropdown(id='upgrade_1_options'))
+                        dbc.Col(dcc.Dropdown(id='upgrade_1_options', placeholder="coming soon"))
                     ]),
                     dbc.Row([
-                        dbc.Col(dcc.Dropdown(id='upgrade_2', options=char_cols, value=None), width=3),
+                        dbc.Col(dcc.Dropdown(id='upgrade_2', options=[], value=None, placeholder="coming soon"),
+                                width=3),
                         dbc.Col(html.Div(" "), width='auto'),
-                        dbc.Col(dcc.Dropdown(id='upgrade_2_options'))
+                        dbc.Col(dcc.Dropdown(id='upgrade_2_options', placeholder="coming soon"))
                     ]),
                 ]
                 ),
                 dcc.Tab(label='Building', value='building', children=[
-                    dbc.Row([dbc.Col(html.Div("Building: "), width='auto'),
+                    dbc.Row([dbc.Col(html.Div("Further restrict to building:"), width='auto'),
                              dbc.Col(dcc.Dropdown(id='input_building'), width=2),
-                             dbc.Col(html.Div("Enduse Type: "), width='auto'),
+                             dbc.Col(html.Div(" in "), width='auto'),
+                             dbc.Col(dcc.Dropdown(id='report_upgrade', value='',
+                                                  options=upgrade2name), width=4),
+                             dbc.Col(html.Div("View enduse that: "), width='auto'),
                              dbc.Col(dcc.Dropdown(id='input_enduse_type', options=['changed', 'increased',
                                                                                    'decreased'], value='changed'),
-                                     width=2),
-                             dbc.Col(dcc.Checklist(id='chk_all_bldgs', options=[
-                                 'All Buildings'], value=[], inline=True), width=2),
+                                     width=1),
                              dbc.Col(dcc.Checklist(id='chk_intersect', options=[
                                  'Intersect'], value=[], inline=True), width=2)
                              ]),
-                    dbc.Row([dbc.Col(dbc.Row([
-                        dbc.Row([dbc.Col(html.Div(id="opt_applied_for_text")),
-                                 ]),
-                        dbc.Row([dbc.Col(dcc.Loading(id='opt-loader',
-                                                     children=[html.Div(id="options_report")]))])
-                    ])
-                    ),
-                        dbc.Col(dbc.Row([dbc.Col(
-                            dcc.Loading(id='enduse_loader',
-                                         children=[html.Div(id="enduse_report")])
-                        )]
-                        )
-                    )
+                    dbc.Row([dbc.Col([
+                        dbc.Row(html.Div(id="options_report_header")),
+                        dbc.Row(dcc.Loading(id='opt-loader', children=[html.Div(id="options_report")]))
+                    ]),
+                        dbc.Col([
+                            dbc.Row(html.Div(id='enduse_report_header')),
+                            dbc.Row(dcc.Loading(id='enduse_loader', children=html.Div(id="enduse_report")))
+                        ])
 
-                    ]
-                    )
+                    ])
                 ]
                 ),
             ]))
@@ -381,8 +396,11 @@ app.layout = html.Div([dbc.Container(html.Div([
 
 
 @app.callback(
-    [Output(dropdown_enduse, "options"), Output(dropdown_enduse, "value")],
-    [Input(tab_view_type, "value"), Input(radio_fuel, "value"), Input(dropdown_enduse, "value")]
+    Output('dropdown_enduse', "options"),
+    Output('dropdown_enduse', "value"),
+    Input('tab_view_type', "value"),
+    Input('radio_fuel', "value"),
+    Input('dropdown_enduse', "value")
 )
 def update_enduse_options(view_tab, fuel_type, current_enduse):
     if view_tab == 'energy':
@@ -418,93 +436,112 @@ def update_enduse_options(view_tab, fuel_type, current_enduse):
 
 
 @app.callback(
-    Output('collapse_applied_only', 'is_open'),
-    [Input(radio_savings, "value"),
-     ]
-)
-def disable_applied_only(savings):
-    return savings.lower() == "savings"
-
-
-@app.callback(
     Output("collapse_points", 'is_open'),
-    [Input(radio_graph_type, "value")]
+    Input('radio_graph_type', "value")
 )
 def disable_showpoints(graph_type):
     return graph_type.lower() == "distribution"
 
 
 @app.callback(
-    Output("collapse_focus_on", 'is_open'),
-    [Input(radio_chng_type, "value")]
+    Output("sync_upgrade", 'value'),
+    Output("sync_upgrade", 'options'),
+    Output("sync_upgrade", 'placeholder'),
+    Input('dropdown_chng_type', "value"),
+    State("sync_upgrade", "value"),
+    State("sync_upgrade", "options")
 )
-def disable_focus_on(chng_type):
-    return chng_type.lower() != "any"
-# Run app and display result inline in the notebook
+def update_sync_upgrade(chng_type, current_sync_upgrade, sync_upgrade_options):
+    # print(chng_type, current_sync_upgrade, sync_upgrade_options)
+    if chng_type:
+        return current_sync_upgrade, upgrade2name, 'respective upgrades. (Click to restrict to specific upgrade)'
+    else:
+        return '', {}, ' <select a change type on the left first>'
 
 
 @app.callback(
-    [Output(tab_view_filter, 'value'),
-     Output('input_building', 'value'),
-     Output('input_building', 'options')
-     ],
-    [State(tab_view_filter, 'value'),
-     State('input_building', 'value'),
-     State('input_building', 'options'),
-     Input('graph', "clickData"),
-     Input(radio_chng_type, "value"),
-     Input('comp_upgrade', 'value')],
-    [State('drp_chr_1', 'value'),
-     Input('drp_chr_1_choices', 'value'),
-     State('drp_chr_2', 'value'),
-     Input('drp_chr_2_choices', 'value'),
-     State('drp_chr_3', 'value'),
-     Input('drp_chr_3_choices', 'value'),
-     ]
+    Output('input_building', 'placeholder'),
+    Input('input_building', 'options')
 )
-def bldg_selection(current_view, current_bldg, current_options,
-                   click_data, change_type, comp_upgrade,
-                   char1, char_val1, char2, char_val2, char3, char_val3
-                   ):
-    trigger_comp_id = dash.callback_context.triggered_id
-    # print("Current", current_view, current_bldg, current_options)
-    if trigger_comp_id == 'graph':
-        if click_data and 'points' in click_data and len(click_data['points']) == 1:
-            if match := re.search(r"Building: (\d*)", click_data['points'][0].get('hovertext', '')):
-                if bldg := match.groups()[0]:
-                    # print ("building", str(bldg), current_options)
-                    return "building", str(bldg), current_options
-        # print("Triggered from graph. Not valid point. Ignoring")
+def update_building_placeholder(options):
+    return f"{len(options)} Buidlings" if options else "No buildings available."
+
+
+@app.callback(
+    Output('tab_view_filter', 'value'),
+    Output('input_building', 'value'),
+    Output('input_building', 'options'),
+    Output('report_upgrade', 'value'),
+    Output('check_all_points', "value"),
+    Input('graph', "clickData"),
+    State('input_building', 'options')
+)
+def graph_click(click_data, current_options):
+    if not click_data or 'points' not in click_data or len(click_data['points']) != 1:
         raise PreventUpdate()
+
+    if not (match := re.search(r"Building: (\d*)", click_data['points'][0].get('hovertext', ''))):
+        raise PreventUpdate()
+
+    if bldg := match.groups()[0]:
+        current_options = current_options or [bldg]
+        upgrade_match = re.search(r"Upgrade (\d*):", click_data['points'][0].get('hovertext', ''))
+        upgrade = upgrade_match.groups()[0] if upgrade_match else ''
+        return 'building', bldg, current_options, upgrade, ['Show all points']
+    raise PreventUpdate()
+
+
+@app.callback(
+    Output('check_all_points', 'value'),
+    Input('input_building', 'value'),
+    State('input_building', 'options'),
+    State('check_all_points', 'value'))
+def uncheck_all_points(bldg_selection, bldg_options, current_val):
+    if not bldg_selection and bldg_options:
+        return [''] if len(bldg_options) > 1000 else current_val
+    raise PreventUpdate()
+
+
+@app.callback(
+    Output('input_building', 'value'),
+    Output('input_building', 'options'),
+    State('input_building', 'value'),
+    Input('dropdown_chng_type', "value"),
+    Input('sync_upgrade', 'value'),
+    Input('report_upgrade', 'value'),
+    State('drp_chr_1', 'value'),
+    Input('drp_chr_1_choices', 'value'),
+    State('drp_chr_2', 'value'),
+    Input('drp_chr_2_choices', 'value'),
+    State('drp_chr_3', 'value'),
+    Input('drp_chr_3_choices', 'value'),
+)
+def bldg_selection(current_bldg, change_type, sync_upgrade, report_upgrade,
+                   char1, char_val1, char2, char_val2, char3, char_val3):
+    if sync_upgrade and change_type:
+        valid_bldgs = list(sorted(chng2bldg[(int(sync_upgrade), change_type)]))
+    elif report_upgrade and change_type:
+        valid_bldgs = list(sorted(chng2bldg[(int(report_upgrade), change_type)]))
     else:
-        if change_type == 'any':
-            raise PreventUpdate()
+        valid_bldgs = list(upgrade2res[0].index)
 
-        valid_bldgs = list(sorted(chng2bldg[(int(comp_upgrade), change_type)]))
+    chars = [char1, char2, char3]
+    char_vals = [char_val1, char_val2, char_val3]
+    base_res = upgrade2res[0].loc[valid_bldgs]
+    condition = np.ones(len(base_res), dtype=bool)
+    for char, char_val in zip(chars, char_vals):
+        if char and char_val:
+            condition &= base_res[char] == char_val
+    valid_bldgs = [str(b) for b in list(base_res[condition].index)]
 
-        chars = [char1, char2, char3]
-        char_vals = [char_val1, char_val2, char_val3]
-        base_res = upgrade2res[0].loc[valid_bldgs]
-        condition = np.ones(len(base_res), dtype=bool)
-        for char, char_val in zip(chars, char_vals):
-            if char and char_val:
-                condition &= base_res[char] == char_val
-        valid_bldgs = [str(b) for b in list(base_res[condition].index)]
-        if valid_bldgs:
-            bldg = current_bldg if current_bldg in valid_bldgs else valid_bldgs[0]
-        else:
-            bldg = ''
-        # print("Updating differently")
-        return current_view, str(bldg), valid_bldgs
+    if current_bldg and current_bldg not in valid_bldgs:
+        current_bldg = valid_bldgs[0] if valid_bldgs else ''
+    return current_bldg, valid_bldgs
 
 
-def get_char_choices(char, bldg_options):
+def get_char_choices(char):
     if char:
-        if bldg_options:
-            bldg_options = [int(b) for b in bldg_options]
-            res0 = upgrade2res[0].loc[bldg_options]
-        else:
-            res0 = upgrade2res[0]
+        res0 = upgrade2res[0]
         unique_choices = sorted(list(res0[char].unique()))
         return unique_choices, unique_choices[0]
     else:
@@ -512,99 +549,84 @@ def get_char_choices(char, bldg_options):
 
 
 @app.callback(
-    [Output('drp_chr_1_choices', 'options'),
-     Output('drp_chr_1_choices', 'value')],
-    [Input('drp_chr_1', 'value'),
-     State('input_building', "options")
-     ]
+    Output('drp_chr_1_choices', 'options'),
+    Output('drp_chr_1_choices', 'value'),
+    Input('drp_chr_1', 'value'),
 )
-def update_char_options1(char, bldg_options):
-    return get_char_choices(char, bldg_options)
+def update_char_options1(char):
+    return get_char_choices(char)
 
 
 @app.callback(
-    [Output('drp_chr_2_choices', 'options'),
-     Output('drp_chr_2_choices', 'value')],
-    [Input('drp_chr_2', 'value'),
-     State('input_building', "options")
-     ]
+    Output('drp_chr_2_choices', 'options'),
+    Output('drp_chr_2_choices', 'value'),
+    Input('drp_chr_2', 'value'),
 )
-def update_char_options2(char, bldg_options):
-    return get_char_choices(char, bldg_options)
+def update_char_options2(char):
+    return get_char_choices(char)
 
 
 @app.callback(
-    [Output('drp_chr_3_choices', 'options'),
-     Output('drp_chr_3_choices', 'value')],
-    [Input('drp_chr_3', 'value'),
-     State('input_building', "options")
-     ]
+    Output('drp_chr_3_choices', 'options'),
+    Output('drp_chr_3_choices', 'value'),
+    Input('drp_chr_3', 'value'),
 )
-def update_char_options3(char, bldg_options):
-    return get_char_choices(char, bldg_options)
+def update_char_options3(char):
+    return get_char_choices(char)
 
 
 @app.callback(
-    [Output("opt_applied_for_text", "children"),
-     Output("options_report", 'children')],
-    [Input('comp_upgrade', 'value'),
-     Input('input_building', "value"),
-     Input('input_building', "options"),
-     Input('chk_intersect', 'value'),
-     Input('chk_all_bldgs', 'value'),
-     ],
+    Output("options_report_header", "children"),
+    Output("options_report", 'children'),
+    Input('input_building', "value"),
+    Input('input_building', "options"),
+    State('report_upgrade', 'value'),
+    Input('chk_intersect', 'value'),
 )
-def show_opt_report(cmp_upgrade, bldg_id, bldg_options, intersect, all_bldgs):
-    if cmp_upgrade and ((('All Buildings' in all_bldgs) and bldg_options) or bldg_id):
-        if 'All Buildings' in all_bldgs:
-            bldg_list = [int(b) for b in bldg_options]
-        else:
-            bldg_list = [int(bldg_id)]
+def show_opt_report(bldg_id, bldg_options, report_upgrade, intersect):
+    if not report_upgrade or not bldg_options:
+        return "Select an upgrade to see options applied in that upgrade", [""]
 
-        applied_options = euss_athena.get_applied_options(int(cmp_upgrade), bldg_list, include_base_opt=True)
-        opt_only = [set(opt.keys()) for opt in applied_options]
-        if 'Intersect' in intersect:
-            reduced_set = list(reduce(set.intersection, opt_only))
-        else:
-            reduced_set = list(reduce(set.union, opt_only))
+    bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
-        merged_options = defaultdict(list)
-        for opt_dict in applied_options:
-            for key, value in opt_dict.items():
-                merged_options[key].append(value)
-        for key, val in merged_options.items():
-            if len(val) > 1:
-                merged_options[key] = Counter(val)
-
-        final_list = []
-        for option in reduced_set:
-            final_list.append(f"{option} from {merged_options[option]}")
-
-        up_name = upgrade2name[int(cmp_upgrade)]
-        return f"Options applied in {up_name}", [html.Div(opt) for opt in final_list]
+    applied_options = euss_athena.get_applied_options(int(report_upgrade), bldg_list, include_base_opt=True)
+    opt_only = [set(opt.keys()) for opt in applied_options]
+    if 'Intersect' in intersect:
+        reduced_set = list(reduce(set.intersection, opt_only))
     else:
+        reduced_set = list(reduce(set.union, opt_only))
 
-        raise PreventUpdate()
+    merged_options = defaultdict(list)
+    for opt_dict in applied_options:
+        for key, value in opt_dict.items():
+            merged_options[key].append(value)
+    for key, val in merged_options.items():
+        if len(val) > 1:
+            merged_options[key] = Counter(val)
+
+    final_list = [f"{option} from {merged_options[option]}" for option in reduced_set]
+    final_list = final_list or ["No option is applied to the building(s)"]
+    up_name = upgrade2name[int(report_upgrade)]
+    return f"Options applied in {up_name}", [html.Div(opt) for opt in final_list]
 
 
 @app.callback(
-    [Output("enduse_report", "children")],
-    [Input('comp_upgrade', 'value'),
-     Input('input_building', "value"),
-     Input('input_building', "options"),
-     Input('input_enduse_type', 'value'),
-     Input('chk_intersect', 'value'),
-     Input('chk_all_bldgs', 'value')
-     ]
+    Output("enduse_report_header", "children"),
+    Output("enduse_report", "children"),
+    State('report_upgrade', 'value'),
+    Input('input_building', "value"),
+    Input('input_building', "options"),
+    Input('input_enduse_type', 'value'),
+    Input('chk_intersect', 'value'),
 )
-def show_enduse_report(cmp_upgrade, bldg_id, bldg_options, enduse_change_type, intersect, all_bldgs):
-    if not cmp_upgrade or not bldg_id or not bldg_options:
-        raise PreventUpdate()
+def show_enduse_report(report_upgrade, bldg_id, bldg_options, enduse_change_type, intersect):
+    if not report_upgrade or not bldg_options:
+        return "Select an upgrade to see enduses that changed in that upgrade", ""
 
-    bldg_list = [int(b) for b in bldg_options] if 'All Buildings' in all_bldgs else [int(bldg_id)]
+    bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
     # print(bldg_list)
-    changed_enduses = euss_athena.get_enduses_by_change(int(cmp_upgrade), enduse_change_type, bldg_list)
+    changed_enduses = euss_athena.get_enduses_by_change(int(report_upgrade), enduse_change_type, bldg_list)
     # print(changed_enduses)
     if 'Intersect' in intersect:
         changed_enduses = reduce(set.intersection, changed_enduses.values())
@@ -612,51 +634,51 @@ def show_enduse_report(cmp_upgrade, bldg_id, bldg_options, enduse_change_type, i
         changed_enduses = reduce(set.union, changed_enduses.values())
 
     if changed_enduses:
-        return [', '.join(sorted(changed_enduses))]
-    if 'Intersect' in intersect and 'All Buildings' in all_bldgs:
-        return [f'No enduses has {enduse_change_type} in all buildings']
+        return f"The following enduses {enduse_change_type}.", [', '.join(sorted(changed_enduses))]
+    if 'Intersect' in intersect:
+        return f'No enduses has {enduse_change_type} in all buildings', []
     else:
-        return [f'No enduses has {enduse_change_type} in Building {bldg_id}']
+        return f'No enduses has {enduse_change_type} in Building {bldg_id}', []
 
 
 @app.callback(
-    [Output('graph', 'figure'),
-     Output(loader_label, "children")],
-    [State(tab_view_type, "value"),
-     Input(radio_fuel, "value"),
-     Input(dropdown_enduse, "value"),
-     Input(radio_graph_type, "value"),
-     Input(radio_savings, "value"),
-     Input('radio_applied', "value"),
-     Input(radio_chng_type, "value"),
-     Input(check_all_points, "value"),
-     Input('comp_upgrade', 'value'),
-     Input(tab_view_filter, 'value'),
-     Input('input_building', 'value'),
-     Input('input_building', 'options')
-     ]
+    Output('graph', 'figure'),
+    Output('loader_label', "children"),
+    State('tab_view_type', "value"),
+    Input('radio_fuel', "value"),
+    Input('dropdown_enduse', "value"),
+    Input('radio_graph_type', "value"),
+    Input('radio_savings', "value"),
+    Input('chk_applied_only', "value"),
+    Input('dropdown_chng_type', "value"),
+    Input('check_all_points', "value"),
+    Input('sync_upgrade', 'value'),
+    Input('input_building', 'value'),
+    State('input_building', 'options')
 )
-def update_figure(view_tab, fuel, enduse, graph_type, savings_type, applied_only, chng_type,
-                  show_all_points, comp_upgrade, filter_view, selected_bldg, bldg_options):
+def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
+                  show_all_points, sync_upgrade, selected_bldg, bldg_options):
+    bldg_options = bldg_options or []
     if not enduse:
-        raise PreventUpdate()
+        full_name = []
     if view_tab == 'energy':
         full_name = get_all_end_use_cols(fuel, enduse)
     else:
         full_name = [enduse]
+    applied_only = "Applied Only" in chk_applied_only
 
-    if filter_view == 'building' and selected_bldg:
+    if selected_bldg:
         filter_bldg = [int(selected_bldg)]
-    elif filter_view == 'building' and bldg_options:
-        filter_bldg = [int(b) for b in bldg_options]
     else:
-        filter_bldg = None
+        filter_bldg = [int(b) for b in bldg_options]
+
+    # print(f"Sync upgrade is {sync_upgrade}. {sync_upgrade is None}")
     if graph_type in ['Mean', 'Total', 'Count']:
-        new_figure = get_bars(full_name, graph_type, savings_type, applied_only == 'Applied Only',
-                              chng_type, comp_upgrade, filter_bldg)
+        new_figure = get_bars(full_name, graph_type, savings_type, applied_only,
+                              chng_type, sync_upgrade, filter_bldg)
     elif graph_type in ["Distribution"]:
-        new_figure = get_distribution(full_name, savings_type, applied_only == 'Applied Only',
-                                      chng_type, 'Show all points' in show_all_points, comp_upgrade,
+        new_figure = get_distribution(full_name, savings_type, applied_only,
+                                      chng_type, 'Show all points' in show_all_points, sync_upgrade,
                                       filter_bldg)
     new_figure.update_layout(uirevision="Same")
     return new_figure, ""
