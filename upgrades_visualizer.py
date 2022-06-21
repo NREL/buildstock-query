@@ -1041,4 +1041,4 @@ euss_athena.save_cache()
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
