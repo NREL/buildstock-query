@@ -41,6 +41,7 @@ from functools import reduce
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
 
 class ResStockAthena:
@@ -1243,28 +1244,28 @@ class ResStockAthena:
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
     def get_applied_options(self, upgrade, bldg_ids, include_base_opt=False):
-        all_applied_options = []
         up_csv = self.get_upgrades_csv(upgrade)
         base_csv = self.get_results_csv() if include_base_opt else None
+        rel_up_csv = up_csv.loc[bldg_ids]
+        rel_base_csv = base_csv.loc[bldg_ids]
+        rel_base_csv = rel_base_csv.rename(columns=lambda c: c.split('.')[1] if '.' in c else c)
+        upgrade_cols = [key for key in up_csv.columns
+                        if key.startswith("upgrade_costs.option_") and key.endswith("_name")]
 
-        def get_base_char(bldg, option):
-            char = 'build_existing_model.' + '_'.join(option.split('|')[0].lower().split())
-            try:
-                return base_csv.loc[bldg][char]
-            except KeyError:
-                return ""
+        if include_base_opt:
+            char_df = rel_up_csv[upgrade_cols].fillna('').agg(
+                lambda x: {'_'.join(v.split('|')[0].lower().split()) for v in x if v}, axis=1)
+            all_chars = [c for c in reduce(set.union, char_df.values) if c in set(rel_base_csv.columns)]
+            char_dict = rel_base_csv[all_chars].to_dict(orient='index')
 
-        for bldg_id in bldg_ids:
-            if include_base_opt:
-                applied_options = {val: get_base_char(bldg_id, val) for key, val in up_csv.loc[bldg_id].items() if
-                                   key.startswith("upgrade_costs.option_") and key.endswith("_name")
-                                   and not (isinstance(val, float) and np.isnan(val))}
-            else:
-                applied_options = {val for key, val in up_csv.loc[bldg_id].items() if
-                                   key.startswith("upgrade_costs.option_") and key.endswith("_name")
-                                   and not (isinstance(val, float) and np.isnan(val))}
-            all_applied_options.append(applied_options)
-        return all_applied_options
+            def add_base_chars(options):
+                bldg_id = options[0]  # Last entry is building_id
+                return {opt: char_dict[bldg_id].get('_'.join(opt.split('|')[0].lower().split()), '')
+                        for opt in options[1:]}
+            opt_df = rel_up_csv[upgrade_cols].fillna('').reset_index().agg(lambda x: [v for v in x if v], axis=1)
+            return opt_df.map(add_base_chars).values
+        else:
+            return rel_up_csv[upgrade_cols].fillna('').agg(lambda x: {v for v in x if v}, axis=1).values
 
     def get_enduses_by_change(self, upgrade, change_type='changed', bldg_list=None):
         up_csv = self.get_upgrades_csv(upgrade)
@@ -1272,21 +1273,46 @@ class ResStockAthena:
         if bldg_list:
             up_csv = up_csv.loc[bldg_list]
             bs_csv = bs_csv.loc[bldg_list]
+
+        def clean_column(col):
+            col = col.removeprefix("report_simulation_output.end_use_")
+            col = col.removeprefix("report_simulation_output.fuel_use_")
+            return col
+
+        def get_pure_enduse(col):
+            for fuel in FUELS:
+                col = col.removeprefix(f"{fuel}_")
+            return col
+
         end_use_cols = [c for c in up_csv.columns if ('end_use' in c) or ('fuel_use' in c) or ('unmet_hours_' in c)]
-        up_csv = up_csv[end_use_cols]
-        bs_csv = bs_csv[end_use_cols]
+        up_csv = up_csv[end_use_cols].rename(columns=clean_column)
+        bs_csv = bs_csv[end_use_cols].rename(columns=clean_column)
+
+        pure_enduses = {get_pure_enduse(c) for c in up_csv.columns}
+
+        def get_all_fuel_enduses(df, end_use):
+            return [col for col in df.columns if col.endswith(end_use)]
+
+        def add_all_fuel_cols(df):
+            for end_use in pure_enduses:
+                df[f"all_fuel_{end_use}"] = df[get_all_fuel_enduses(df, end_use)].sum(axis=1)
+            return df
+
+        add_all_fuel_cols(up_csv)
+        add_all_fuel_cols(bs_csv)
+
         diff = up_csv - bs_csv
-        change_dict = {}
-        for bldg, row in diff.iterrows():
-            if change_type == 'decreased':
-                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[row < -1e-12].keys()}
-            elif change_type == 'increased':
-                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[row > 1e-12].keys()}
-            elif change_type == 'changed':
-                change_dict[bldg] = {c.removeprefix("report_simulation_output.") for c in row[abs(row) > 1e-12].keys()}
-            else:
-                raise ValueError("Invalid change type. Only 'increase', 'decrease' and 'changed' is allowed")
-        return change_dict
+        enduses_df = diff.transpose()
+        match change_type:
+            case 'decreased':
+                enduses_df = enduses_df < -1e-12
+            case 'increased':
+                enduses_df = enduses_df > 1e-12
+            case _:
+                enduses_df = abs(enduses_df) > 1e-12
+        change_dict = enduses_df.apply(lambda x: enduses_df.columns[x], axis=1).to_dict()
+        clean_dict = {key: value for key, value in change_dict.items() if len(value) > 0}
+        return clean_dict
 
     def get_building_ids(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
         """
