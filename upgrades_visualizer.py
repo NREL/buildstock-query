@@ -198,7 +198,7 @@ def get_distribution(end_use, savings_type='', applied_only=False, change_type='
             hoverinfo="all"
         ))
     fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}",
-                      title='Distribution',
+                      title=f"Distribution for {change_type} buildings" if change_type else 'Distribution',
                       clickmode='event+select')
     return fig
 
@@ -225,7 +225,8 @@ def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, ch
             hoverinfo="all"
         ))
 
-    fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}_{value_type}", title=f'{value_type}')
+    fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}_{value_type}",
+                      title=f"{value_type} for {change_type} buildings" if change_type else f'{value_type}')
 
     return fig
 
@@ -392,7 +393,7 @@ app.layout = html.Div([dbc.Container(html.Div([
                              dbc.Col(dbc.Button("<= Copy", id="btn-copy", color="primary", size="sm",
                                                 outline=True), class_name="centered-col"),
                              dbc.Col(html.Div("Extra restriction: "), width='auto'),
-                             dbc.Col(dcc.Dropdown(id='input_building2', disabled=True), width=2),
+                             dbc.Col(dcc.Dropdown(id='input_building2', disabled=False), width=2),
                              dbc.Col(dcc.Checklist(id='chk-graph', options=['Graph'], value=[],
                                                    inline=True), width='auto'),
                              dbc.Col(dcc.Checklist(id='chk-options', options=['Options'], value=[],
@@ -448,6 +449,7 @@ app.layout = html.Div([dbc.Container(html.Div([
     ], className="mx-5 my-1"),
     html.Div(id="status_bar"),
     dcc.Download(id="download-chars-csv"),
+    dcc.Store("uirevision")
     # dbc.Button("Kill me", id="button110")
 ])
 
@@ -542,10 +544,12 @@ def update_building_placeholder(options):
 
 @app.callback(
     Output('input_building2', 'placeholder'),
+    Output('input_building2', 'value'),
+    Input('input_building2', 'value'),
     Input('input_building2', 'options')
 )
-def update_building_placeholder2(options):
-    return f"{len(options)} Buidlings" if options else "No restriction"
+def update_building_placeholder2(value, options):
+    return f"{len(options)} Buidlings" if options else "No restriction", None
 
 
 @app.callback(
@@ -597,10 +601,11 @@ def uncheck_all_points(bldg_selection, bldg_options, current_val):
     Output('chk-options', 'value'),
     Output('chk-enduses', 'value'),
     Output('input_building2', 'options'),
+    Output("uirevision", "data"),
     Input('btn-reset', "n_clicks")
 )
 def reset(n_clicks):
-    return [], [], [], []
+    return [], [], [], [], n_clicks
 
 
 @app.callback(
@@ -693,9 +698,10 @@ def update_char_options3(char):
     return get_char_choices(char)
 
 
-def get_action_button_pairs(id, report_type='opt'):
+def get_action_button_pairs(id, bldg_list_dict, report_type='opt'):
     # return dbc.Button(type, id={'index': id, 'type': f'btn-{type}'})
     buttons = []
+    bldg_str = '' if len(bldg_list_dict[id]) > 10 else " [" + ','.join([str(b) for b in bldg_list_dict[id]]) + "]"
     for type in ['check', 'cross']:
         icon_name = "akar-icons:circle-check-fill" if type == 'check' else "gridicons:cross-circle"
         button = html.Div(dmc.ActionIcon(DashIconify(icon=icon_name,
@@ -706,11 +712,12 @@ def get_action_button_pairs(id, report_type='opt'):
                                          variant="light"),
                           id=f"div-tooltip-target-{type}-{id}")
         if type == "check":
-            tooltip = dbc.Tooltip("Select these buildings.",
+            tooltip = dbc.Tooltip(f"Select these buildings.{bldg_str}",
                                   target=f"div-tooltip-target-{type}-{id}", delay={'show': 1000})
+
             col = dbc.Col(html.Div([button, tooltip]),  width='auto', class_name="col-btn-cross")
         else:
-            tooltip = dbc.Tooltip("Select all except these buildings.",
+            tooltip = dbc.Tooltip(f"Select all except these buildings.{bldg_str}",
                                   target=f"div-tooltip-target-{type}-{id}", delay={'show': 1000})
             col = dbc.Col(html.Div([button, tooltip]),  width='auto', class_name="col-btn-check")
         buttons.append(col)
@@ -857,12 +864,14 @@ def show_opt_report(bldg_id, bldg_options, bldg_options2, report_upgrade, chk_op
                     but_ids = f"{opt_name}|{parameter}"
                 else:
                     but_ids = f"{opt_name}|{parameter}<-{from_val}"
-                entry = dbc.Row([dbc.Col(f"<-{from_val} ({count})", width="auto"), *get_action_button_pairs(but_ids)])
+                entry = dbc.Row([dbc.Col(f"<-{from_val} ({count})", width="auto"),
+                                 *get_action_button_pairs(but_ids, bldg_list_dict)])
                 contents.append(entry)
             children.append(dmc.AccordionItem(contents, label=f"{parameter} ({counter.total()})"))
 
         accordian = dmc.Accordion(children, multiple=True)
-        first_row = dbc.Row([dbc.Col(f"All ({total_count})", width="auto"), *get_action_button_pairs(opt_name)])
+        first_row = dbc.Row([dbc.Col(f"All ({total_count})", width="auto"),
+                             *get_action_button_pairs(opt_name, bldg_list_dict)])
         return dmc.AccordionItem([first_row, accordian], label=f"{opt_name} ({total_count})")
     if reduced_set:
         final_report = dmc.Accordion([get_accord_item(opt_name) for opt_name in reduced_set], multiple=True)
@@ -901,9 +910,9 @@ def show_enduse_report(report_upgrade, bldg_id, bldg_options, bldg_options2, end
     all_changed_enduses = list(dict_changed_enduses.keys())
     if not all_changed_enduses:
         if bldg_id:
-            return f'No enduse has {enduse_change_type} in building {bldg_id} ', [], {}
+            return f'No enduse has {enduse_change_type} in building {bldg_id} ', {}
         else:
-            return f'No enduse has {enduse_change_type} in any of the buildings', [], {}
+            return f'No enduse has {enduse_change_type} in any of the buildings', {}
 
     enduses2bldgs = defaultdict(list)
     for end_use, bldgs in dict_changed_enduses.items():
@@ -930,10 +939,11 @@ def show_enduse_report(report_upgrade, bldg_id, bldg_options, bldg_options2, end
     def get_accord_item(fuel):
         total_count = len(enduses2bldgs[fuel])
         contents = [dbc.Row([dbc.Col(f"All {fuel} ({total_count})", width="auto"),
-                             *get_action_button_pairs(fuel, "enduse")])]
+                             *get_action_button_pairs(fuel, enduses2bldgs, "enduse")])]
         for enduse in fuel2enduses[fuel]:
             count = len(enduses2bldgs[enduse])
-            row = dbc.Row([dbc.Col(f"{enduse} ({count})", width="auto"), *get_action_button_pairs(enduse, "enduse")])
+            row = dbc.Row([dbc.Col(f"{enduse} ({count})", width="auto"),
+                           *get_action_button_pairs(enduse, enduses2bldgs, "enduse")])
             contents.append(row)
         return dmc.AccordionItem(contents, label=f"{fuel} ({total_count})")
 
@@ -979,7 +989,7 @@ def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
         count = len(bldglist)
         total_count += count
         contents.append(dbc.Row([dbc.Col(f"{char_vals} ({count})", width="auto"),
-                                 *get_action_button_pairs(but_ids, "char")]))
+                                 *get_action_button_pairs(but_ids, char_dict, "char")]))
 
     report = dmc.Accordion([dmc.AccordionItem(contents, label=f"{inp_char} ({total_count})")])
     return report, char_dict
@@ -1000,10 +1010,11 @@ def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
     Input('input_building', 'value'),
     Input('input_building', 'options'),
     Input('input_building2', 'options'),
-    Input('chk-graph', 'value')
+    Input('chk-graph', 'value'),
+    State("uirevision", "data")
 )
 def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
-                  show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph):
+                  show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision):
 
     if dash.callback_context.triggered_id == 'input_building2' and "Graph" not in chk_graph:
         raise PreventUpdate()
@@ -1033,7 +1044,8 @@ def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_
         new_figure = get_distribution(full_name, savings_type, applied_only,
                                       chng_type, 'Show all points' in show_all_points, sync_upgrade,
                                       filter_bldg)
-    new_figure.update_layout(uirevision="Same")
+    uirevision = uirevision or "default"
+    new_figure.update_layout(uirevision=uirevision)
     return new_figure, ""
 
 
