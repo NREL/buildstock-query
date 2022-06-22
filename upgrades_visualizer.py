@@ -457,14 +457,19 @@ app.layout = html.Div([dbc.Container(html.Div([
 @app.callback(
     Output("download-chars-csv", "data"),
     Input("btn-dwn-chars", "n_clicks"),
+    State("input_building", "value"),
     State("input_building", "options"),
     State("input_building2", "options"),
     State('chk-chars', 'value'),
 )
-def download_char(n_clicks, bldg_options, bldg_options2, chk_chars):
+def download_char(n_clicks, bldg_id, bldg_options, bldg_options2, chk_chars):
     if not n_clicks:
         raise PreventUpdate()
-    bldg_ids = bldg_options2 if "Chars" in chk_chars and bldg_options2 else bldg_options or []
+
+    if "Chars" in chk_chars and bldg_options2:
+        bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+    else:
+        bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
     bldg_ids = [int(b) for b in bldg_ids]
     bdf = res_csv_df[char_cols].loc[bldg_ids]
     return dcc.send_data_frame(bdf.to_csv, f"chars_{n_clicks}.csv")
@@ -799,7 +804,7 @@ def char_report_button_click(check_clicks, cross_clicks, bldg_options, bldg_opti
     if len(triggers) != 1:
         raise PreventUpdate()
 
-    if "Char" in chk_char and bldg_options2:
+    if "Chars" in chk_char and bldg_options2:
         bldg_list = [int(b) for b in bldg_options2]
     else:
         bldg_list = [int(b) for b in bldg_options]
@@ -969,9 +974,8 @@ def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
 
     if dash.callback_context.triggered_id == 'input_building2' and "Chars" not in chk_chars:
         raise PreventUpdate()
-    if bldg_id:
-        bldg_list = [bldg_id]
-    elif "Chars" in chk_chars and bldg_options2:
+
+    if "Chars" in chk_chars and bldg_options2:
         bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
     else:
         bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
