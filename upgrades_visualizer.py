@@ -20,6 +20,7 @@ from dash_extensions.enrich import MultiplexerTransform, DashProxy
 # import os
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
+import pandas as pd
 
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
@@ -49,9 +50,9 @@ available_upgrades = list(report.index)
 available_upgrades.remove(0)
 euss_ua = euss_athena.get_upgrades_analyzer(yaml_path)
 upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
-                upgrade in enumerate(euss_ua.get_cfg()['upgrades'])}
+                upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
 upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx,
-                     upgrade in enumerate(euss_ua.get_cfg()['upgrades'])}
+                     upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
 allupgrade2name = {0: "Upgrade 0: Baseline"} | upgrade2name
 change_types = ["any", "no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng"]
 chng2bldg = {}
@@ -76,6 +77,7 @@ def get_cols(df, prefixes=[], suffixes=[]):
 
 
 res_csv_df = euss_athena.get_results_csv()
+euss_athena.save_cache()
 res_csv_df = res_csv_df[res_csv_df['completed_status'] == 'Success']
 sample_weight = res_csv_df['build_existing_model.sample_weight'].iloc[0]
 res_csv_df['upgrade'] = 0
@@ -87,9 +89,9 @@ res_csv_df = res_csv_df.drop(columns=['applicable'])  # These are useless column
 all_up_csvs = [res_csv_df]
 
 upgrade2res = {0: res_csv_df}
-for i in range(1, 11):
-    print(f"Getting up_csv for {i}")
-    up_csv = euss_athena.get_upgrades_csv(i)
+for upgrade in available_upgrades:
+    print(f"Getting up_csv for {upgrade}")
+    up_csv = euss_athena.get_upgrades_csv(upgrade)
     # print(list(up_csv.columns))
     # print(list(res_csv_df.columns))
     # print("upgrade", i, set(up_csv.columns)  - set(res_csv_df.columns))
@@ -105,7 +107,7 @@ for i in range(1, 11):
     invalid_rows['completed_status'] = 'Invalid'
     up_csv[invalid_rows_keys] = invalid_rows
     # up_csv = up_csv.reset_index().set_index(['upgrade'])
-    upgrade2res[i] = up_csv
+    upgrade2res[upgrade] = up_csv
 
 emissions_cols = get_cols(res_csv_df, suffixes=['_lb'])
 end_use_cols = get_cols(res_csv_df, ["end_use_", "energy_use__", "fuel_use_"])
@@ -131,7 +133,18 @@ def get_res(upgrade, applied_only=False):
         return upgrade2res[int(upgrade)]
 
 
-def upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None):
+def explode_str(input_str):
+    input_str = str(input_str).lower()
+    input_str = [
+        int(x) if x and x[0] in "0123456789" else x
+        for x in re.split(r"([\<\-])|([0-9]+)", input_str)
+    ]
+    return tuple("X" if x is None else x for x in input_str)
+
+
+def csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None,
+                  report_upgrade=None, group_cols=None):
+
     base_vals = get_res(0)[end_use].sum(axis=1, skipna=False)
 #     building_ids = up_csv_df.loc[0]['building_id'].map(lambda x: f"Building: {x}")
     base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
@@ -139,11 +152,21 @@ def upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync
     # if savings_type not in ['Savings', 'Percent Savings'] and not change_type:
     #     upgrade_list.insert(0, 0)
 
-    for upgrade in upgrade_list:
+    if report_upgrade is not None and group_cols:
+        res_df = get_res(report_upgrade, applied_only)
+        res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
+        grouped_df = res_df.groupby(group_cols, sort=False)
+        df_generator = ((', '.join(indx) if isinstance(indx, tuple) else indx, df) for (indx, df) in grouped_df)
+        df_type = "groups"
+    else:
+        df_type = "upgrades"
+        df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, applied_only)) for upgrade in upgrade_list)
+
+    for indx, res_df in df_generator:
         # sub_df = up_csv_df.loc[upgrade].set_index('building_id')[end_use].sum(axis=1, skipna=False)
-        res_df = get_res(upgrade, applied_only)
         # print(f"res_df for {upgrade} is {len(res_df)}")
         if change_type:
+            upgrade = indx if df_type == "upgrades" else report_upgrade
             chng_upgrade = int(sync_upgrade) if sync_upgrade else upgrade
             if chng_upgrade > 0:
                 change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
@@ -155,6 +178,8 @@ def upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync
         if filter_bldg is not None:
             res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
             # print(f"Futher Down selected to {len(res_df)} due to {len(filter_bldg)}")
+        if len(res_df) == 0:
+            continue
 
         sub_df = res_df[end_use].sum(axis=1, skipna=False)
         if savings_type == 'Savings':
@@ -165,7 +190,7 @@ def upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync
             saving_df[(sub_base_df == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
             saving_df[(sub_df == 0) & (sub_base_df == 0)] = 0
             sub_df = saving_df
-        yield upgrade, sub_df
+        yield indx, sub_df
 
 
 def get_ylabel(end_use):
@@ -177,38 +202,51 @@ def get_ylabel(end_use):
     return f"{len(end_use)}_fuels_{pure_end_use_name}"
 
 
-def get_distribution(end_use, savings_type='', applied_only=False, change_type='any', show_all_points=False,
-                     sync_upgrade=None, filter_bldg=None):
+def get_distribution(end_use, savings_type='', applied_only=False, change_type='', show_all_points=False,
+                     sync_upgrade=None, filter_bldg=None, report_upgrade=None, group_cols=None):
     # print("Get dist got:", end_use, savings_type, applied_only, change_type, show_all_points,
     # sync_upgrade, len(filter_bldg) if filter_bldg else 'None')
     fig = go.Figure()
     # base_df = up_csv_df.loc[0].set_index('building_id')[end_use].sum(axis=1, skipna=False)
-    for upgrade, sub_df in upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
-                                                 filter_bldg):
+    counter = 0
+    for indx, sub_df in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                      filter_bldg, report_upgrade, group_cols):
         building_ids = list(sub_df.index)
         count = sum(sub_df < float('inf'))
         points = 'all' if show_all_points else 'suspectedoutliers'
-        fig.add_trace(go.Box(
-            y=sub_df,
-            name=f'Upgrade {upgrade}',
-            boxpoints=points,
-            boxmean=True,  # represent mean
-            hovertext=[f'{allupgrade2name[upgrade]}<br> Building: {bid}<br>Sample Count: {count}'
-                       for bid in building_ids],
-            hoverinfo="all"
-        ))
+        if counter >= 200:
+            sub_df = pd.DataFrame()
+            fig.add_trace(go.Box(
+                y=[],
+                name="Too many groups"
+            ))
+            break
+        else:
+            fig.add_trace(go.Box(
+                y=sub_df,
+                name=f'{indx}',
+                boxpoints=points,
+                boxmean=True,  # represent mean
+                hovertext=[f'{indx}<br> Building: {bid}<br>Sample Count: {count}'
+                           for bid in building_ids],
+                hoverinfo="all"
+            ))
+        counter += 1
     fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}",
+                      xaxis_title=f"Upgrade {report_upgrade}: " + ", ".join(group_cols) if group_cols else 'Upgrade',
                       title=f"Distribution for {change_type} buildings" if change_type else 'Distribution',
                       clickmode='event+select')
     return fig
 
 
-def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, change_type='any',
-             sync_upgrade=None, filter_bldg=None):
+def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, change_type='',
+             sync_upgrade=None, filter_bldg=None, report_upgrade=None, group_cols=None):
     fig = go.Figure()
 #     end_use = end_use or "fuel_use_electricity_total_m_btu"
-    for upgrade, up_vals in upgrade_csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
-                                                  filter_bldg):
+    counter = 0
+    for indx, up_vals in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                       filter_bldg, report_upgrade, group_cols):
+
         count = len(up_vals)
         if value_type.lower() == 'total':
             val = up_vals.sum() * sample_weight
@@ -216,16 +254,22 @@ def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, ch
             val = up_vals.count()
         else:
             val = up_vals.mean()
-        fig.add_trace(go.Bar(
-            y=[val],
-            x=[f"Upgrade {upgrade}"],
-            name=f'Upgrade {upgrade}',
-            hovertext=f"{allupgrade2name[upgrade]}<br> Average {val}. <br> Sample Count: {count}."
-            f"<br> Units Count: {count * sample_weight}.",
-            hoverinfo="all"
-        ))
+        if counter >= 200:
+            fig.add_trace(go.Bar(y=[0], x=["Too many groups"], name="Too many groups"))
+            break
+        else:
+            fig.add_trace(go.Bar(
+                y=[val],
+                x=[indx],
+                name=f'{indx}',
+                hovertext=f"{indx}<br> Average {val}. <br> Sample Count: {count}."
+                f"<br> Units Count: {count * sample_weight}.",
+                hoverinfo="all"
+            ))
+        counter += 1
 
     fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}_{value_type}",
+                      xaxis_title=f"Upgrade {report_upgrade}: " + ", ".join(group_cols) if group_cols else 'Upgrade',
                       title=f"{value_type} for {change_type} buildings" if change_type else f'{value_type}')
 
     return fig
@@ -386,10 +430,14 @@ app.layout = html.Div([dbc.Container(html.Div([
                 ),
                 dcc.Tab(label='Building', value='building', children=[
                     dbc.Row([dbc.Col(html.Div("Select:"), width='auto'),
-                             dbc.Col(dcc.Dropdown(id='input_building'), width=2),
+                             dbc.Col(dcc.Dropdown(id='input_building'), width=1),
                              dbc.Col(html.Div(" in "), width='auto'),
-                             dbc.Col(dcc.Dropdown(id='report_upgrade', value='', placeholder="Select Upgrade ...",
-                                                  options=upgrade2shortname), width=2),
+                             dbc.Col(dcc.Dropdown(id='report_upgrade', value='', placeholder="Upgrade ...",
+                                                  options=upgrade2shortname), width=1),
+                            dbc.Col(html.Div("grouped by:"), width='auto'),
+                             dbc.Col(dcc.Dropdown(id='drp-group-by', options=char_cols, value=None,
+                                                  multi=True, placeholder="Select characteristics..."),
+                                     width=3),
                              dbc.Col(dbc.Button("<= Copy", id="btn-copy", color="primary", size="sm",
                                                 outline=True), class_name="centered-col"),
                              dbc.Col(html.Div("Extra restriction: "), width='auto'),
@@ -1003,6 +1051,8 @@ def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
     Output('graph', 'figure'),
     Output('loader_label', "children"),
     State('tab_view_type', "value"),
+    Input('report_upgrade', 'value'),
+    Input('drp-group-by', 'value'),
     Input('radio_fuel', "value"),
     Input('dropdown_enduse', "value"),
     Input('radio_graph_type', "value"),
@@ -1017,7 +1067,7 @@ def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
     Input('chk-graph', 'value'),
     State("uirevision", "data")
 )
-def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
+def update_figure(view_tab, report_upgrade, grp_by, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
                   show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision):
 
     if dash.callback_context.triggered_id == 'input_building2' and "Graph" not in chk_graph:
@@ -1033,6 +1083,7 @@ def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_
         full_name = get_all_end_use_cols(fuel, enduse)
     else:
         full_name = [enduse]
+
     applied_only = "Applied Only" in chk_applied_only
 
     if selected_bldg:
@@ -1041,13 +1092,14 @@ def update_figure(view_tab, fuel, enduse, graph_type, savings_type, chk_applied_
         filter_bldg = [int(b) for b in bldg_options]
 
     # print(f"Sync upgrade is {sync_upgrade}. {sync_upgrade is None}")
+    report_upgrade = report_upgrade or 0
     if graph_type in ['Mean', 'Total', 'Count']:
         new_figure = get_bars(full_name, graph_type, savings_type, applied_only,
-                              chng_type, sync_upgrade, filter_bldg)
+                              chng_type, sync_upgrade, filter_bldg, report_upgrade, grp_by)
     elif graph_type in ["Distribution"]:
         new_figure = get_distribution(full_name, savings_type, applied_only,
                                       chng_type, 'Show all points' in show_all_points, sync_upgrade,
-                                      filter_bldg)
+                                      filter_bldg, report_upgrade, grp_by)
     uirevision = uirevision or "default"
     new_figure.update_layout(uirevision=uirevision)
     return new_figure, ""
