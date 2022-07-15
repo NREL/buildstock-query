@@ -1751,7 +1751,7 @@ class ResStockAthena:
             group_by.append(self.timestamp_column_name)
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
-        elif self.timestamp_column_name in group_by and collapse_ts:
+        elif collapse_ts:
             raise ValueError("collapse_ts is true, but there is timestamp column in group_by.")
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
@@ -1763,8 +1763,9 @@ class ResStockAthena:
         if join_list:
             query = self._add_join(query, join_list)
 
+        group_by_names = [g.name for g in group_by_selection]
         if self.up_table is not None:
-            if not any([entry[0] == 'ugrade' for entry in restrict]):
+            if not any([entry[0] == 'ugrade' for entry in restrict]) and 'upgrade' not in group_by_names:
                 logger.info(f"Restricting query to Upgrade {upgrade_id}.")
                 restrict.append((self.ts_table.c['upgrade'], [upgrade_id]))
 
