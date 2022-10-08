@@ -1,0 +1,214 @@
+schema_version: "0.3"
+buildstock_directory: ../OpenStudio-BuildStock2 # Relative to this file or absolute
+project_directory: project_national # Relative to buildstock_directory
+output_directory: /projects/enduse/buildstock_testing/resstock/res_n250_15min_v19
+weather_files_path: /shared-projects/buildstock/weather/BuildStock_TMY3_FIPS.zip # Relative to this file or absolute path to zipped weather files
+
+sampler:
+  type: residential_quota # precomputed
+  args:
+    # sample_file: "buildstock_n250.csv"
+    n_datapoints: 250
+
+workflow_generator:
+  type: residential_hpxml
+  args:
+    build_existing_model:
+      simulation_control_timestep: 15
+
+    emissions:
+      - scenario_name: scenario1
+        type: NOx
+        elec_folder: data/cambium/LRMER_MidCase_15
+        gas_value: 117.6
+        propane_value: 136.6
+        oil_value: 161.0
+        wood_value: 200.0
+      - scenario_name: scenario2
+        type: NOx
+        elec_folder: data/cambium/LRMER_LowRECost_15
+        gas_value: 117.6
+        propane_value: 136.6
+        oil_value: 161.0
+        wood_value: 200.0
+
+    simulation_output_report:
+      timeseries_frequency: timestep
+      include_timeseries_fuel_consumptions: true
+      include_timeseries_end_use_consumptions: true
+      include_timeseries_emissions: true
+      include_timeseries_total_loads: true
+
+    reporting_measures:
+      - measure_dir_name: QOIReport
+
+    server_directory_cleanup:
+      retain_in_idf: False
+      retain_schedules_csv: True
+# workflow_generator:
+#   type: residential_default
+#   args:
+#     timeseries_csv_export:
+#       reporting_frequency: Hourly
+#       include_enduse_subcategories: true
+
+#     build_existing_model:
+#       simulation_control_timestep: 60
+#       simulation_control_run_period_calendar_year: 2012
+
+baseline:
+  n_buildings_represented: 133172057 # Total number of residential dwelling units in contiguous United States, including unoccupied units, resulting from a census tract level query of ACS 5-yr 2016 (i.e. 2012-2016), using this script: https://github.com/NREL/resstock-estimation/blob/master/sources/spatial/tsv_maker.py.
+
+upgrades:
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade1 # Applies to some, doesn't correct any. Should have Invalid, Fail and Success
+    options:
+      - option: Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing
+        apply_logic:
+          and:
+            - or:
+                - Insulation Wall|Wood Stud, Uninsulated
+                - Vintage|1980s
+        costs:
+          - value: 1.4
+            multiplier: Wall Area, Above-Grade, Exterior (ft^2)
+        lifetime: 30
+
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade2 #Applies to some, corrects some, (Success + Invalid + Fail)
+    options:
+      - option: Windows|Single, Clear, Metal, Exterior Low-E Storm
+        apply_logic:
+          and:
+            - or:
+                - Windows|Single, Clear, Metal
+                - Windows|Single, Clear, Metal, Exterior Clear Storm
+        costs:
+          - value: 14.7
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+  
+      - option: Vintage|1980s # Crashes some more
+        apply_logic:
+          and:
+            - Vintage|1960s
+    
+      - option: Vintage|1970s # corrects some of the baseline crashing case, and applies to some other non-crashing cases too
+        apply_logic:
+          and:
+            - or:
+              - Vintage|1980s
+              - Vintage|1960s
+            - Location Region|CR09
+  
+    package_apply_logic:
+      not:
+        or:
+          - Vintage|1990s
+          - Vintage|2000s
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade3 # Applies to all, corrects all, no fail. (Success (No Fail, No invalid))
+    options:
+      - option: Windows|Triple, Low-E, Insulated, Argon, H-Gain
+        costs:
+          - value: 46
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+      - option: Infiltration|0.5 ACH50
+        apply_logic:
+          and:
+            - Infiltration|20 ACH50
+        costs: &no_cost
+          - value: 0
+            multiplier: Fixed (1)
+        lifetime: 30
+      - option: Vintage|1970s # corrects the baseline crashing case
+        apply_logic:
+          and:
+            - Vintage|1980s
+
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade4 # Applies to none (All invalid (No Fail, No success))
+    options:
+      - option: Windows|Single, Clear, Metal, Exterior Low-E Storm
+        apply_logic:
+          and:
+            - Windows|Single, Clear, Metal
+            - Windows|Single, Clear, Metal, Exterior Clear Storm
+        costs:
+          - value: 14.7
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+  
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade5 # Applies to all and crashes all of them them (Fail (No invalid, No Success))
+    options:
+      - option: Vintage|1980s #
+        costs: *no_cost
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade6 # Applies to all but some building will fail (Success + Fail (No Invalid))
+    options:
+      - option: Windows|Triple, Low-E, Insulated, Argon, H-Gain
+        costs:
+          - value: 46
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+      - option: Infiltration|0.5 ACH50
+        apply_logic:
+          and:
+            - Infiltration|1 ACH50
+            - Windows|Double, Clear, Metal, Air
+        costs: *no_cost
+        lifetime: 30
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade7 # Applies to some, but all those will fail. ( Invalid + Fail (No success))
+    options:
+      - option: Vintage|1980s
+        apply_logic:
+          and:
+            - Vintage|1960s
+        costs:
+          - value: 14.7
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+  ######################################################################################################################################################################################################
+  - upgrade_name: upgrade8 #Applies to some, corrects all, (Success + Invalid  (No Fail))
+    options:
+      - option: Windows|Single, Clear, Metal, Exterior Low-E Storm
+        apply_logic:
+          and:
+            - or:
+                - Windows|Single, Clear, Metal
+                - Windows|Single, Clear, Metal, Exterior Clear Storm
+        costs:
+          - value: 14.7
+            multiplier: Window Area (ft^2)
+        lifetime: 30
+      - option: Vintage|1970s # corrects some of the baseline crashing case
+        apply_logic:
+          and:
+            - Vintage|1980s
+
+eagle:
+  n_jobs: 20
+  minutes_per_sim: 1
+  account: enduse
+  sampling:
+    time: 20
+  postprocessing:
+    time: 30
+    n_workers: 1
+    n_procs: 5
+
+postprocessing:
+  keep_individual_timeseries: true
+  
+  aws:
+    region_name: "us-west-2"
+    s3:
+      bucket: buildstock-testing
+      prefix: resstock
+    athena:
+      glue_service_role: service-role/AWSGlueServiceRole-default
+      database_name: buildstock_testing
+      max_crawling_time: 1200 #time to wait for the crawler to complete before aborting it
