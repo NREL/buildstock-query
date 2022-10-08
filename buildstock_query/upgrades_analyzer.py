@@ -229,7 +229,7 @@ class UpgradesAnalyzer:
                           'option': option['option'], 'applicable_to': count,
                           'applicable_percent': self._to_pct(count),
                           'applicable_buildings': set(self.buildstock_df.loc[applied_bldgs[0]].index),
-                          'lifetime': option.get('lifetime', float('inf'))}
+                          }
                 records.append(record)
 
             count = all_applied_bldgs.sum()
