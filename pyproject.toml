@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "buildstock_query"
-version = "2022.10.7"
+version = "2022.10.8"
 description = "Python library for querying and analyzing ResStock and ComStock results and input files."
 authors = ["Rajendra Adhikari <Rajendra.Adhikari@nrel.gov>"]
 readme = "README.md"
