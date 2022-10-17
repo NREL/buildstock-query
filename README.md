@@ -1,4 +1,4 @@
-smart_query
+buildstock-query (formerly known as smart_query)
 ==================
 
 This module provides a set of helper functions to standardize queries to download common results.
