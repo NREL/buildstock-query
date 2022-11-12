@@ -14,7 +14,7 @@ from sqlalchemy.sql import func as safunc
 import datetime
 import numpy as np
 import logging
-import buildstock_query.base as base
+import buildstock_query.main as main
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord
 
 
 class BuildStockAggregate:
-    def __init__(self, buildstock_query: 'base.BuildStockQuery') -> None:
+    def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
         self.bsq = buildstock_query
 
     def aggregate_annual(self,

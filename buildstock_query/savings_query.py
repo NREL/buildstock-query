@@ -10,11 +10,11 @@ import pandas as pd
 import sqlalchemy as sa
 from typing import List, Tuple
 from sqlalchemy.sql import functions as safunc
-import buildstock_query.base as base
+import buildstock_query.main as main
 
 
 class BuildStockSavings:
-    def __init__(self, buildstock_query: 'base.BuildStockQuery') -> None:
+    def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
         self.bsq = buildstock_query
 
     def _validate_partition_by(self, partition_by: list[str]):

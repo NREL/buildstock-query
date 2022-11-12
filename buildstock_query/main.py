@@ -16,7 +16,7 @@ from typing import List, Tuple, Union
 import logging
 import re
 from buildstock_query.upgrades_analyzer import UpgradesAnalyzer
-from buildstock_query.core import QueryCore
+from buildstock_query.query_core import QueryCore
 from buildstock_query.report_query import BuildStockReport
 from buildstock_query.aggregate_query import BuildStockAggregate
 from buildstock_query.savings_query import BuildStockSavings

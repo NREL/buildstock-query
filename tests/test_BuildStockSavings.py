@@ -1,17 +1,17 @@
 import numpy as np
 from unittest.mock import MagicMock
-from buildstock_query.base import BuildStockQuery
+from buildstock_query.main import BuildStockQuery
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
-import buildstock_query.core as core
+import buildstock_query.query_core as query_core
 from buildstock_query.utils import KWH2MBTU
 import re
 import tempfile
 
-core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-core.sa.create_engine = MagicMock()  # mock creating engine
-core.Connection = MagicMock() # type: ignore # NOQA
-core.boto3 = MagicMock()
+query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
+query_core.sa.create_engine = MagicMock()  # mock creating engine
+query_core.Connection = MagicMock() # type: ignore # NOQA
+query_core.boto3 = MagicMock()
 
 
 @pytest.fixture

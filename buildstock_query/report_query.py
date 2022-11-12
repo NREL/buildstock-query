@@ -18,14 +18,14 @@ import pandas as pd
 from buildstock_query.utils import print_r, print_g
 from ast import literal_eval
 from functools import reduce
-import buildstock_query.base as base
+import buildstock_query.main as main
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
 
 class BuildStockReport:
-    def __init__(self, bsq: 'base.BuildStockQuery') -> None:
+    def __init__(self, bsq: 'main.BuildStockQuery') -> None:
         self.bsq = bsq
 
     def _get_bs_success_report(self, get_query_only: bool = False):

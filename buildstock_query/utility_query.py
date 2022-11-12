@@ -9,7 +9,7 @@ EULP project should be implemented as member function of this class.
 :author: Anthony.Fontanini@nrel.gov
 """
 
-import buildstock_query.base as base
+import buildstock_query.main as main
 import logging
 from typing import List, Any, Tuple
 import pandas as pd
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class BuildStockUtility:
-    def __init__(self, buildstock_query: 'base.BuildStockQuery',
+    def __init__(self, buildstock_query: 'main.BuildStockQuery',
                  eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
         """
         A class to run AWS Athena queries for the EULP project using built-in query functions. Look up definition in \

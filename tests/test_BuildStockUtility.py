@@ -1,15 +1,15 @@
 from unittest.mock import MagicMock
 import tempfile
 import pytest
-import buildstock_query.core as core
-from buildstock_query.base import BuildStockQuery
+import buildstock_query.query_core as query_core
+from buildstock_query.main import BuildStockQuery
 from tests.utils import assert_query_equal, load_tbl_from_pkl
 
-core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-core.sa.create_engine = MagicMock()  # mock creating engine
-core.Connection = MagicMock()  # type: ignore # NOQA
-core.boto3 = MagicMock()
-core.Connection.cursor = MagicMock()
+query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
+query_core.sa.create_engine = MagicMock()  # mock creating engine
+query_core.Connection = MagicMock()  # type: ignore # NOQA
+query_core.boto3 = MagicMock()
+query_core.Connection.cursor = MagicMock()
 
 
 @pytest.fixture
