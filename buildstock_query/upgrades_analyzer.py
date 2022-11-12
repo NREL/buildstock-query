@@ -43,7 +43,7 @@ class UpgradesAnalyzer:
                 self.buildstock_df.set_index('building_id', inplace=True)
             self.buildstock_df = self.buildstock_df.astype(str)
         self.total_samples = len(self.buildstock_df)
-        self._logic_cache = {}
+        self._logic_cache: dict = {}
 
     def get_cfg(self):
         with open(self.yaml_file) as f:
@@ -121,7 +121,7 @@ class UpgradesAnalyzer:
         compare_df = res_df.loc[compare_bldg_list]
         base_df = res_df.loc[base_bldg_list]
         print(f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.")
-        unique_vals_dict = {}
+        unique_vals_dict: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
         for col in res_df.columns:
             no_change_set = set(compare_df[col].fillna('').unique())
             other_set = set(base_df[col].fillna('').unique())

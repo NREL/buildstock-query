@@ -1,17 +1,17 @@
 import numpy as np
 from unittest.mock import MagicMock
-from buildstock_query.resstock_savings import ResStockSavings
+from buildstock_query.base import BuildStockQuery
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
-import buildstock_query.resstock_athena as ra
+import buildstock_query.core as core
 from buildstock_query.utils import KWH2MBTU
 import re
 import tempfile
 
-ra.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-ra.sa.create_engine = MagicMock()  # mock creating engine
-ra.Connection = MagicMock()
-ra.boto3 = MagicMock()
+core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
+core.sa.create_engine = MagicMock()  # mock creating engine
+core.Connection = MagicMock() # type: ignore # NOQA
+core.boto3 = MagicMock()
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ class TestResStockSavings:
 
     @pytest.fixture
     def my_athena(self, temp_history_file):
-        my_athena = ResStockSavings(
+        my_athena = BuildStockQuery(
             workgroup='eulp',
             db_name='buildstock_testing',
             buildstock_type='resstock',
@@ -41,13 +41,13 @@ class TestResStockSavings:
         available_upgrade = my_athena.get_available_upgrades()
         assert available_upgrade == [0, 1, 2, 3, 6, 8]
 
-    def test_savings_shape(self, my_athena: ResStockSavings):
+    def test_savings_shape(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
-        success_report = my_athena.get_success_report()
-        annual_savings_full = my_athena.savings_shape(1, enduses=enduses)
-        annual_savings_applied = my_athena.savings_shape(1, enduses=enduses, applied_only=True)
-        annual_bs_consumtion = my_athena.aggregate_annual(enduses=enduses)
-        annual_up_consumption = my_athena.aggregate_annual(upgrade_id=1, enduses=enduses)
+        success_report = my_athena.report.get_success_report()
+        annual_savings_full = my_athena.savings.savings_shape(1, enduses=enduses)
+        annual_savings_applied = my_athena.savings.savings_shape(1, enduses=enduses, applied_only=True)
+        annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses)
+        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses)
         assert len(annual_savings_full) == len(annual_savings_applied) == 1
         assert annual_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
         assert annual_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
@@ -62,8 +62,9 @@ class TestResStockSavings:
         diff = annual_savings_applied[f"{enduses[0]}__baseline"] - annual_up_consumption[f"{enduses[0]}"]
         assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings_shape(1, enduses=ts_enduses, annual_only=False)
-        ts_savings_applied = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False)
+        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False)
+        ts_savings_applied = my_athena.savings.savings_shape(
+            1, enduses=ts_enduses, applied_only=True, annual_only=False)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040
         assert ts_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
         assert ts_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
@@ -78,20 +79,20 @@ class TestResStockSavings:
         ts_applied_savings = ts_savings_applied[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
         assert np.isclose(ts_applied_savings, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
 
-    def test_savings_shape_with_grouping(self, my_athena: ResStockSavings):
+    def test_savings_shape_with_grouping(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
         group_by = ["geometry_building_type_recs"]
         n_groups = 4  # Number of groups available in the dataset for the given group_by
         rtol = 2e-3  # 0.2% relative tolerance for matching annual values to timeseries values
         mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
         # group_by = [my_athena.bs_bldgid_column]
-        success_report = my_athena.get_success_report()
-        annual_savings_full = my_athena.savings_shape(1, enduses=enduses, group_by=group_by, sort=True)
-        annual_savings_applied = my_athena.savings_shape(1, enduses=enduses, group_by=group_by, applied_only=True,
-                                                         sort=True)
-        annual_bs_consumtion = my_athena.aggregate_annual(enduses=enduses, group_by=group_by, sort=True)
-        annual_up_consumption = my_athena.aggregate_annual(upgrade_id=1, enduses=enduses, group_by=group_by,
-                                                           sort=True)
+        success_report = my_athena.report.get_success_report()
+        annual_savings_full = my_athena.savings.savings_shape(1, enduses=enduses, group_by=group_by, sort=True)
+        annual_savings_applied = my_athena.savings.savings_shape(1, enduses=enduses, group_by=group_by,
+                                                                 applied_only=True, sort=True)
+        annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses, group_by=group_by, sort=True)
+        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses, group_by=group_by,
+                                                               sort=True)
         assert len(annual_savings_full) == len(annual_savings_applied) == n_groups
         assert annual_savings_full['sample_count'].sum() == success_report.loc[0].Success
         assert annual_savings_applied['sample_count'].sum() == success_report.loc[1].Success
@@ -109,9 +110,9 @@ class TestResStockSavings:
         assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"],
                           rtol=rtol, atol=mbtu_atol * applied_units).all()
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings_shape(1, enduses=ts_enduses, annual_only=False, group_by=group_by)
-        ts_savings_applied = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
-                                                     group_by=group_by)
+        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False, group_by=group_by)
+        ts_savings_applied = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+                                                             annual_only=False, group_by=group_by)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040 * n_groups
         assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[0].Success
         assert ts_savings_applied.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[1].Success
@@ -130,21 +131,21 @@ class TestResStockSavings:
         assert np.isclose(ts_applied_savings, annual_savings_applied[f"{enduses[0]}__savings"],
                           rtol=rtol, atol=mbtu_atol * applied_units).all()
 
-    def test_collapse_ts(self, my_athena: ResStockSavings):
+    def test_collapse_ts(self, my_athena: BuildStockQuery):
         group_by = ["geometry_building_type_recs"]
         n_groups = 4  # Number of groups available in the dataset for the given group_by
         rtol = 2e-3  # 0.2% relative tolerance for matching annual values to timeseries values
         mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings_shape(1, enduses=ts_enduses, annual_only=False, sort=True,
-                                                  group_by=group_by)
-        ts_savings_applied = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
-                                                     group_by=group_by, sort=True)
-        ts_savings_full_collapsed = my_athena.savings_shape(1, enduses=ts_enduses, annual_only=False,
-                                                            group_by=group_by, sort=True, collapse_ts=True)
-        ts_savings_applied_collapsed = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True,
-                                                               annual_only=False, group_by=group_by, sort=True,
-                                                               collapse_ts=True)
+        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False, sort=True,
+                                                          group_by=group_by)
+        ts_savings_applied = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+                                                             annual_only=False, group_by=group_by, sort=True)
+        ts_savings_full_collapsed = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False,
+                                                                    group_by=group_by, sort=True, collapse_ts=True)
+        ts_savings_applied_collapsed = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+                                                                       annual_only=False, group_by=group_by, sort=True,
+                                                                       collapse_ts=True)
 
         assert len(ts_savings_applied_collapsed) == n_groups
         assert len(ts_savings_full_collapsed) == n_groups
@@ -162,34 +163,35 @@ class TestResStockSavings:
                               ts_savings_applied.groupby(group_by)[value_col].sum().values,
                               rtol=rtol, atol=mbtu_atol * applied_units).all()
 
-    def test_restrict(self, my_athena: ResStockSavings):
+    def test_restrict(self, my_athena: BuildStockQuery):
         group_by = ["state", "geometry_building_type_recs"]
         n_groups = 1  # There is only one building type in CO in the test dataset
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        restrict = [['state', ('CO')]]
-        ts_savings = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
-                                             group_by=group_by, sort=True,
-                                             restrict=restrict)
+        restrict = [('state', ['CO'])]
+        ts_savings = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
+                                                     group_by=group_by, sort=True,
+                                                     restrict=restrict)
         assert len(ts_savings) == n_groups * 35040
         assert (ts_savings['state'] == 'CO').all()
 
-    def test_unload(self, my_athena: ResStockSavings):
+    def test_unload(self, my_athena: BuildStockQuery):
         group_by = ["state", "geometry_building_type_recs"]
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        restrict = [['state', ('CO')]]
+        restrict = [('state', ['CO'])]
         part_by = ["geometry_building_type_recs"]
         unload_loc = "buildstock-testing/unload_test/test1/state=CO"
-        ts_savings_unload_query = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
-                                                          group_by=group_by, sort=True,
-                                                          unload_to=unload_loc,
-                                                          partition_by=part_by,
-                                                          restrict=restrict,
-                                                          get_query_only=True)
+        ts_savings_unload_query = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+                                                                  annual_only=False,
+                                                                  group_by=group_by, sort=True,
+                                                                  unload_to=unload_loc,
+                                                                  partition_by=part_by,
+                                                                  restrict=restrict,
+                                                                  get_query_only=True)
         pattern = r"UNLOAD\s+\((.*)\)\s+TO 's3://" + unload_loc + r".* partitioned_by = ARRAY\['" + part_by[0] + r"'\]"
         match = re.match(pattern, ts_savings_unload_query, re.DOTALL)
         assert match
-        ts_savings_query = my_athena.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
-                                                   group_by=group_by, sort=True,
-                                                   restrict=restrict,
-                                                   get_query_only=True)
+        ts_savings_query = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
+                                                           group_by=group_by, sort=True,
+                                                           restrict=restrict,
+                                                           get_query_only=True)
         assert_query_equal(ts_savings_query, match.groups()[0])

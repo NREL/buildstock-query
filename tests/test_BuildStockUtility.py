@@ -1,14 +1,15 @@
 from unittest.mock import MagicMock
 import tempfile
 import pytest
-from buildstock_query.eulp_athena import EULPAthena
-import buildstock_query.resstock_athena as ra
+import buildstock_query.core as core
+from buildstock_query.base import BuildStockQuery
 from tests.utils import assert_query_equal, load_tbl_from_pkl
 
-ra.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-ra.sa.create_engine = MagicMock()  # mock creating engine
-ra.Connection = MagicMock()
-ra.boto3 = MagicMock()
+core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
+core.sa.create_engine = MagicMock()  # mock creating engine
+core.Connection = MagicMock()  # type: ignore # NOQA
+core.boto3 = MagicMock()
+core.Connection.cursor = MagicMock()
 
 
 @pytest.fixture
@@ -19,8 +20,8 @@ def temp_history_file():
     return name
 
 
-def test_aggregated_ts_by_eiaid(temp_history_file):
-    my_athena = EULPAthena(
+def test_aggregated_ts_by_eiaid(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -28,12 +29,13 @@ def test_aggregated_ts_by_eiaid(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True
     )
-
-    query = my_athena.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
-                                            enduses=['end use: electricity: cooling', 'end use: electricity: heating'],
-                                            group_by=['time'],
-                                            get_query_only=True,
-                                            query_group_size=1)
+    my_athena._conn.cursor = MagicMock()  # type: ignore
+    query = my_athena.utility.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                    enduses=['end use: electricity: cooling',
+                                                             'end use: electricity: heating'],
+                                                    group_by=['time'],
+                                                    get_query_only=True,
+                                                    query_group_size=1)
 
     expected_query1 = """
     select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_timeseries"."time" as "time",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight")
@@ -58,11 +60,12 @@ def test_aggregated_ts_by_eiaid(temp_history_file):
     assert_query_equal(query[0].lower(), expected_query1)
     assert_query_equal(query[1].lower(), expected_query2)
 
-    query = my_athena.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
-                                            enduses=['end use: electricity: cooling', 'end use: electricity: heating'],
-                                            group_by=['time'],
-                                            get_query_only=True,
-                                            )
+    query = my_athena.utility.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                    enduses=['end use: electricity: cooling',
+                                                             'end use: electricity: heating'],
+                                                    group_by=['time'],
+                                                    get_query_only=True,
+                                                    )
     expected_query3 = """
     select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_timeseries"."time" as "time",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight")
     as "units_count", sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as "end use: electricity: cooling", sum("res_n250_hrly_v1_timeseries"."end use: electricity: heating" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
@@ -76,8 +79,8 @@ def test_aggregated_ts_by_eiaid(temp_history_file):
     assert_query_equal(query[0], expected_query3)
 
 
-def test_aggregate_unit_counts_by_eiaid(temp_history_file):
-    my_athena = EULPAthena(
+def test_aggregate_unit_counts_by_eiaid(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -86,9 +89,10 @@ def test_aggregate_unit_counts_by_eiaid(temp_history_file):
         skip_reports=True
     )
 
-    query = my_athena.aggregate_unit_counts_by_eiaid(eiaid_list=['1121', '1123'],
-                                                     group_by=['build_existing_model.geometry_building_type_recs'],
-                                                     get_query_only=True)
+    query = my_athena.utility.aggregate_unit_counts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                             group_by=[
+                                                                 'build_existing_model.geometry_building_type_recs'],
+                                                             get_query_only=True)
 
     expected_query = """
     select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight")
@@ -99,8 +103,8 @@ def test_aggregate_unit_counts_by_eiaid(temp_history_file):
     assert_query_equal(query, expected_query)
 
 
-def test_aggregate_annual_by_eiaid(temp_history_file):
-    my_athena = EULPAthena(
+def test_aggregate_annual_by_eiaid(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -108,11 +112,11 @@ def test_aggregate_annual_by_eiaid(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True
     )
-
-    query = my_athena.aggregate_annual_by_eiaid(enduses=['report_simulation_output.end_use_electricity_cooling_m_btu',
-                                                         'report_simulation_output.end_use_electricity_heating_m_btu'],
-                                                group_by=['build_existing_model.geometry_building_type_recs'],
-                                                get_query_only=True)
+    enduses = ['report_simulation_output.end_use_electricity_cooling_m_btu',
+               'report_simulation_output.end_use_electricity_heating_m_btu']
+    query = my_athena.utility.aggregate_annual_by_eiaid(enduses=enduses,
+                                                        group_by=['build_existing_model.geometry_building_type_recs'],
+                                                        get_query_only=True)
 
     expected_query = """
     select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight")
@@ -124,8 +128,8 @@ def test_aggregate_annual_by_eiaid(temp_history_file):
     assert_query_equal(query, expected_query)
 
 
-def test_get_buildings_by_eiaid(temp_history_file):
-    my_athena = EULPAthena(
+def test_get_buildings_by_eiaid(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -134,8 +138,8 @@ def test_get_buildings_by_eiaid(temp_history_file):
         skip_reports=True
     )
 
-    query = my_athena.get_buildings_by_eiaids(eiaids=['1123', '1234'],
-                                              get_query_only=True)
+    query = my_athena.utility.get_buildings_by_eiaids(eiaids=['1123', '1234'],
+                                                      get_query_only=True)
 
     expected_query = """
     select distinct "res_n250_hrly_v1_baseline"."building_id" from "res_n250_hrly_v1_baseline" join "eiaid_weights" on
@@ -145,8 +149,8 @@ def test_get_buildings_by_eiaid(temp_history_file):
     assert_query_equal(query, expected_query)
 
 
-def test_get_filtered_results_csvs_by_eiaid(temp_history_file):
-    my_athena = EULPAthena(
+def test_get_filtered_results_csvs_by_eiaid(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -155,8 +159,8 @@ def test_get_filtered_results_csvs_by_eiaid(temp_history_file):
         skip_reports=True
     )
 
-    query = my_athena.get_filtered_results_csv_by_eiaid(['4110', '1167', '3249'],
-                                                        get_query_only=True)
+    query = my_athena.utility.get_filtered_results_csv_by_eiaid(['4110', '1167', '3249'],
+                                                                get_query_only=True)
 
     expected_query = """
     select * from "res_n250_hrly_v1_baseline" join "eiaid_weights" on "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county"
@@ -166,8 +170,8 @@ def test_get_filtered_results_csvs_by_eiaid(temp_history_file):
     assert_query_equal(query, expected_query)
 
 
-def test_get_locations_by_eiaids(temp_history_file):
-    my_athena = EULPAthena(
+def test_get_locations_by_eiaids(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -176,8 +180,8 @@ def test_get_locations_by_eiaids(temp_history_file):
         skip_reports=True
     )
 
-    query = my_athena.get_locations_by_eiaids(eiaids=['4110', '1167', '3249'],
-                                              get_query_only=True)
+    query = my_athena.utility.get_locations_by_eiaids(eiaids=['4110', '1167', '3249'],
+                                                      get_query_only=True)
 
     expected_query = """
     select distinct "eiaid_weights"."county" from "eiaid_weights" where "eiaid_weights"."eiaid" in ('4110', '1167', '3249') and "eiaid_weights"."weight" > 0
@@ -186,8 +190,8 @@ def test_get_locations_by_eiaids(temp_history_file):
     assert_query_equal(query, expected_query)
 
 
-def test_get_buildings_by_county(temp_history_file):
-    my_athena = EULPAthena(
+def test_get_buildings_by_county(temp_history_file: str):
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',

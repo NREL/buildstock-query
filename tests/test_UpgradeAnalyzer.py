@@ -123,7 +123,7 @@ class TestUpgradesAnalyzer:
     def test_get_report(self, ua: UpgradesAnalyzer):
         cfg = ua.get_cfg()
         new_cfg = cfg.copy()
-        ua.get_cfg = lambda: new_cfg
+        ua.get_cfg = lambda: new_cfg  # type: ignore
 
         new_cfg['upgrades'] = [cfg['upgrades'][0]]  # keep only one upgrade
         report_df = ua.get_report()
@@ -221,19 +221,19 @@ class TestUpgradesAnalyzer:
             assert isinstance(logic_report, list)
             assert f'Vintage|1980s => {sum(logic_arr)}' in logic_report[0]
 
-        for logic_cfg in [{"or": ["Vintage|1980s"]}, {"or": "Vintage|1980s"}]:
+        for logic_cfg2 in [{"or": ["Vintage|1980s"]}, {"or": "Vintage|1980s"}]:
             logic_arr = ua.buildstock_df["vintage"] == "1980s"
-            logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+            logic_arr_out, logic_report = ua._get_logic_report(logic_cfg2)
             assert (logic_arr == logic_arr_out).all()
             assert isinstance(logic_report, list)
             assert len(logic_report) == 2
             assert f'or => {sum(logic_arr)}' in logic_report[0]
             assert f'Vintage|1980s => {sum(logic_arr)}' in logic_report[1]
 
-        logic_cfg = ["Vintage|1980s", "Vintage|1960s"]
+        logic_cfg3 = ["Vintage|1980s", "Vintage|1960s"]
         logic_arr1 = ua.buildstock_df["vintage"] == "1980s"
         logic_arr2 = ua.buildstock_df["vintage"] == "1960s"
-        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg3)
         assert (logic_arr1 & logic_arr2 == logic_arr_out).all()
         assert isinstance(logic_report, list)
         assert len(logic_report) == 2
@@ -241,10 +241,10 @@ class TestUpgradesAnalyzer:
         assert f'=> {sum(logic_arr1 & logic_arr2)}' in logic_report[0]  # for overall sum
         assert f'Vintage|1960s => {sum(logic_arr2)}' in logic_report[1]
 
-        logic_cfg = {"and": {"or": ["Vintage|1980s", "Vintage|1960s"]}}
+        logic_cfg4 = {"and": {"or": ["Vintage|1980s", "Vintage|1960s"]}}
         logic_arr1 = ua.buildstock_df["vintage"] == "1980s"
         logic_arr2 = ua.buildstock_df["vintage"] == "1960s"
-        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg4)
         assert (logic_arr1 | logic_arr2 == logic_arr_out).all()
         assert isinstance(logic_report, list)
         assert len(logic_report) == 4
@@ -253,19 +253,19 @@ class TestUpgradesAnalyzer:
         assert f'Vintage|1980s => {sum(logic_arr1)}' in logic_report[2]
         assert f'Vintage|1960s => {sum(logic_arr2)}' in logic_report[3]
 
-        logic_cfg = {"not": ["Vintage|1980s"]}
+        logic_cfg5 = {"not": ["Vintage|1980s"]}
         logic_arr = ua.buildstock_df["vintage"] == "1980s"
-        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg5)
         assert ((~logic_arr) == logic_arr_out).all()
         assert isinstance(logic_report, list)
         assert len(logic_report) == 2
         assert f'not => {sum(~logic_arr)}' in logic_report[0]
         assert f'Vintage|1980s => {sum(logic_arr)}' in logic_report[1]
 
-        logic_cfg = {"not": ["Vintage|1980s", "Vintage|1960s"]}
+        logic_cfg6 = {"not": ["Vintage|1980s", "Vintage|1960s"]}
         logic_arr1 = ua.buildstock_df["vintage"] == "1980s"
         logic_arr2 = ua.buildstock_df["vintage"] == "1960s"
-        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg6)
         assert (~(logic_arr1 & logic_arr2) == logic_arr_out).all()
         assert isinstance(logic_report, list)
         assert len(logic_report) == 3
@@ -273,11 +273,11 @@ class TestUpgradesAnalyzer:
         assert f'Vintage|1980s => {sum(logic_arr1)}' in logic_report[1]
         assert f'Vintage|1960s => {sum(logic_arr2)}' in logic_report[2]
 
-        logic_cfg = {"not": {"or": ["Vintage|1980s", "Vintage|1960s"]}}
+        logic_cfg7 = {"not": {"or": ["Vintage|1980s", "Vintage|1960s"]}}
         logic_arr1 = ua.buildstock_df["vintage"] == "1980s"
         logic_arr2 = ua.buildstock_df["vintage"] == "1960s"
         logic_arr_or = logic_arr1 | logic_arr2
-        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg)
+        logic_arr_out, logic_report = ua._get_logic_report(logic_cfg7)
         assert ((~logic_arr_or) == logic_arr_out).all()
         assert isinstance(logic_report, list)
         assert len(logic_report) == 4

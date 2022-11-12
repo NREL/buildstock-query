@@ -5,15 +5,15 @@ import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
 from buildstock_query.utils import FutureDf
-import buildstock_query.resstock_athena as ra
-from buildstock_query.resstock_athena import ResStockAthena
+import buildstock_query.core as core
+from buildstock_query.base import BuildStockQuery
 import pandas as pd
 import uuid
 import time
-ra.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-ra.sa.create_engine = MagicMock()  # mock creating engine
-ra.Connection = MagicMock()
-ra.boto3 = MagicMock()
+core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
+core.sa.create_engine = MagicMock()  # mock creating engine
+core.Connection = MagicMock()  # type: ignore # NOQA
+core.boto3 = MagicMock()
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def assert_mock_func_call(mock_obj, function, *args, **kwargs):
         if call_function == function:
             if call[1] != args:  # 1 is args
                 continue
-            for key in kwargs.keys():
+            for key in kwargs:
                 # if kwargs is supplied, each key must be present and correct argument must be supplied in the function
                 if key in call[2] and call[2][key] == kwargs[key]:
                     return
@@ -85,7 +85,7 @@ def assert_list_equal(list1, list2):
 
 
 def test_clean_group_by(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -108,7 +108,7 @@ def test_clean_group_by(temp_history_file):
 
 
 def test_query_execution_pass_through(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -139,7 +139,7 @@ def test_query_execution_pass_through(temp_history_file):
 
 
 def test_aggregate_annual(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -154,11 +154,11 @@ def test_aggregate_annual(temp_history_file):
     state_str = 'build_existing_model.state'
     bldg_type = 'build_existing_model.geometry_building_type_recs'
 
-    query1 = my_athena.aggregate_annual(enduses=enduses,
-                                        group_by=[state_str, bldg_type],
-                                        sort=True,
-                                        run_async=True,
-                                        get_query_only=True)
+    query1 = my_athena.agg.aggregate_annual(enduses=enduses,
+                                            group_by=[state_str, bldg_type],
+                                            sort=True,
+                                            run_async=True,
+                                            get_query_only=True)
 
     valid_query_string = """
         select "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
@@ -170,11 +170,11 @@ def test_aggregate_annual(temp_history_file):
         """  # noqa: E501
     assert_query_equal(query1, valid_query_string)  # Test that proper query is formed for annual aggregation
 
-    query1_1 = my_athena.aggregate_annual(enduses=enduses,
-                                          group_by=[(state_str, 'state'), bldg_type],
-                                          sort=True,
-                                          run_async=True,
-                                          get_query_only=True)
+    query1_1 = my_athena.agg.aggregate_annual(enduses=enduses,
+                                              group_by=[(state_str, 'state'), bldg_type],
+                                              sort=True,
+                                              run_async=True,
+                                              get_query_only=True)
 
     valid_query_string1_1 = """
             select "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs"  as "geometry_building_type_recs",
@@ -186,18 +186,18 @@ def test_aggregate_annual(temp_history_file):
             """  # noqa: E501
     assert_query_equal(query1_1, valid_query_string1_1)  # Test that proper query is formed for annual aggregation
     eiaid_col = my_athena.get_column("eiaid", "eiaid_weights")
-    query2 = my_athena.aggregate_annual(enduses=enduses,
-                                        group_by=[eiaid_col, state_str, bldg_type],
-                                        sort=True,
-                                        join_list=[
-                                            (
-                                                'eiaid_weights', 'build_existing_model.county',
-                                                'county')],
-                                        weights=[('weight', 'eiaid_weights')],
-                                        restrict=[('eiaid', ['1167', '3249']),
-                                                  (state_str, ['AL', 'VA', 'TX'])],
-                                        run_async=True,
-                                        get_query_only=True)
+    query2 = my_athena.agg.aggregate_annual(enduses=enduses,
+                                            group_by=[eiaid_col, state_str, bldg_type],
+                                            sort=True,
+                                            join_list=[
+                                                (
+                                                    'eiaid_weights', 'build_existing_model.county',
+                                                    'county')],
+                                            weights=[('weight', 'eiaid_weights')],
+                                            restrict=[('eiaid', ['1167', '3249']),
+                                                      (state_str, ['AL', 'VA', 'TX'])],
+                                            run_async=True,
+                                            get_query_only=True)
 
     valid_query_string2 = """
         select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.state"  as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
@@ -213,9 +213,9 @@ def test_aggregate_annual(temp_history_file):
         """  # noqa: E501
     assert_query_equal(query2, valid_query_string2)  # Test that proper query is formed for annual aggregation
 
-    query3 = my_athena.aggregate_annual(enduses=enduses,
-                                        run_async=True,
-                                        get_query_only=True)
+    query3 = my_athena.agg.aggregate_annual(enduses=enduses,
+                                            run_async=True,
+                                            get_query_only=True)
     valid_query_string3 = """
         select sum(1) AS "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") AS "units_count", sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel_use_electricity_net_m_btu",
         sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "end_use_electricity_cooling_m_btu" from "res_n250_hrly_v1_baseline" where "res_n250_hrly_v1_baseline"."completed_status" = 'Success'
@@ -230,21 +230,21 @@ def test_aggregate_annual(temp_history_file):
         "res_n250_hrly_v1_baseline" join "eiaid_weights" on "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county" where
         "res_n250_hrly_v1_baseline"."completed_status" = 'Success' and "eiaid_weights"."eiaid" in ('1167', '3249') and "res_n250_hrly_v1_baseline"."build_existing_model.state" in ('AL', 'VA', 'TX')
         """  # noqa: E501
-    query4 = my_athena.aggregate_annual(enduses=enduses,
-                                        join_list=[
-                                            (
-                                                'eiaid_weights', 'build_existing_model.county',
-                                                'county')],
-                                        weights=["weight"],
-                                        restrict=[('eiaid', ['1167', '3249']),
-                                                  (state_str, ['AL', 'VA', 'TX'])],
-                                        run_async=True,
-                                        get_query_only=True)
+    query4 = my_athena.agg.aggregate_annual(enduses=enduses,
+                                            join_list=[
+                                                (
+                                                    'eiaid_weights', 'build_existing_model.county',
+                                                    'county')],
+                                            weights=["weight"],
+                                            restrict=[('eiaid', ['1167', '3249']),
+                                                      (state_str, ['AL', 'VA', 'TX'])],
+                                            run_async=True,
+                                            get_query_only=True)
 
     assert_query_equal(query4, valid_query_string4)
 
     # Custom sample weight
-    my_athena2 = ResStockAthena(
+    my_athena2 = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -253,10 +253,10 @@ def test_aggregate_annual(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True
     )
-    query5 = my_athena2.aggregate_annual(enduses=enduses,
-                                         run_async=True,
-                                         get_query_only=True,
-                                         )
+    query5 = my_athena2.agg.aggregate_annual(enduses=enduses,
+                                             run_async=True,
+                                             get_query_only=True,
+                                             )
     valid_query_string5 = """
         select sum(1) AS "sample_count", sum(29.0) AS "units_count", sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * 29.0) as "fuel_use_electricity_net_m_btu",
         sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * 29.0) as
@@ -266,7 +266,7 @@ def test_aggregate_annual(temp_history_file):
 
 
 def test_aggregate_ts(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -278,11 +278,11 @@ def test_aggregate_ts(temp_history_file):
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
     state_str = "build_existing_model.state"
     bldg_type = "build_existing_model.geometry_building_type_recs"
-    query1 = my_athena.aggregate_timeseries(enduses=enduses,
-                                            group_by=['time', state_str, bldg_type],
-                                            sort=True,
-                                            run_async=True,
-                                            get_query_only=True)
+    query1 = my_athena.agg.aggregate_timeseries(enduses=enduses,
+                                                group_by=['time', state_str, bldg_type],
+                                                sort=True,
+                                                run_async=True,
+                                                get_query_only=True)
     valid_query_string1 = """
     select "res_n250_hrly_v1_timeseries"."time" as "time", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as
     "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
@@ -294,11 +294,11 @@ def test_aggregate_ts(temp_history_file):
     """  # noqa: E501
     assert_query_equal(query1, valid_query_string1)  # Test that proper query is formed for timeseries aggregation
 
-    query1_1 = my_athena.aggregate_timeseries(enduses=enduses,
-                                              group_by=['time', (state_str, 'state'), bldg_type],
-                                              sort=True,
-                                              run_async=True,
-                                              get_query_only=True)
+    query1_1 = my_athena.agg.aggregate_timeseries(enduses=enduses,
+                                                  group_by=['time', (state_str, 'state'), bldg_type],
+                                                  sort=True,
+                                                  run_async=True,
+                                                  get_query_only=True)
     valid_query_string1_1 = """
         select "res_n250_hrly_v1_timeseries"."time" as "time", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state",
         "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as
@@ -314,17 +314,17 @@ def test_aggregate_ts(temp_history_file):
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
     state_str = "build_existing_model.state"
     bldg_type = "build_existing_model.geometry_building_type_recs"
-    query2 = my_athena.aggregate_timeseries(enduses=enduses,
-                                            group_by=['eiaid', state_str, bldg_type, 'time'],
-                                            sort=True,
-                                            join_list=[
-                                                ('eiaid_weights', 'build_existing_model.county',
-                                                 'county')],
-                                            weights=["weight"],
-                                            restrict=[('eiaid', ['1167', '3249']),
-                                                      (state_str, ['AL', 'VA', 'TX'])],
-                                            run_async=True,
-                                            get_query_only=True)
+    query2 = my_athena.agg.aggregate_timeseries(enduses=enduses,
+                                                group_by=['eiaid', state_str, bldg_type, 'time'],
+                                                sort=True,
+                                                join_list=[
+                                                    ('eiaid_weights', 'build_existing_model.county',
+                                                     'county')],
+                                                weights=["weight"],
+                                                restrict=[('eiaid', ['1167', '3249']),
+                                                          (state_str, ['AL', 'VA', 'TX'])],
+                                                run_async=True,
+                                                get_query_only=True)
     valid_query_string2 = """
             select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
             "res_n250_hrly_v1_timeseries"."time" as "time",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as
@@ -341,10 +341,10 @@ def test_aggregate_ts(temp_history_file):
     # test without grouping
     my_athena._get_rows_per_building = lambda: 35040
 
-    query3 = my_athena.aggregate_timeseries(enduses=enduses,
-                                            run_async=True,
-                                            collapse_ts=True,
-                                            get_query_only=True)
+    query3 = my_athena.agg.aggregate_timeseries(enduses=enduses,
+                                                run_async=True,
+                                                collapse_ts=True,
+                                                get_query_only=True)
     valid_query_string3 = """
         select sum(1) / 35040 as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" / 35040) as "units_count",
         sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel use: electricity: total",
@@ -355,16 +355,16 @@ def test_aggregate_ts(temp_history_file):
 
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
     state_str = "build_existing_model.state"
-    query4 = my_athena.aggregate_timeseries(enduses=enduses,
-                                            join_list=[
-                                                ('eiaid_weights', 'build_existing_model.county',
-                                                 'county')],
-                                            weights=[('weight', 'eiaid_weights')],
-                                            restrict=[('eiaid', ['1167', '3249']),
-                                                      (state_str, ['AL', 'VA', 'TX'])],
-                                            run_async=True,
-                                            collapse_ts=True,
-                                            get_query_only=True)
+    query4 = my_athena.agg.aggregate_timeseries(enduses=enduses,
+                                                join_list=[
+                                                    ('eiaid_weights', 'build_existing_model.county',
+                                                     'county')],
+                                                weights=[('weight', 'eiaid_weights')],
+                                                restrict=[('eiaid', ['1167', '3249']),
+                                                          (state_str, ['AL', 'VA', 'TX'])],
+                                                run_async=True,
+                                                collapse_ts=True,
+                                                get_query_only=True)
     valid_query_string4 = """
         select sum(1) / 35040 as "sample_count", sum(("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") / 35040) as
          "units_count",
@@ -377,7 +377,7 @@ def test_aggregate_ts(temp_history_file):
         """  # noqa: E501
     assert_query_equal(query4, valid_query_string4)  # Test that proper query is formed for timeseries aggregation
 
-    my_athena2 = ResStockAthena(
+    my_athena2 = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -389,10 +389,10 @@ def test_aggregate_ts(temp_history_file):
     my_athena2.get_available_upgrades = lambda: [0]
     my_athena2._get_rows_per_building = lambda: 35040
 
-    query5 = my_athena2.aggregate_timeseries(enduses=enduses,
-                                             collapse_ts=True,
-                                             run_async=True,
-                                             get_query_only=True)
+    query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
+                                                 collapse_ts=True,
+                                                 run_async=True,
+                                                 get_query_only=True)
     valid_query_string5 = """
             select sum(1) / 35040 as "sample_count", sum(29.0 / 35040) as "units_count",
             sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * 29.0) as
@@ -404,7 +404,7 @@ def test_aggregate_ts(temp_history_file):
 
 
 def test_batch_query(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -436,7 +436,7 @@ def test_batch_query(temp_history_file):
 
 
 def test_get_results_csv(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -461,7 +461,7 @@ def test_get_results_csv(temp_history_file):
 
 
 def test_get_building_average_kws_at(temp_history_file):
-    my_athena = ResStockAthena(
+    my_athena = BuildStockQuery(
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
@@ -471,8 +471,8 @@ def test_get_building_average_kws_at(temp_history_file):
     )
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
     my_athena._get_simulation_info = lambda: (2012, 10 * 60)  # over-ride the function to return interval of 10 mins
-    query1, query2 = my_athena.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
-                                                           enduses=enduses, get_query_only=True)
+    query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
+                                                               enduses=enduses, get_query_only=True)
     valid_query_string1 = """
     select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
     sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
@@ -507,14 +507,14 @@ def test_get_building_average_kws_at(temp_history_file):
 
     my_athena.submit_batch_query = lambda *args, **kwargs: 0
     my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)
-    res = my_athena.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
-                                                enduses=enduses)
+    res = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
+                                                    enduses=enduses)
     pd.testing.assert_frame_equal(res, true_weighted_sum)
 
     # Test at_hour as a list of hours that exactly coincide with timestamps. Single query must be returned
     my_athena._get_simulation_info = lambda: (2012, 15 * 60)  # over-ride the function to return interval of 15 mins
-    query1, = my_athena.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
-                                                    enduses=enduses, get_query_only=True)
+    query1, = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
+                                                        enduses=enduses, get_query_only=True)
     valid_query_string1 = """
     select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
     sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
@@ -531,8 +531,9 @@ def test_get_building_average_kws_at(temp_history_file):
     # Test at_hour as a list of hours which have only a few hours that coincide with timestamps.
     # Two queries must be returned
     my_athena._get_simulation_info = lambda: (2012, 15 * 60)  # over-ride the function to return interval of 15 mins
-    query1, query2 = my_athena.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625, 12.75],
-                                                           enduses=enduses, get_query_only=True)
+    query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625,
+                                                                                              12.75],
+                                                               enduses=enduses, get_query_only=True)
     valid_lower_query = """
         select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
         sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
@@ -567,6 +568,6 @@ def test_get_building_average_kws_at(temp_history_file):
 
     my_athena.submit_batch_query = lambda *args, **kwargs: 0
     my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)
-    res = my_athena.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625, 12.75],
-                                                enduses=enduses)
+    res = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625, 12.75],
+                                                    enduses=enduses)
     pd.testing.assert_frame_equal(res, true_weighted_sum)

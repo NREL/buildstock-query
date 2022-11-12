@@ -23,6 +23,7 @@ dash-extensions = "^0.1.6"
 dash-mantine-components = "^0.10.2"
 dash-iconify = "^0.1.2"
 pytest = "^7.1.3"
+types-PyYAML = "^6.0.12.2"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -1,5 +1,5 @@
 import pathlib
-from buildstock_query.resstock_savings import ResStockSavings
+from buildstock_query.savings_query import BuildStockSavings
 from sqlalchemy.exc import NoSuchTableError
 from buildstock_query.utils import save_pickle
 
@@ -12,7 +12,7 @@ def save_ref_pkl(name, obj):
 
 def generate_table_and_cache(table_name):
     try:
-        mya1 = ResStockSavings(
+        mya1 = BuildStockSavings(
             workgroup='eulp',
             db_name='buildstock_testing',
             buildstock_type='resstock',
@@ -66,7 +66,7 @@ def generate_table_and_cache(table_name):
 
 def generate_table(table_name):
     try:
-        mya2 = ResStockSavings(
+        mya2 = BuildStockSavings(
             workgroup='eulp',
             db_name='buildstock_testing',
             buildstock_type='resstock',

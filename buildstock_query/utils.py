@@ -51,7 +51,7 @@ def print_g(text):  # print in Green
     print(f"{COLOR.GREEN}{text}{COLOR.END}")
 
 
-class CustomCompiler(AthenaDialect().statement_compiler):
+class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
     def render_literal_value(self, value, type_):
         if isinstance(value, (datetime.datetime)):
             return "timestamp '%s'" % str(value).replace("'", "''")

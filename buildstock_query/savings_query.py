@@ -6,69 +6,69 @@ A class to calculate savings shapes for various upgrade runs.
 :author: Rajendra.Adhikari@nrel.gov
 :author: Noel.Merket@nrel.gov
 """
-from buildstock_query.resstock_athena import ResStockAthena
 import pandas as pd
 import sqlalchemy as sa
 from typing import List, Tuple
 from sqlalchemy.sql import functions as safunc
+import buildstock_query.base as base
 
 
-class ResStockSavings(ResStockAthena):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._available_upgrades = None
+class BuildStockSavings:
+    def __init__(self, buildstock_query: 'base.BuildStockQuery') -> None:
+        self.bsq = buildstock_query
 
-    def _validate_partition_by(self, partition_by):
+    def _validate_partition_by(self, partition_by: list[str]):
         if not partition_by:
             return []
-        [self._get_gcol(col) for col in partition_by]  # making sure all entries are valid
+        [self.bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    def __get_timeseries_bs_up_table(self, enduses, upgrade_id, applied_only, restrict=None, ts_group_by=None):
+    def __get_timeseries_bs_up_table(self, enduses: list[str], upgrade_id: int, applied_only: bool,
+                                     restrict: list = None, ts_group_by: list[str] = None):
         restrict = list(restrict) if restrict else []
         ts_group_by = list(ts_group_by) if ts_group_by else []
-        ts = self.ts_table
-        base = self.bs_table
-        sa_ts_cols = [ts.c[self.building_id_column_name], ts.c[self.timestamp_column_name]] + ts_group_by
+        ts = self.bsq.ts_table
+        base = self.bsq.bs_table
+        sa_ts_cols = [ts.c[self.bsq.building_id_column_name], ts.c[self.bsq.timestamp_column_name]] + ts_group_by
         sa_ts_cols.extend(enduses)
         ucol = ts.c["upgrade"]
-        ts_b = self._add_restrict(sa.select(sa_ts_cols), [[ucol, ("0")]] + restrict).alias("ts_b")
-        ts_u = self._add_restrict(sa.select(sa_ts_cols), [[ucol, (str(upgrade_id))]] + restrict).alias("ts_u")
+        ts_b = self.bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, ("0")]] + restrict).alias("ts_b")
+        ts_u = self.bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, (str(upgrade_id))]] + restrict).alias("ts_u")
 
         if applied_only:
             tbljoin = (
                 ts_b.join(
-                    ts_u, sa.and_(ts_b.c[self.building_id_column_name] == ts_u.c[self.building_id_column_name],
-                                  ts_b.c[self.timestamp_column_name] == ts_u.c[self.timestamp_column_name])
-                ).join(base, ts_b.c[self.building_id_column_name] == base.c[self.building_id_column_name])
+                    ts_u, sa.and_(ts_b.c[self.bsq.building_id_column_name] == ts_u.c[self.bsq.building_id_column_name],
+                                  ts_b.c[self.bsq.timestamp_column_name] == ts_u.c[self.bsq.timestamp_column_name])
+                ).join(base, ts_b.c[self.bsq.building_id_column_name] == base.c[self.bsq.building_id_column_name])
             )
         else:
             tbljoin = (
                 ts_b.outerjoin(
-                    ts_u, sa.and_(ts_b.c[self.building_id_column_name] == ts_u.c[self.building_id_column_name],
-                                  ts_b.c[self.timestamp_column_name] == ts_u.c[self.timestamp_column_name])
-                ).join(base, ts_b.c[self.building_id_column_name] == base.c[self.building_id_column_name])
+                    ts_u, sa.and_(ts_b.c[self.bsq.building_id_column_name] == ts_u.c[self.bsq.building_id_column_name],
+                                  ts_b.c[self.bsq.timestamp_column_name] == ts_u.c[self.bsq.timestamp_column_name])
+                ).join(base, ts_b.c[self.bsq.building_id_column_name] == base.c[self.bsq.building_id_column_name])
             )
         return ts_b, ts_u, tbljoin
 
-    def __get_annual_bs_up_table(self, upgrade_id, applied_only):
+    def __get_annual_bs_up_table(self, upgrade_id: int, applied_only: bool):
         if applied_only:
             tbljoin = (
-                self.bs_table.join(
-                    self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
-                                           self.up_table.c[self.building_id_column_name],
-                                           self.up_table.c["upgrade"] == str(upgrade_id),
-                                           self.up_table.c["completed_status"] == "Success"))
+                self.bsq.bs_table.join(
+                    self.bsq.up_table, sa.and_(self.bsq.bs_table.c[self.bsq.building_id_column_name] ==
+                                               self.bsq.up_table.c[self.bsq.building_id_column_name],
+                                               self.bsq.up_table.c["upgrade"] == str(upgrade_id),
+                                               self.bsq.up_table.c["completed_status"] == "Success"))
             )
         else:
             tbljoin = (
-                self.bs_table.outerjoin(
-                    self.up_table, sa.and_(self.bs_table.c[self.building_id_column_name] ==
-                                           self.up_table.c[self.building_id_column_name],
-                                           self.up_table.c["upgrade"] == str(upgrade_id),
-                                           self.up_table.c["completed_status"] == "Success")))
+                self.bsq.bs_table.outerjoin(
+                    self.bsq.up_table, sa.and_(self.bsq.bs_table.c[self.bsq.building_id_column_name] ==
+                                               self.bsq.up_table.c[self.bsq.building_id_column_name],
+                                               self.bsq.up_table.c["upgrade"] == str(upgrade_id),
+                                               self.bsq.up_table.c["completed_status"] == "Success")))
 
-        return self.bs_table, self.up_table, tbljoin
+        return self.bsq.bs_table, self.bsq.up_table, tbljoin
 
     def savings_shape(
         self,
@@ -131,37 +131,38 @@ class ResStockSavings(ResStockAthena):
         join_list = list(join_list) if join_list else []
         weights = list(weights) if weights else []
         restrict = list(restrict) if restrict else []
+        partition_by = list(partition_by) if partition_by else []
 
-        [self.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
+        [self.bsq.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
 
-        upgrade_id = self.validate_upgrade(upgrade_id)
-        enduses = self._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
+        upgrade_id = self.bsq.validate_upgrade(upgrade_id)
+        enduse_cols = self.bsq._get_enduse_cols(enduses, table="baseline" if annual_only else "timeseries")
         partition_by = self._validate_partition_by(partition_by)
-        total_weight = self._get_weight(weights)
-        group_by_selection = self._process_groupby_cols(group_by, annual_only=annual_only)
+        total_weight = self.bsq._get_weight(weights)
+        group_by_selection = self.bsq._process_groupby_cols(group_by, annual_only=annual_only)
 
         if annual_only:
             ts_b, ts_u, tbljoin = self.__get_annual_bs_up_table(upgrade_id, applied_only)
         else:
-            restrict, ts_restrict = self._split_restrict(restrict)
-            bs_group_by, ts_group_by = self._split_group_by(group_by_selection)
-            ts_b, ts_u, tbljoin = self.__get_timeseries_bs_up_table(enduses, upgrade_id, applied_only, ts_restrict,
+            restrict, ts_restrict = self.bsq._split_restrict(restrict)
+            bs_group_by, ts_group_by = self.bsq._split_group_by(group_by_selection)
+            ts_b, ts_u, tbljoin = self.__get_timeseries_bs_up_table(enduse_cols, upgrade_id, applied_only, ts_restrict,
                                                                     ts_group_by)
             ts_group_by = [ts_b.c[c.name] for c in ts_group_by]  # Refer to the columns using ts_b table
             group_by_selection = bs_group_by + ts_group_by
         query_cols = []
-        for col in enduses:
+        for col in enduse_cols:
             savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
             query_cols.extend(
                 [
-                    sa.func.sum(ts_b.c[col.name] * total_weight).label(f"{self._simple_label(col.name)}__baseline"),
-                    sa.func.sum(savings_col * total_weight).label(f"{self._simple_label(col.name)}__savings"),
+                    sa.func.sum(ts_b.c[col.name] * total_weight).label(f"{self.bsq._simple_label(col.name)}__baseline"),
+                    sa.func.sum(savings_col * total_weight).label(f"{self.bsq._simple_label(col.name)}__savings"),
                 ]
             )
             if get_quartiles:
                 query_cols.extend(
                     [sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).
-                     label(f"{self._simple_label(col.name)}__savings__quartiles")
+                     label(f"{self.bsq._simple_label(col.name)}__savings__quartiles")
                      ]
                 )
 
@@ -171,7 +172,7 @@ class ResStockSavings(ResStockAthena):
                 "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
             query_cols = grouping_metrics_selection + query_cols
         elif collapse_ts:  # Use timeseries tables but collapse timeseries
-            rows_per_building = self._get_rows_per_building()
+            rows_per_building = self.bsq._get_rows_per_building()
             grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
                 "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
             query_cols = grouping_metrics_selection + query_cols
@@ -179,20 +180,20 @@ class ResStockSavings(ResStockAthena):
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
             query_cols = grouping_metrics_selection + query_cols
-            time_col = ts_b.c[self.timestamp_column_name].label(self.timestamp_column_name)
+            time_col = ts_b.c[self.bsq.timestamp_column_name].label(self.bsq.timestamp_column_name)
             query_cols.insert(0, time_col)
             group_by_selection.append(time_col)
 
         query = sa.select(query_cols).select_from(tbljoin)
 
-        query = self._add_join(query, join_list)
-        query = self._add_restrict(query, restrict)
+        query = self.bsq._add_join(query, join_list)
+        query = self.bsq._add_restrict(query, restrict)
         if annual_only:
-            query = query.where(self.bs_table.c["completed_status"] == "Success")
-        query = self._add_group_by(query, group_by_selection)
-        query = self._add_order_by(query, group_by_selection if sort else [])
+            query = query.where(self.bsq.bs_table.c["completed_status"] == "Success")
+        query = self.bsq._add_group_by(query, group_by_selection)
+        query = self.bsq._add_order_by(query, group_by_selection if sort else [])
 
-        compiled_query = self._compile(query)
+        compiled_query = self.bsq._compile(query)
         if unload_to:
             if partition_by:
                 compiled_query = f"UNLOAD ({compiled_query}) \n TO 's3://{unload_to}' \n "\
@@ -204,4 +205,4 @@ class ResStockSavings(ResStockAthena):
         if get_query_only:
             return compiled_query
 
-        return self.execute(compiled_query, run_async=run_async)
+        return self.bsq.execute(compiled_query, run_async=run_async)

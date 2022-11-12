@@ -9,18 +9,19 @@ EULP project should be implemented as member function of this class.
 :author: Anthony.Fontanini@nrel.gov
 """
 
-from buildstock_query.resstock_athena import ResStockAthena
+import buildstock_query.base as base
 import logging
 from typing import List, Any, Tuple
 import pandas as pd
 import sqlalchemy as sa
+from collections import defaultdict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class EULPAthena(ResStockAthena):
-
-    def __init__(self, eia_mapping_year=2018, eia_mapping_version=1, *args, **kwargs):
+class BuildStockUtility:
+    def __init__(self, buildstock_query: 'base.BuildStockQuery',
+                 eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
         """
         A class to run AWS Athena queries for the EULP project using built-in query functions. Look up definition in \
         the ResStockAthena to understand other args and kwargs.
@@ -28,14 +29,12 @@ class EULPAthena(ResStockAthena):
             eia_mapping_year: The year of the EIA form 861 service territory map to use when mapping to utility \
             service territories. Currently, only 2018 and 2012 are valid years.
         """
-        super().__init__(*args, **kwargs)
+        self.bsq = buildstock_query
+        self.agg = buildstock_query.agg
         self.group_query_id = 0
-        self.query_store = {}
-        self.execution_id_list = []
-        self.query_list = []
-        self.batch_query_status_map = {}
         self.eia_mapping_year = eia_mapping_year
         self.eia_mapping_version = eia_mapping_version
+        self.cache: dict = defaultdict()
 
     def _aggregate_ts_by_map(self,
                              map_table_name: str,
@@ -44,7 +43,7 @@ class EULPAthena(ResStockAthena):
                              id_column: str,
                              id_list: List[Any],
                              enduses: List[str],
-                             group_by: List[str],
+                             group_by: List[str] = None,
                              get_query_only: bool = False,
                              query_group_size: int = 1,
                              split_endues: bool = False):
@@ -62,26 +61,26 @@ class EULPAthena(ResStockAthena):
             logger.info(f"Submitting query for {current_ids}")
             if split_endues:
                 logger.info("Splitting the query into separate queries for each enduse.")
-                result_df = self.aggregate_timeseries(enduses=enduses,
+                result_df = self.agg.aggregate_timeseries(enduses=enduses,
+                                                          group_by=[id_column] + group_by,
+                                                          join_list=join_list,
+                                                          weights=['weight'],
+                                                          sort=True,
+                                                          restrict=[(id_column, current_ids)],
+                                                          run_async=False,
+                                                          get_query_only=get_query_only,
+                                                          split_enduses=True)
+                results_array.append(result_df)
+            else:
+                query = self.agg.aggregate_timeseries(enduses=enduses,
                                                       group_by=[id_column] + group_by,
                                                       join_list=join_list,
                                                       weights=['weight'],
                                                       sort=True,
                                                       restrict=[(id_column, current_ids)],
-                                                      run_async=False,
-                                                      get_query_only=get_query_only,
-                                                      split_enduses=True)
-                results_array.append(result_df)
-            else:
-                query = self.aggregate_timeseries(enduses=enduses,
-                                                  group_by=[id_column] + group_by,
-                                                  join_list=join_list,
-                                                  weights=['weight'],
-                                                  sort=True,
-                                                  restrict=[(id_column, current_ids)],
-                                                  run_async=True,
-                                                  get_query_only=True,
-                                                  split_enduses=False)
+                                                      run_async=True,
+                                                      get_query_only=True,
+                                                      split_enduses=False)
                 results_array.append(query)
 
         if get_query_only:
@@ -94,10 +93,10 @@ class EULPAthena(ResStockAthena):
             return all_dfs
         else:
             # In this case, results_array will contain the queries
-            batch_query_id = self.submit_batch_query(results_array)
-            return self.get_batch_query_result(batch_id=batch_query_id)
+            batch_query_id = self.bsq.submit_batch_query(results_array)
+            return self.bsq.get_batch_query_result(batch_id=batch_query_id)
 
-    def get_eiaid_map(self):
+    def get_eiaid_map(self) -> tuple[str, str, str]:
         if self.eia_mapping_version == 1:
             map_table_name = 'eiaid_weights'
             map_baseline_column = 'build_existing_model.county'
@@ -167,13 +166,13 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
-        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
-        result = self.aggregate_annual([], group_by=[eiaid_col] + group_by,
-                                       sort=True,
-                                       join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
-                                       weights=['weight'],
-                                       restrict=restrict,
-                                       get_query_only=get_query_only)
+        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
+        result = self.agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+                                           sort=True,
+                                           join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
+                                           weights=['weight'],
+                                           restrict=restrict,
+                                           get_query_only=get_query_only)
         return result
 
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
@@ -192,12 +191,12 @@ class EULPAthena(ResStockAthena):
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
-        result = self.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
-                                       join_list=join_list,
-                                       weights=['weight'],
-                                       sort=True,
-                                       get_query_only=get_query_only)
+        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
+        result = self.agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+                                           join_list=join_list,
+                                           weights=['weight'],
+                                           sort=True,
+                                           get_query_only=get_query_only)
         return result
 
     def get_filtered_results_csv_by_eiaid(
@@ -214,13 +213,13 @@ class EULPAthena(ResStockAthena):
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        query = sa.select(['*']).select_from(self.bs_table)
-        query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.get_column("weight") > 0)
+        query = sa.select(['*']).select_from(self.bsq.bs_table)
+        query = self.bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.bsq.get_column("weight") > 0)
         if get_query_only:
-            return self._compile(query)
-        res = self.execute(query)
+            return self.bsq._compile(query)
+        res = self.bsq.execute(query)
         return res
 
     def get_eiaids(self, restrict: List[Tuple[str, List]] = None):
@@ -236,41 +235,21 @@ class EULPAthena(ResStockAthena):
         """
         restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_col = self.get_column("eiaid", eiaid_map_table_name)
+        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
         if 'eiaids' in self.cache:
-            if self.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
-                return self.cache['eiaids'][self.db_name + '/' + eiaid_map_table_name]
+            if self.bsq.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
+                return self.cache['eiaids'][self.bsq.db_name + '/' + eiaid_map_table_name]
         else:
             self.cache['eiaids'] = {}
 
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
-        annual_agg = self.aggregate_annual(enduses=[], group_by=[eiaid_col],
-                                           restrict=restrict,
-                                           join_list=join_list,
-                                           weights=['weight'],
-                                           sort=True)
+        annual_agg = self.agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
+                                               restrict=restrict,
+                                               join_list=join_list,
+                                               weights=['weight'],
+                                               sort=True)
         self.cache['eiaids'] = list(annual_agg['eiaid'].values)
         return self.cache['eiaids']
-
-    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
-        """
-        Returns the list of buildings belonging to given list of locations.
-        Args:
-            location_col: The column used for "build_existing_model.county" etc
-            locations: list of `build_existing_model.location' strings
-            get_query_only: If set to true, returns the query string instead of the result
-
-        Returns:
-            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
-
-        """
-        query = sa.select([self.bs_bldgid_column])
-        query = query.where(self.get_column(location_col).in_(locations))
-        query = self._add_order_by(query, [self.bs_bldgid_column])
-        if get_query_only:
-            return self._compile(query)
-        res = self.execute(query)
-        return res
 
     def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
@@ -286,13 +265,13 @@ class EULPAthena(ResStockAthena):
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        query = sa.select([self.bs_bldgid_column.distinct()])
-        query = self._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.get_column("weight") > 0)
+        query = sa.select([self.bsq.bs_bldgid_column.distinct()])
+        query = self.bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.bsq.get_column("weight") > 0)
         if get_query_only:
-            return self._compile(query)
-        res = self.execute(query)
+            return self.bsq._compile(query)
+        res = self.bsq.execute(query)
         return res
 
     def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
@@ -310,11 +289,11 @@ class EULPAthena(ResStockAthena):
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        self.get_table(eiaid_map_table_name)
-        query = sa.select([self.get_column(map_eiaid_column).distinct()])
-        query = self._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.get_column("weight") > 0)
+        self.bsq.get_table(eiaid_map_table_name)
+        query = sa.select([self.bsq.get_column(map_eiaid_column).distinct()])
+        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self.bsq.get_column("weight") > 0)
         if get_query_only:
-            return self._compile(query)
-        res = self.execute(query)
+            return self.bsq._compile(query)
+        res = self.bsq.execute(query)
         return res

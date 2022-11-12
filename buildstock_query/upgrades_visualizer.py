@@ -6,7 +6,7 @@ Experimental Stage.
 """
 
 from functools import reduce
-from buildstock_query.resstock_savings import ResStockSavings
+from buildstock_query.savings_query import BuildStockSavings
 import numpy as np
 import re
 from collections import defaultdict, Counter
@@ -41,11 +41,11 @@ default_end_use = "fuel_use_electricity_total_m_btu"
 
 
 def get_app():
-    euss_athena = ResStockSavings(workgroup='eulp',
-                                  db_name='euss-tests',
-                                  buildstock_type='resstock',
-                                  table_name='res_test_03_2018_10k_20220607',
-                                  skip_reports=False)
+    euss_athena = BuildStockSavings(workgroup='eulp',
+                                    db_name='euss-tests',
+                                    buildstock_type='resstock',
+                                    table_name='res_test_03_2018_10k_20220607',
+                                    skip_reports=False)
 
     report = euss_athena.get_success_report()
     available_upgrades = list(report.index)
