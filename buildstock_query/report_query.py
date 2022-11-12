@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 import logging
 import pandas as pd
-from buildstock_query.utils import print_r, print_g
+from buildstock_query.helpers import print_r, print_g
 from ast import literal_eval
 from functools import reduce
 import buildstock_query.main as main

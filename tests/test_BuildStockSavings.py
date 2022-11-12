@@ -4,7 +4,7 @@ from buildstock_query.main import BuildStockQuery
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
 import buildstock_query.query_core as query_core
-from buildstock_query.utils import KWH2MBTU
+from buildstock_query.helpers import KWH2MBTU
 import re
 import tempfile
 

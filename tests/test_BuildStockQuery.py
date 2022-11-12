@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
-from buildstock_query.utils import FutureDf
+from buildstock_query.helpers import FutureDf
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery
 import pandas as pd

@@ -1,7 +1,7 @@
 import pathlib
 from buildstock_query.savings_query import BuildStockSavings
 from sqlalchemy.exc import NoSuchTableError
-from buildstock_query.utils import save_pickle
+from buildstock_query.helpers import save_pickle
 
 
 def save_ref_pkl(name, obj):

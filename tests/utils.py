@@ -1,4 +1,4 @@
-from buildstock_query.utils import load_pickle
+from buildstock_query.helpers import load_pickle
 import pathlib
 from sqlalchemy.exc import NoSuchTableError
 

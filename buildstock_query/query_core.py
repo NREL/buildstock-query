@@ -30,8 +30,8 @@ import datetime
 import numpy as np
 from collections import OrderedDict
 import types
-from buildstock_query.utils import FutureDf, DataExistsException, CustomCompiler
-from buildstock_query.utils import save_pickle, load_pickle
+from buildstock_query.helpers import FutureDf, DataExistsException, CustomCompiler
+from buildstock_query.helpers import save_pickle, load_pickle
 from concurrent import futures
 
 
