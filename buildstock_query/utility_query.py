@@ -43,7 +43,7 @@ class BuildStockUtility:
                              id_column: str,
                              id_list: List[Any],
                              enduses: List[str],
-                             group_by: List[str] = None,
+                             group_by: List[str] | None = None,
                              get_query_only: bool = False,
                              query_group_size: int = 1,
                              split_endues: bool = False):
@@ -114,9 +114,11 @@ class BuildStockUtility:
 
         return map_table_name, map_baseline_column, map_eiaid_column
 
-    def aggregate_ts_by_eiaid(self, eiaid_list: List[str], enduses: List[str] = None, group_by: List[str] = None,
+    def aggregate_ts_by_eiaid(self, eiaid_list: List[str], 
+                              enduses: List[str] | None = None,
+                              group_by: List[str] | None = None,
                               get_query_only: bool = False,
-                              query_group_size: int = None,
+                              query_group_size: int | None = None,
                               split_endues: bool = False,
                               ):
         """
@@ -148,7 +150,8 @@ class BuildStockUtility:
                                          eiaid_list, enduses, group_by, get_query_only,
                                          query_group_size, split_endues)
 
-    def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] = None, group_by: List[str] = None,
+    def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] | None = None,
+                                       group_by: List[str] | None = None,
                                        get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
@@ -175,7 +178,7 @@ class BuildStockUtility:
                                            get_query_only=get_query_only)
         return result
 
-    def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] = None,
+    def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] | None = None,
                                   get_query_only: bool = False):
         """
         Aggregates the annual consumption in the baseline table, grouping by all the utilities
@@ -222,7 +225,7 @@ class BuildStockUtility:
         res = self.bsq.execute(query)
         return res
 
-    def get_eiaids(self, restrict: List[Tuple[str, List]] = None):
+    def get_eiaids(self, restrict: List[Tuple[str, List]] | None = None):
         """
         Returns the list of building
         Args:

@@ -78,7 +78,7 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    def get_distinct_vals(self, column: str, table_name: str = None, get_query_only: bool = False):
+    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False):
         table_name = self.bs_table.name if table_name is None else table_name
         tbl = self.get_table(table_name)
         query = sa.select(tbl.c[column]).distinct()
@@ -88,7 +88,7 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r[column]
 
-    def get_distinct_count(self, column: str, table_name: str = None, weight_column: str = None,
+    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
                            get_query_only: bool = False):
         tbl = self.bs_table if table_name is None else self.get_table(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label("sample_count"),
@@ -100,7 +100,9 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r
 
-    def get_results_csv(self, restrict: List[Tuple[str, Union[List, str, int]]] = None, get_query_only: bool = False):
+    def get_results_csv(self,
+                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                        get_query_only: bool = False):
         """
         Returns the results_csv table for the BuildStock run
         Args:
@@ -123,7 +125,8 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade=None, restrict: List[Tuple[str, Union[List, str, int]]] = None,
+    def get_upgrades_csv(self, upgrade=None,
+                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
                          get_query_only: bool = False, copy=True):
         """
         Returns the results_csv table for the BuildStock run
@@ -150,7 +153,7 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: List[Tuple[str, List]] = None, get_query_only: bool = False):
+    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
         """
         Returns the list of buildings based on the restrict list
         Args:

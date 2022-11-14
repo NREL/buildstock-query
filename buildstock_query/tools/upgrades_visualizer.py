@@ -6,7 +6,7 @@ Experimental Stage.
 """
 
 from functools import reduce
-from buildstock_query.savings_query import BuildStockSavings
+from buildstock_query import BuildStockQuery
 import numpy as np
 import re
 from collections import defaultdict, Counter
@@ -21,6 +21,7 @@ from dash_extensions.enrich import MultiplexerTransform, DashProxy
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 import pandas as pd
+from InquirerPy import inquirer
 
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
@@ -40,14 +41,14 @@ yaml_path = "EUSS-project-file-example.yml"
 default_end_use = "fuel_use_electricity_total_m_btu"
 
 
-def get_app():
-    euss_athena = BuildStockSavings(workgroup='eulp',
-                                    db_name='euss-tests',
-                                    buildstock_type='resstock',
-                                    table_name='res_test_03_2018_10k_20220607',
-                                    skip_reports=False)
+def get_app(db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k_20220607', workgroup: str = 'eulp', buildstock_type: str = 'resstock'):
+    euss_athena = BuildStockQuery(workgroup=workgroup,
+                                  db_name=db_name,
+                                  buildstock_type=buildstock_type,
+                                  table_name=table_name,
+                                  skip_reports=False)
 
-    report = euss_athena.get_success_report()
+    report = euss_athena.report.get_success_report()
     available_upgrades = list(report.index)
     available_upgrades.remove(0)
     euss_ua = euss_athena.get_upgrades_analyzer(yaml_path)
@@ -60,7 +61,7 @@ def get_app():
     chng2bldg = {}
     for chng in change_types:
         for upgrade in available_upgrades:
-            chng2bldg[(upgrade, chng)] = euss_athena.get_buildings_by_change(upgrade, chng)
+            chng2bldg[(upgrade, chng)] = euss_athena.report.get_buildings_by_change(upgrade, chng)
 
     def get_cols(df, prefixes=[], suffixes=[]):
         cols = []
@@ -308,7 +309,7 @@ def get_app():
         return valid_cols
 
     def get_opt_report(upgrade, bldg_id):
-        applied_options = list(euss_athena.get_applied_options(upgrade, [bldg_id])[0])
+        applied_options = list(euss_athena.report.get_applied_options(upgrade, [bldg_id])[0])
         applied_options = [val for key, val in upgrade2res[upgrade].loc[bldg_id].items() if
                            key.startswith("option_") and key.endswith("_name")
                            and not (isinstance(val, float) and np.isnan(val))]
@@ -340,10 +341,13 @@ def get_app():
                  dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution"], "Mean",
                                         id="radio_graph_type",
                                         labelClassName="pr-2"), width='auto'),
-                 dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
+                #  dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
+                #                                               inline=True, id='check_all_points')
+                #                                 ],
+                #                       id="collapse_points", is_open=True), width='auto'),
+                 dbc.Col(children=[dcc.Checklist(['Show all points'], [],
                                                               inline=True, id='check_all_points')
-                                                ],
-                                      id="collapse_points", is_open=False), width='auto'),
+                                                ],),
                  dbc.Col(dbc.Label("Value Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",
                                         id='radio_savings', labelClassName="pr-2"), width='auto'),
@@ -568,7 +572,9 @@ def get_app():
         Input('radio_graph_type', "value")
     )
     def disable_showpoints(graph_type):
-        return graph_type.lower() == "distribution"
+        print(f"Graph type: {graph_type.lower() == 'distribution'}")
+        return True
+        # return graph_type.lower() == "distribution"
 
     @app.callback(
         Output("sync_upgrade", 'value'),
@@ -872,7 +878,7 @@ def get_app():
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
-        applied_options = euss_athena.get_applied_options(int(report_upgrade), bldg_list, include_base_opt=True)
+        applied_options = euss_athena.report.get_applied_options(int(report_upgrade), bldg_list, include_base_opt=True)
         opt_only = [{entry.split('|')[0] for entry in opt.keys()} for opt in applied_options]
         reduced_set = list(reduce(set.union, opt_only))
 
@@ -939,7 +945,8 @@ def get_app():
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
         # print(bldg_list)
-        dict_changed_enduses = euss_athena.get_enduses_by_change(int(report_upgrade), enduse_change_type, bldg_list)
+        dict_changed_enduses = euss_athena.report.get_enduses_by_change(int(report_upgrade), enduse_change_type,
+                                                                        bldg_list)
         # print(changed_enduses)
 
         all_changed_enduses = list(dict_changed_enduses.keys())
@@ -1086,6 +1093,16 @@ def get_app():
     return app
 
 
-if __name__ == '__main__':
-    app = get_app()
+def main():
+    db_name = inquirer.text(message="Please enter database_name "
+                            "(found in postprocessing:aws:athena in the buildstock configuration file)",
+                            default='euss-tests').execute()
+    table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
+                               "output_directory in the buildstock configuration file)",
+                               default='res_test_03_2018_10k_20220607').execute()
+    app = get_app(db_name=db_name, table_name=table_name)
     app.run_server(debug=False)
+
+
+if __name__ == '__main__':
+    main()

@@ -12,6 +12,9 @@ import numpy as np
 import logging
 from itertools import combinations
 from typing import Union
+from InquirerPy import inquirer
+from InquirerPy.validator import PathValidator
+import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -288,7 +291,7 @@ class UpgradesAnalyzer:
         report_str += "-"*len(header) + "\n"
         return report_str
 
-    def get_detailed_report(self, upgrade_num: int, option_num: int = None) -> tuple[np.ndarray, str]:
+    def get_detailed_report(self, upgrade_num: int, option_num: int | None = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
@@ -427,6 +430,26 @@ class UpgradesAnalyzer:
             logger.info(f"Getting report for upgrade {upgrade}")
             _, report = self.get_detailed_report(upgrade)
             all_report += report + "\n"
-        print(f"Saving report to {file_path}")
         with open(file_path, 'w') as file:
             file.write(all_report)
+
+
+def main():
+    yaml_file = inquirer.filepath(message="Project configuration file (EUSS-project-file.yml):",
+                                  validate=PathValidator(),
+                                  filter=lambda x: x or "EUSS-project-file.yml").execute()
+    buildstock_file = inquirer.filepath(message="Project sample file (buildstock.csv):", validate=PathValidator(),
+                                        filter=lambda x: x or "buildstock.csv").execute()
+    output_prefix = inquirer.text(message="output file name prefix:",
+                                  filter=lambda x: '' if x is None else f'{x}_').execute()
+    ua = UpgradesAnalyzer(yaml_file, buildstock_file)
+    report_df = ua.get_report()
+    csv_name = f"{output_prefix}options_report.csv"
+    txt_name = f"{output_prefix}detailed_report.txt"
+    report_df.drop(columns=['applicable_buildings']).to_csv(csv_name)
+    ua.save_detailed_report_all(txt_name)
+    print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
+
+
+if __name__ == "__main__":
+    main()

@@ -47,8 +47,8 @@ class QueryException(Exception):
 class QueryCore:
     def __init__(self, workgroup: str,
                  db_name: str,
-                 buildstock_type: str = None,
-                 table_name: Union[str, Tuple[str, str]] = None,
+                 buildstock_type: str | None = None,
+                 table_name: Union[str, Tuple[str, str]] | None = None,
                  timestamp_column_name: str = 'time',
                  building_id_column_name: str = 'building_id',
                  sample_weight: str = "build_existing_model.sample_weight",
@@ -105,7 +105,7 @@ class QueryCore:
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
 
-    def load_cache(self, path: str = None):
+    def load_cache(self, path: str | None = None):
         """Read and update query cache from pickle file.
 
         Args:
@@ -122,7 +122,7 @@ class QueryCore:
         else:
             logger.info("Cache already upto date.")
 
-    def save_cache(self, path: str = None, trim_excess: bool = False):
+    def save_cache(self, path: str | None = None, trim_excess: bool = False):
         """Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
         session these queries won't have to be run on Athena and can be directly loaded from the file.
 
@@ -409,8 +409,9 @@ class QueryCore:
                 res = future.result()
                 if res.state != 'SUCCEEDED':
                     raise OperationalError(f"{res.state}: {res.state_change_reason}")
-                else:
-                    return res.as_pandas()
+                if query in self._query_cache:
+                    return self._query_cache[query]
+                return res.as_pandas()
 
             result_future.as_pandas = types.MethodType(get_pandas, result_future)
             result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))

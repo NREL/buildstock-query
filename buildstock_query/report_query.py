@@ -198,7 +198,15 @@ class BuildStockReport:
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
         return df[applied_rows]
 
-    def get_options_report(self, trim_missing_bs: bool = True):
+    def get_options_report(self, trim_missing_bs: bool = True) -> pd.DataFrame:
+        """Finds out the number and list of buildings each of the options applied to.
+
+        Args:
+            trim_missing_bs (bool, optional): Whether the buildings that are not available in basline should be dropped.
+                                              Defaults to True.
+        Returns:
+            pd.DataFrame: The list of options the corresponding set of building ids the option applied to.
+        """
         full_report = self._get_full_options_report(trim_missing_bs=trim_missing_bs)
         option_cols = [c for c in full_report.columns if c.startswith("option")]
         total_counts: Counter = Counter()
@@ -225,7 +233,15 @@ class BuildStockReport:
         full_df = full_df.sort_values(['upgrade', 'option'])
         return full_df
 
-    def get_option_integrity_report(self, yaml_file: str):
+    def get_option_integrity_report(self, yaml_file: str) -> pd.DataFrame:
+        """Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
+        simulation result and tabulates the discrepancy.
+        Args:
+            yaml_file (str): The path to buildstock configuration file used to run the simulation
+
+        Returns:
+            pd.DataFrame: The report dataframe. 
+        """
         ua_df = self.bsq.get_upgrades_analyzer(yaml_file).get_report()
         ua_df = ua_df.groupby(['upgrade', 'option']).aggregate({'applicable_to': 'sum',
                                                                 'applicable_buildings': lambda x: reduce(set.union, x)})
@@ -245,7 +261,18 @@ class BuildStockReport:
         diff_df = diff_df.join(fail_report)
         return diff_df
 
-    def check_options_integrity(self, yaml_file: str):
+    def check_options_integrity(self, yaml_file: str) -> bool:
+        """ Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
+        simulation result and flags any discrepancy. The verificationa allows for some mismatch since some simulations
+        could have failed. Unless there is a bug somewhere in buildstock workflow, integrity check should pass
+        regardless of number of failures.
+        
+        Args:
+            yaml_file (str): The path to buildstock configuration file used to run the simulation
+
+        Returns:
+            bool: Whether or not the integrity check passed.
+        """
         intg_df = self.get_option_integrity_report(yaml_file).reset_index()
         all_intg_df = intg_df[intg_df['option'] == 'All']
         blank_opt_upgrades = all_intg_df[all_intg_df['applied_buildings_count'] < all_intg_df['Upgrade Success']]
@@ -290,7 +317,47 @@ class BuildStockReport:
             print_r("Integrity check failed. Please check the serious issues above.")
             return False
 
-    def get_success_report(self, trim_missing_bs: str | bool = 'auto', get_query_only: bool = False):
+    def get_success_report(self, trim_missing_bs: str | bool = 'auto', get_query_only: bool = False) -> pd.DataFrame:
+        """Returns a basic report showing number of success and failures for each upgrade along with percentage.
+        Additional information regarding number of buildings to which the upgrade applied and whether the enduses
+        changed is also returned.
+
+        Args:
+            trim_missing_bs (str | bool, optional): Whether the buildings that failed in baseline should be
+                                                    dropped from the upgrades. If true, all metrics is calculated after
+                                                    those buildings are dropped from the upgrades. Defaults to 'auto'.
+            get_query_only (bool, optional): If true, returns SQL query instead of the report. Defaults to False.
+
+        Raises:
+            ValueError: If something went wrong.
+
+        Returns:
+            pd.DateFrame: The report dataframe. The meaning of the various columns are as follows:
+                Fail: Number of simulation that failed.
+                Unapplicaple: Number of buildings to which the upgrade didn't apply (because of apply logic)
+                Success: The number of buildings which completed simulation successfully. No simulation is run for
+                         unapplicable buildings.
+                Sum: Sum of the first three columns.
+                Applied %: Success / Sum * 100 %
+                no-chng : Number of successful simulation that didn't have any change in values for any enduses.
+                bad-chng: Number of successful simulation that had bad changes. It's considered a bad change if
+                          none of the fuel has any reduction in energy consumption, and at least one fuel has an
+                          increase in energy consumption.
+                ok-chng: |set(success) - set(no-chng) - set(bad-chng)| i.e. count of successful simulation that are
+                         neither no-chng nor bad-chng.
+                
+                true-bad-chng: Count of only those bad changes in which neither of the umnet cooling/heating hours
+                               decreased. In other words, the increase in energy consumption in one of the fuel type
+                               (often electricity - for electrification upgrades) didn't result in improvement of
+                               cooling/heating umnet hours.
+                true-ok-chng: Adjustment of ok-chng after using true-bad-chng instead of bad-chng
+                null: Included for testing/integrity-checking purpose. It refers to number of buildings that are  
+                      are neither no-chng, not bad-chng nor ok-chng. It should always be zero.
+                any: Sum of the no-chng + bad-chng + ok-chng. Refers to any chang (including no-change)
+                x-chng %: The percentage form of the change calculated by using success count as the base.
+                
+                
+        """
 
         baseline_result = self._get_bs_success_report(get_query_only)
 
@@ -341,6 +408,11 @@ class BuildStockReport:
         return df
 
     def check_ts_bs_integrity(self) -> bool:
+        """Checks the integrity between the timeseries and baseline (metadata) tables.
+
+        Returns:
+            bool: Whether or not the integrity check passed.
+        """
         logger.info("Checking integrity with ts_tables ...")
         raw_ts_report = self._get_ts_report()
         raw_success_report = self.get_success_report(trim_missing_bs=False)
@@ -362,9 +434,10 @@ class BuildStockReport:
             print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
-    def get_successful_simulation_count(self, restrict: list[tuple[str, list]] = None, get_query_only: bool = False):
+    def get_successful_simulation_count(self, restrict: list[tuple[str, list]] | None = None,
+                                        get_query_only: bool = False):
         """
-        Returns the results_csv table for the BuildStock run
+        Returns the count of successful simulation for the given restric condition in the baseline.
         Args:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
@@ -383,7 +456,17 @@ class BuildStockReport:
 
         return self.bsq.execute(query)
 
-    def get_applied_options(self, upgrade: int, bldg_ids: list[int], include_base_opt: bool = False):
+    def get_applied_options(self, upgrade: int, bldg_ids: list[int], include_base_opt: bool = False) -> list[dict|set]:
+        """Returns the list of options applied to each buildings for a given upgrade.
+
+        Args:
+            upgrade (int): The upgrade for which to find the applied options.
+            bldg_ids (list[int]): List of building ids.
+            include_base_opt (bool, optional): If baseline value is to be included. Defaults to False.
+
+        Returns:
+            list[set|dict]: List of options (along with baseline chars, if include_base_opt is true)
+        """
         up_csv = self.bsq.get_upgrades_csv(upgrade)
         base_csv = self.bsq.get_results_csv() if include_base_opt else None
         rel_up_csv = up_csv.loc[bldg_ids]
@@ -407,7 +490,20 @@ class BuildStockReport:
         else:
             return rel_up_csv[upgrade_cols].fillna('').agg(lambda x: {v for v in x if v}, axis=1).values
 
-    def get_enduses_by_change(self, upgrade: int, change_type: str = 'changed', bldg_list: list[int] = None):
+    def get_enduses_buildings_map_by_change(self, upgrade: int, 
+                                            change_type: str = 'changed',
+                                            bldg_list: list[int] | None = None) -> dict[str, pd.Index]:
+        """Finds the list of enduses and the buildings that had change in the enduses for a given change type.
+        Args:
+            upgrade (int): The upgrade to look at.
+            change_type (str, optional): The kind of change to look for. Valid values are increased, decreased and
+                                         and changed. Defaults to 'changed' which includes both cases.
+            bldg_list (list[int], optional): The list of buildings to narrow down to. If omitted, searches through all
+                                             all the buildings in the upgrade. Defaults to None.
+
+        Returns:
+            dict[str, pd.Index]: Dict mapping enduses that had a given change and building ids showing that change.
+        """
         up_csv = self.bsq.get_upgrades_csv(upgrade)
         bs_csv = self.bsq.get_results_csv()
         if bldg_list:

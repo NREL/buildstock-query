@@ -24,7 +24,7 @@ class BuildStockSavings:
         return partition_by
 
     def __get_timeseries_bs_up_table(self, enduses: list[str], upgrade_id: int, applied_only: bool,
-                                     restrict: list = None, ts_group_by: list[str] = None):
+                                     restrict: list | None = None, ts_group_by: list[str] | None = None):
         restrict = list(restrict) if restrict else []
         ts_group_by = list(ts_group_by) if ts_group_by else []
         ts = self.bsq.ts_table
@@ -73,19 +73,19 @@ class BuildStockSavings:
     def savings_shape(
         self,
         upgrade_id: int,
-        enduses: List[str] = None,
-        group_by: List[str] = None,
+        enduses: List[str] | None = None,
+        group_by: List[str] | None = None,
         annual_only: bool = True,
         sort: bool = True,
-        join_list: List[Tuple[str, str, str]] = None,
-        weights: List[Tuple] = None,
-        restrict: List[Tuple[str, List]] = None,
+        join_list: List[Tuple[str, str, str]] | None = None,
+        weights: List[Tuple] | None = None,
+        restrict: List[Tuple[str, List]] | None = None,
         run_async: bool = False,
         applied_only: bool = False,
         get_quartiles: bool = False,
         get_query_only: bool = False,
         unload_to: str = '',
-        partition_by: List[str] = None,
+        partition_by: List[str] | None = None,
         collapse_ts: bool = False,
     ) -> pd.DataFrame:
         """Calculate savings shape for an upgrade
