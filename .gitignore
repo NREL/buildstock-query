@@ -1,1 +1,7 @@
 *.pkl
+*.DS_Store
+.vscode
+_pycache__/
+*.py[cod]
+.sourcery.yaml
+poetry.lock
