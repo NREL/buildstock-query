@@ -1,4 +1,4 @@
-# BuildStockQuery (Previously known as smart_query)
+# BuildStockQuery (previously known as smart_query)
 - - - - - - - - -
 A library to run AWS Athena queries to get various data from a BuildStock run. The main class is called BuildStockQuery.
 An object of BuildStockQuery needs to be created to perform various queries. In addition to supporting various
