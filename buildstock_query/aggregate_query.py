@@ -280,7 +280,7 @@ class BuildStockAggregate:
             query = self.bsq._add_join(query, join_list)
 
         group_by_names = [g.name for g in group_by_selection]
-        upgrade_in_restrict = all(entry[0] != 'ugrade' for entry in restrict)
+        upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in restrict)
         if self.bsq.up_table is not None and not upgrade_in_restrict and 'upgrade' not in group_by_names:
             logger.info(f"Restricting query to Upgrade {upgrade_id}.")
             restrict.append((self.bsq.ts_table.c['upgrade'], [upgrade_id]))
