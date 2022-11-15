@@ -1,14 +1,3 @@
-"""
-# ResStockAthena
-- - - - - - - - -
-A class to run AWS Athena queries to get various data from a ResStock run. All queries and aggregation that can be
-common accross different ResStock projects should be implemented in this class. For queries that are project specific, a
-new class can be created by inheriting ResStockAthena and adding in the project specific logic and queries.
-
-:author: Rajendra.Adhikari@nrel.gov
-"""
-
-
 import contextlib
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
@@ -21,17 +10,64 @@ from buildstock_query.report_query import BuildStockReport
 from buildstock_query.aggregate_query import BuildStockAggregate
 from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
+import pandas as pd
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
 
 class BuildStockQuery(QueryCore):
-    def __init__(self, skip_reports: bool = False, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.report = BuildStockReport(self)
-        self.agg = BuildStockAggregate(self)
+    def __init__(self,
+                 workgroup: str,
+                 db_name: str,
+                 table_name: str | tuple[str, str],
+                 buildstock_type: str = 'resstock',
+                 timestamp_column_name: str = 'time',
+                 building_id_column_name: str = 'building_id',
+                 sample_weight: str = "build_existing_model.sample_weight",
+                 region_name: str = 'us-west-2',
+                 execution_history: str | None = None,
+                 skip_reports: bool | None = False,
+                 ) -> None:
+        """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
+
+        Args:
+            workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
+            db_name (str): The athena database name
+            buildstock_type (str, optional): 'resstock' or 'comstock' runs. Defaults to 'resstock'
+            table_name (str or tuple[str, str]): If a single string is provided, say, 'mfm_run', then it must correspond
+                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
+                as a tuple, (such as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and
+                a timeseries table.
+            timestamp_column_name (str, optional): The column name for the time column. Defaults to 'time'
+            building_id_column_name (str, optional): The column name for building_id. Defaults to 'building_id'
+            sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
+                use constant sample weight.. Defaults to "build_existing_model.sample_weight".
+            region_name (str, optional): the AWS region where the database exists. Defaults to 'us-west-2'.
+            execution_history (str, optional): A temporary files to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied.
+            skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
+                prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+        """
+
+        super().__init__(
+            workgroup=workgroup,
+            db_name=db_name,
+            buildstock_type=buildstock_type,
+            table_name=table_name,
+            timestamp_column_name=timestamp_column_name,
+            building_id_column_name=building_id_column_name,
+            sample_weight=sample_weight,
+            region_name=region_name,
+            execution_history=execution_history
+        )
+        #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
+        self.report: BuildStockReport = BuildStockReport(self)
+        #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
+        self.agg: BuildStockAggregate = BuildStockAggregate(self)
+        #: `buildstock_query.savings_query.BuildStockSavings` object to perform savings queries
         self.savings = BuildStockSavings(self)
+        #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
         with contextlib.suppress(FileNotFoundError):
@@ -44,7 +80,12 @@ class BuildStockQuery(QueryCore):
                 self.report.check_ts_bs_integrity()
         self.save_cache()
 
-    def get_buildstock_df(self):
+    def get_buildstock_df(self) -> pd.DataFrame:
+        """Returns the building characteristics data by quering Athena tables using the same format as that produced
+        by the sampler and written as buildstock.csv. It only includes buildings with successful simulation.
+        Returns:
+            pd.DataFrame: The buildstock.csv dataframe.
+        """
         results_df = self.get_results_csv()
         results_df = results_df[results_df["completed_status"] == "Success"]
         buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
@@ -54,7 +95,17 @@ class BuildStockQuery(QueryCore):
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
-    def get_upgrades_analyzer(self, yaml_file):
+    def get_upgrades_analyzer(self, yaml_file: str) -> UpgradesAnalyzer:
+        """
+            Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
+
+        Args:
+            yaml_file (str): The path to the buildstock configuration file.
+
+        Returns:
+            UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+        """
+
         buildstock_df = self.get_buildstock_df()
         ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
         return ua
@@ -78,7 +129,17 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False):
+    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -> pd.Series:
+        """
+            Find distinct vals.
+        Args:
+            column (str): The column in the table for which distinct vals is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct vals.
+        """
         table_name = self.bs_table.name if table_name is None else table_name
         tbl = self.get_table(table_name)
         query = sa.select(tbl.c[column]).distinct()
@@ -89,7 +150,17 @@ class BuildStockQuery(QueryCore):
         return r[column]
 
     def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
-                           get_query_only: bool = False):
+                           get_query_only: bool = False) -> pd.DataFrame:
+        """
+            Find distinct counts.
+        Args:
+            column (str): The column in the table for which distinct counts is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct counts.
+        """
         tbl = self.bs_table if table_name is None else self.get_table(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label("sample_count"),
                            safunc.sum(self.sample_wt).label("weighted_count")])
@@ -106,9 +177,10 @@ class BuildStockQuery(QueryCore):
         """
         Returns the results_csv table for the BuildStock run
         Args:
-            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+            restrict (List[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
+                results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
-            get_query_only: If set to true, returns the list of queries to run instead of the result.
+            get_query_only (bool): If set to true, returns the list of queries to run instead of the result.
 
         Returns:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
@@ -157,9 +229,10 @@ class BuildStockQuery(QueryCore):
         """
         Returns the list of buildings based on the restrict list
         Args:
-            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
-                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
-            get_query_only: If set to true, returns the query string instead of the result
+            restrict (List[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
+                    should be specified as a list of tuple.
+                    Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            get_query_only (bool): If set to true, returns the query string instead of the result. Default is False.
 
         Returns:
             Pandas dataframe consisting of the building ids belonging to the provided list of locations.
@@ -229,11 +302,16 @@ class BuildStockQuery(QueryCore):
         return enduse_cols
 
     def get_groupby_cols(self) -> List[str]:
+        """Find list of building characteristics that can be used for grouping.
+
+        Returns:
+            List[str]: List of building characteristics.
+        """
         cols = {y.removeprefix("build_existing_model.") for y in self.bs_table.c.keys()
                 if y.startswith("build_existing_model.")}
         return list(cols)
 
-    def validate_group_by(self, group_by):
+    def _validate_group_by(self, group_by):
         valid_groupby_cols = self.get_groupby_cols()
         group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
         if not set(group_by_cols).issubset(valid_groupby_cols):
@@ -244,13 +322,13 @@ class BuildStockQuery(QueryCore):
         # performance
 
     def get_available_upgrades(self) -> list:
-        """Get the available upgrade scenarios and their identifier numbers
-        :return: Upgrade scenario names
-        :rtype: dict
+        """Get the available upgrade scenarios and their identifier numbers.
+        Returns:
+            list: List of upgrades
         """
         return list(self.report.get_success_report().query("Success>0").index)
 
-    def validate_upgrade(self, upgrade_id):
+    def _validate_upgrade(self, upgrade_id):
         upgrade_id = 0 if upgrade_id in (None, '0') else upgrade_id
         available_upgrades = self.get_available_upgrades() or [0]
         if upgrade_id not in set(available_upgrades):

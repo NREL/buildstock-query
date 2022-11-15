@@ -24,6 +24,7 @@ dash-iconify = "^0.1.2"
 pytest = "^7.1.3"
 types-PyYAML = "^6.0.12.2"
 inquirerpy = "^0.3.4"
+flake8 = "^5.0.4"
 
 
 [tool.poetry.group.dev.dependencies]

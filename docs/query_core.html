@@ -1,0 +1,3065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.query_core API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.query_core</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import boto3
+import contextlib
+import pathlib
+from pyathena.connection import Connection
+from pyathena.error import OperationalError
+from pyathena.sqlalchemy_athena import AthenaDialect
+import sqlalchemy as sa
+import dask.dataframe as dd
+from pyathena.pandas.async_cursor import AsyncPandasCursor
+from pyathena.pandas.cursor import PandasCursor
+import os
+from typing import List, Tuple, Union
+import time
+import logging
+from threading import Thread
+from botocore.exceptions import ClientError
+import pandas as pd
+import datetime
+import numpy as np
+from collections import OrderedDict
+import types
+from buildstock_query.helpers import FutureDf, DataExistsException, CustomCompiler
+from buildstock_query.helpers import save_pickle, load_pickle
+from concurrent import futures
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+FUELS = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
+
+
+class QueryException(Exception):
+    pass
+
+
+class QueryCore:
+    def __init__(self, workgroup: str,
+                 db_name: str,
+                 buildstock_type: str | None,
+                 table_name: Union[str, Tuple[str, str]] | None,
+                 timestamp_column_name: str,
+                 building_id_column_name: str,
+                 sample_weight: str,
+                 region_name: str,
+                 execution_history: str | None,
+                 ) -&gt; None:
+        &#34;&#34;&#34;
+        Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
+        Args:
+            db_name: The athena database name
+            buildstock_type: &#39;resstock&#39; or &#39;comstock&#39; runs
+            table_name: If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond to two tables in athena
+                        named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
+                        as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and a
+                        timeseries table.
+            timestamp_column_name: The column name for the time column. Defaults to &#39;time&#39;
+            sample_weight: The column name to be used to get the sample weight. Defaults to
+                           build_existing_model.sample_weight. Pass floats/integer to use constant sample weight.
+            region_name: The AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
+            execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
+                    use .execution_history if not supplied.
+        &#34;&#34;&#34;
+        logger.info(f&#34;Loading {table_name} ...&#34;)
+        self.workgroup = workgroup
+        self.buildstock_type = buildstock_type
+        self._query_cache: dict[str, pd.DataFrame] = {}  # {&#34;query&#34;: query_result_df} to cache queries
+        self._session_queries: set[str] = set()  # Set of all queries that is run in current session.
+
+        self._aws_s3 = boto3.client(&#39;s3&#39;)
+        self._aws_athena = boto3.client(&#39;athena&#39;, region_name=region_name)
+        self._aws_glue = boto3.client(&#39;glue&#39;, region_name=region_name)
+
+        self._conn = Connection(work_group=workgroup, region_name=region_name,
+                                cursor_class=PandasCursor, schema_name=db_name)
+        self._async_conn = Connection(work_group=workgroup, region_name=region_name,
+                                      cursor_class=AsyncPandasCursor, schema_name=db_name, )
+
+        self.db_name = db_name
+        self.region_name = region_name
+
+        self._tables: dict = OrderedDict()  # Internal record of tables
+
+        self._batch_query_status_map: dict = {}
+        self._batch_query_id = 0
+
+        self.timestamp_column_name = timestamp_column_name
+        self.building_id_column_name = building_id_column_name
+        self.sample_weight = sample_weight
+        self.table_name = table_name
+        self._initialize_tables()
+        self._initialize_book_keeping(execution_history)
+
+        with contextlib.suppress(FileNotFoundError):
+            self.load_cache()
+
+    def load_cache(self, path: str | None = None):
+        &#34;&#34;&#34;Read and update query cache from pickle file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, reads from current directory.
+        &#34;&#34;&#34;
+        path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+        before_count = len(self._query_cache)
+        saved_cache = load_pickle(path)
+        logger.info(f&#34;{len(saved_cache)} queries cache read from {path}.&#34;)
+        self._query_cache.update(saved_cache)
+        after_count = len(self._query_cache)
+        if diff := after_count - before_count:
+            logger.info(f&#34;{diff} queries cache is updated.&#34;)
+        else:
+            logger.info(&#34;Cache already upto date.&#34;)
+
+    def save_cache(self, path: str | None = None, trim_excess: bool = False):
+        &#34;&#34;&#34;Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
+        session these queries won&#39;t have to be run on Athena and can be directly loaded from the file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, the file will be saved on the current
+            directory.
+            trim_excess (bool, optional): If true, any queries in the cache that is not run in current session will be
+            remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
+            several sessions that are no longer used. Defaults to False.
+        &#34;&#34;&#34;
+        path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+        if trim_excess:
+            if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
+                for query in excess_queries:
+                    del self._query_cache[query]
+                logger.info(f&#34;{len(excess_queries)} excess queries removed from cache.&#34;)
+        save_pickle(path, self._query_cache)
+        logger.info(f&#34;{len(self._query_cache)} queries cache saved to {path}&#34;)
+
+    def _initialize_tables(self):
+        self.bs_table, self.ts_table, self.up_table = self._get_tables(self.table_name)
+
+        self.bs_bldgid_column = self.bs_table.c[self.building_id_column_name]
+        if self.ts_table is not None:
+            self.timestamp_column = self.ts_table.c[self.timestamp_column_name]
+            self.ts_bldgid_column = self.ts_table.c[self.building_id_column_name]
+        if self.up_table is not None:
+            self.up_bldgid_column = self.up_table.c[self.building_id_column_name]
+        self.sample_wt = self._get_sample_weight(self.sample_weight)
+
+    def _get_sample_weight(self, sample_weight):
+        if not sample_weight:
+            return sa.literal(1)
+        elif isinstance(sample_weight, str):
+            try:
+                return self.get_column(sample_weight)
+            except ValueError:
+                logger.error(&#34;Sample weight column not found. Using weight of 1.&#34;)
+                return sa.literal(1)
+        elif isinstance(sample_weight, (int, float)):
+            return sa.literal(sample_weight)
+
+    def get_table(self, table_name, missing_ok=False):
+
+        if isinstance(table_name, sa.schema.Table):
+            return table_name  # already a table
+
+        try:
+            return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
+        except sa.exc.NoSuchTableError:
+            if missing_ok:
+                logger.warning(f&#34;No {table_name} table is present.&#34;)
+                return None
+            else:
+                raise
+
+    def get_column(self, column_name: sa.Column | sa.sql.elements.Label | str, table_name=None):
+        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
+            return column_name  # already a col
+        if table_name:
+            valid_tables = [self.get_table(table_name)]
+        else:
+            valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+
+        if not valid_tables:
+            raise ValueError(f&#34;Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}&#34;)
+        if len(valid_tables) &gt; 1:
+            logger.warning(
+                f&#34;Column {column_name} found in multiple tables {[t.name for t in valid_tables]}.&#34;
+                f&#34;Using {valid_tables[0].name}&#34;)
+        return valid_tables[0].c[column_name]
+
+    def _get_tables(self, table_name: str | tuple):
+        self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
+                                                  workgroup=self.workgroup)
+        self._meta = sa.MetaData(bind=self._engine)
+        if isinstance(table_name, str):
+            baseline_table = self.get_table(f&#39;{table_name}_baseline&#39;)
+            ts_table = self.get_table(f&#39;{table_name}_timeseries&#39;, missing_ok=True)
+            upgrade_table = self.get_table(f&#39;{table_name}_upgrades&#39;, missing_ok=True)
+        elif isinstance(table_name, tuple):
+            baseline_table = self.get_table(f&#39;{table_name[0]}&#39;)
+            ts_table = self.get_table(f&#39;{table_name[1]}&#39;, missing_ok=True)
+            upgrade_table = self.get_table(f&#39;{table_name[2]}&#39;, missing_ok=True)
+        else:
+            baseline_table = None
+            ts_table = None
+            upgrade_table = None
+        return baseline_table, ts_table, upgrade_table
+
+    def _initialize_book_keeping(self, execution_history):
+        self._execution_history_file = execution_history or &#39;.execution_history&#39;
+        self.execution_cost = {&#39;GB&#39;: 0, &#39;Dollars&#39;: 0}  # Tracks the cost of current session. Only used for Athena query
+        self.seen_execution_ids = set()  # set to prevent double counting same execution id
+
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, &#39;r&#39;) as f:
+                existing_entries = f.readlines()
+            valid_entries = []
+            for entry in existing_entries:
+                with contextlib.suppress(ValueError, TypeError):
+                    entry_time, _ = entry.split(&#39;,&#39;)
+                    if time.time() - float(entry_time) &lt; 24 * 60 * 60:  # discard history if more than a day old
+                        valid_entries += entry
+            with open(self._execution_history_file, &#39;w&#39;) as f:
+                f.writelines(valid_entries)
+
+    @property
+    def execution_ids_history(self):
+        exe_ids = []
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, &#39;r&#39;) as f:
+                for line in f:
+                    _, exe_id = line.split(&#39;,&#39;)
+                    exe_ids.append(exe_id.strip())
+        return exe_ids
+
+    def _create_athena_engine(self, region_name: str, database: str, workgroup: str) -&gt; sa.engine.Engine:
+        connect_args = {&#34;cursor_class&#34;: PandasCursor, &#34;work_group&#34;: workgroup}
+        engine = sa.create_engine(
+            f&#34;awsathena+rest://:@athena.{region_name}.amazonaws.com:443/{database}&#34;, connect_args=connect_args
+        )
+        return engine
+
+    def delete_table(self, table_name):
+        &#34;&#34;&#34;
+        Function to delete athena table.
+        :param table_name: Athena table name
+        :return:
+        &#34;&#34;&#34;
+        delete_table_query = f&#34;&#34;&#34;DROP TABLE {self.db_name}.{table_name};&#34;&#34;&#34;
+        result, reason = self.execute_raw(delete_table_query)
+        if result.upper() == &#34;SUCCEEDED&#34;:
+            return &#34;SUCCEEDED&#34;
+        else:
+            raise QueryException(f&#34;Deleting it failed. Reason: {reason}&#34;)
+
+    def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+        &#34;&#34;&#34;
+        Function to add a table in s3.
+        :param table_name: The name of the table
+        :param table_df: The pandas dataframe to use as table data
+        :param s3_bucket: s3 bucket name
+        :param s3_prefix: s3 prefix to save the table to.
+        :param override: Whether to override eixsting table.
+        :return:
+        &#34;&#34;&#34;
+        s3_location = s3_bucket + &#39;/&#39; + s3_prefix
+        s3_data = self._aws_s3.list_objects(Bucket=s3_bucket, Prefix=f&#39;{s3_prefix}/{table_name}&#39;)
+
+        if &#39;Contents&#39; in s3_data and override is False:
+            raise DataExistsException(&#34;Table already exists&#34;, f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+        if &#39;Contents&#39; in s3_data:
+            existing_objects = [{&#39;Key&#39;: el[&#39;Key&#39;]} for el in s3_data[&#39;Contents&#39;]]
+            print(f&#34;The following existing objects is being delete and replaced: {existing_objects}&#34;)
+            print(f&#34;Saving s3://{s3_location}/{table_name}/{table_name}.parquet)&#34;)
+            self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={&#34;Objects&#34;: existing_objects})
+        print(f&#34;Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet&#34;)
+        table_df.to_parquet(f&#39;s3://{s3_location}/{table_name}/{table_name}.parquet&#39;, index=False)
+        print(&#34;Saving Done.&#34;)
+
+        column_formats = []
+        for column_name, dtype in table_df.dtypes.items():
+            if np.issubdtype(dtype, np.integer):
+                col_type = &#34;int&#34;
+            elif np.issubdtype(dtype, np.floating):
+                col_type = &#34;double&#34;
+            else:
+                col_type = &#34;string&#34;
+            column_formats.append(f&#34;`{column_name}` {col_type}&#34;)
+
+        column_formats = &#34;,&#34;.join(column_formats)
+
+        table_create_query = f&#34;&#34;&#34;
+        CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats})
+        STORED AS PARQUET
+        LOCATION &#39;s3://{s3_location}/{table_name}/&#39;
+        TBLPROPERTIES (&#39;has_encrypted_data&#39;=&#39;false&#39;);
+        &#34;&#34;&#34;
+
+        print(&#34;Running create table query.&#34;)
+        result, reason = self.execute_raw(table_create_query)
+        if result.lower() == &#34;failed&#34; and &#39;alreadyexists&#39; in reason.lower():
+            if not override:
+                existing_data = pd.read_csv(f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+                raise DataExistsException(&#34;Table already exists&#34;, existing_data)
+            print(f&#34;There was existing table {table_name} in Athena which was deleted and recreated.&#34;)
+            delete_table_query = f&#34;&#34;&#34;
+            DROP TABLE {self.db_name}.{table_name};
+            &#34;&#34;&#34;
+            result, reason = self.execute_raw(delete_table_query)
+            if result.upper() != &#34;SUCCEEDED&#34;:
+                raise QueryException(f&#34;There was an existing table named {table_name}. Deleting it failed.&#34;
+                                     f&#34; Reason: {reason}&#34;)
+            result, reason = self.execute_raw(table_create_query)
+            if result.upper() == &#34;SUCCEEDED&#34;:
+                return &#34;SUCCEEDED&#34;
+            else:
+                raise QueryException(f&#34;There was an existing table named {table_name} which is now successfully &#34;
+                                     f&#34;deleted but new table failed to be created. Reason: {reason}&#34;)
+        elif result.upper() == &#34;SUCCEEDED&#34;:
+            return &#34;SUCCEEDED&#34;
+        else:
+            raise QueryException(f&#34;Failed to create the table. Reason: {reason}&#34;)
+
+    def execute_raw(self, query, db=None, run_async=False):
+        &#34;&#34;&#34;
+        Directly executes the supplied query in Athena.
+        :param query:
+        :param db:
+        :param run_async:
+        :return:
+        &#34;&#34;&#34;
+        if not db:
+            db = self.db_name
+
+        response = self._aws_athena.start_query_execution(
+            QueryString=query,
+            QueryExecutionContext={
+                &#39;Database&#39;: db
+            },
+            WorkGroup=self.workgroup)
+        query_execution_id = response[&#39;QueryExecutionId&#39;]
+
+        if run_async:
+            return query_execution_id
+        start_time = time.time()
+        query_stat = &#34;&#34;
+        while time.time() - start_time &lt; 30*60:  # 30 minute timeout
+            query_stat = self._aws_athena.get_query_execution(QueryExecutionId=query_execution_id)
+            if query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;].lower() not in [&#39;pending&#39;, &#39;running&#39;, &#39;queued&#39;]:
+                reason = query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;].get(&#39;StateChangeReason&#39;, &#39;&#39;)
+                return query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;], reason
+            time.sleep(1)
+
+        raise TimeoutError(f&#34;Query failed to complete within 30 mins. Last status: {query_stat}&#34;)
+
+    def _save_execution_id(self, execution_id):
+        with open(self._execution_history_file, &#39;a&#39;) as f:
+            f.write(f&#39;{time.time()},{execution_id}\n&#39;)
+
+    def _log_execution_cost(self, execution_id):
+        if not execution_id.startswith(&#39;A&#39;):
+            # Can&#39;t log cost for Spark query
+            return
+        res = self._aws_athena.get_query_execution(QueryExecutionId=execution_id[1:])
+        scanned_GB = res[&#39;QueryExecution&#39;][&#39;Statistics&#39;][&#39;DataScannedInBytes&#39;] / 1e9
+        cost = scanned_GB * 5 / 1e3  # 5$ per TB scanned
+        if execution_id not in self.seen_execution_ids:
+            self.execution_cost[&#39;Dollars&#39;] += cost
+            self.execution_cost[&#39;GB&#39;] += scanned_GB
+            self.seen_execution_ids.add(execution_id)
+
+        logger.info(f&#34;{execution_id} cost {scanned_GB:.1f}GB (${cost:.1f}). Session total:&#34;
+                    f&#34; {self.execution_cost[&#39;GB&#39;]:.1f} GB (${self.execution_cost[&#39;Dollars&#39;]:.1f})&#34;)
+
+    def _compile(self, query) -&gt; str:
+        compiled_query = CustomCompiler(AthenaDialect(), query).process(query, literal_binds=True)
+        return compiled_query
+
+    def execute(self, query, run_async=False):
+        &#34;&#34;&#34;
+        Executes a query
+        Args:
+            query: The SQL query to run in Athena
+            run_async: Whether to wait until the query completes (run_async=False) or return immediately
+            (run_async=True).
+
+        Returns:
+            if run_async is False, returns the results dataframe.
+            if run_async is  True, returns the query_execution_id, futures
+        &#34;&#34;&#34;
+        if not isinstance(query, str):
+            query = self._compile(query)
+
+        self._session_queries.add(query)
+        if run_async:
+            if query in self._query_cache:
+                return &#34;CACHED&#34;, FutureDf(self._query_cache[query].copy())
+            # in case of asynchronous run, you get the execution id and futures object
+            exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[&#39;&#39;])
+
+            def get_pandas(future):
+                res = future.result()
+                if res.state != &#39;SUCCEEDED&#39;:
+                    raise OperationalError(f&#34;{res.state}: {res.state_change_reason}&#34;)
+                if query in self._query_cache:
+                    return self._query_cache[query]
+                return res.as_pandas()
+
+            result_future.as_pandas = types.MethodType(get_pandas, result_future)
+            result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
+            self._save_execution_id(exe_id)
+            return exe_id, result_future
+        else:
+            if query not in self._query_cache:
+                self._query_cache[query] = self._conn.cursor().execute(query).as_pandas()
+            return self._query_cache[query].copy()
+
+    def print_all_batch_query_status(self) -&gt; None:
+        &#34;&#34;&#34;Prints the status of all batch queries.
+        &#34;&#34;&#34;
+        for count in self._batch_query_status_map.keys():
+            print(f&#39;Query {count}: {self.get_batch_query_report(count)}\n&#39;)
+
+    def stop_batch_query(self, batch_id) -&gt; None:
+        &#34;&#34;&#34;
+        Stops all the queries running under a batch query
+        Args:
+            batch_id: The batch_id of the batch_query. Returned by :py:sumbit_batch_query
+
+        Returns:
+            None
+        &#34;&#34;&#34;
+        self._batch_query_status_map[batch_id][&#39;to_submit_ids&#39;].clear()
+        for exec_id in self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]:
+            self.stop_query(exec_id)
+
+    def get_failed_queries(self, batch_id):
+        stats = self._batch_query_status_map.get(batch_id, None)
+        failed_query_ids, failed_queries = [], []
+        if stats:
+            for i, exe_id in enumerate(stats[&#39;submitted_execution_ids&#39;]):
+                completion_stat = self.get_query_status(exe_id)
+                if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                    failed_query_ids.append(exe_id)
+                    failed_queries.append(stats[&#39;submitted_queries&#39;][i])
+        return failed_query_ids, failed_queries
+
+    def print_failed_query_errors(self, batch_id: int) -&gt; None:
+        &#34;&#34;&#34;Print the error messages for all queries that failed in batch query.
+
+        Args:
+            batch_id (int): Batch query id
+        &#34;&#34;&#34;
+        failed_ids, failed_queries = self.get_failed_queries(batch_id)
+        for exe_id, query in zip(failed_ids, failed_queries):
+            print(f&#34;Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}&#34;
+                  f&#34;\nError: {self.get_query_error(exe_id)}\n&#34;)
+
+    def get_ids_for_failed_queries(self, batch_id: int) -&gt; list[str]:
+        &#34;&#34;&#34;Returns the list of execution ids for failed queries in batch query.
+
+        Args:
+            batch_id (int): batch query id
+
+        Returns:
+            list[str]: List of failed execution ids.
+        &#34;&#34;&#34;
+        failed_ids = []
+        for i, exe_id in enumerate(self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]):
+            completion_stat = self.get_query_status(exe_id)
+            if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                failed_ids.append(self._batch_query_status_map[batch_id][&#39;submitted_ids&#39;][i])
+        return failed_ids
+
+    def get_batch_query_report(self, batch_id: int):
+        &#34;&#34;&#34;
+        Returns the status of the queries running under a batch query.
+        Args:
+            batch_id: The batch_id of the batch_query.
+
+        Returns:
+            A dictionary detailing status of the queries.
+        &#34;&#34;&#34;
+        if not (stats := self._batch_query_status_map.get(batch_id, None)):
+            raise ValueError(f&#34;{batch_id=} not found.&#34;)
+        success_count = 0
+        fail_count = 0
+        running_count = 0
+        other = 0
+        for exe_id in stats[&#39;submitted_execution_ids&#39;]:
+            if exe_id == &#39;CACHED&#39;:
+                completion_stat = &#34;SUCCEEDED&#34;
+            else:
+                completion_stat = self.get_query_status(exe_id)
+            if completion_stat == &#39;RUNNING&#39;:
+                running_count += 1
+            elif completion_stat == &#39;SUCCEEDED&#39;:
+                success_count += 1
+            elif completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                fail_count += 1
+            else:
+                # for example: QUEUED
+                other += 1
+
+        result = {&#39;Submitted&#39;: len(stats[&#39;submitted_ids&#39;]),
+                  &#39;Running&#39;: running_count,
+                  &#39;Pending&#39;: len(stats[&#39;to_submit_ids&#39;]) + other,
+                  &#39;Completed&#39;: success_count,
+                  &#39;Failed&#39;: fail_count
+                  }
+
+        return result
+
+    def did_batch_query_complete(self, batch_id):
+        &#34;&#34;&#34;
+        Checks if all the queries in a batch query has completed or not.
+        Args:
+            batch_id: The batch_id for the batch_query
+
+        Returns:
+            True or False
+        &#34;&#34;&#34;
+        status = self.get_batch_query_report(batch_id)
+        if status[&#39;Pending&#39;] &gt; 0 or status[&#39;Running&#39;] &gt; 0:
+            return False
+        else:
+            return True
+
+    def wait_for_batch_query(self, batch_id: int):
+        &#34;&#34;&#34;Waits until batch query completes.
+
+        Args:
+            batch_id (int): The batch query id.
+        &#34;&#34;&#34;
+        while True:
+            last_time = time.time()
+            last_report = None
+            report = self.get_batch_query_report(batch_id)
+            if time.time() - last_time &gt; 60 or last_report is None or report != last_report:
+                logger.info(report)
+                last_report = report
+                last_time = time.time()
+            if report[&#39;Pending&#39;] == 0 and report[&#39;Running&#39;] == 0:
+                break
+            time.sleep(20)
+
+    def get_batch_query_result(self, batch_id, combine=True, no_block=False):
+        &#34;&#34;&#34;
+        Concatenates and returns the results of all the queries of a batchquery
+        Args:
+            batch_id (int): The batch_id for the batch_query
+            no_block (bool): Whether to wait until all queries have completed or return immediately. If you use
+                            no_block = true and the batch hasn&#39;t completed, it will throw BatchStillRunning exception.
+            combine: Whether to combine the individual query result into a single dataframe
+
+        Returns:
+            The concatenated dataframe of the results of all the queries in a batch query.
+
+        &#34;&#34;&#34;
+        if no_block and self.did_batch_query_complete(batch_id) is False:
+            raise QueryException(&#39;Batch query not completed yet.&#39;)
+
+        self.wait_for_batch_query(batch_id)
+        logger.info(&#34;Batch query completed. &#34;)
+        report = self.get_batch_query_report(batch_id)
+        query_exe_ids = self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]
+        query_futures = self._batch_query_status_map[batch_id][&#39;queries_futures&#39;]
+        if report[&#39;Failed&#39;] &gt; 0:
+            logger.warning(f&#34;{report[&#39;Failed&#39;]} queries failed. Redoing them&#34;)
+            failed_ids, failed_queries = self.get_failed_queries(batch_id)
+            new_batch_id = self.submit_batch_query(failed_queries)
+            new_exe_ids = self._batch_query_status_map[new_batch_id][&#39;submitted_execution_ids&#39;]
+
+            self.wait_for_batch_query(new_batch_id)
+            new_exe_ids_map = {entry[0]: entry[1] for entry in zip(failed_ids, new_exe_ids)}
+
+            new_report = self.get_batch_query_report(new_batch_id)
+            if new_report[&#39;Failed&#39;] &gt; 0:
+                self.print_failed_query_errors(new_batch_id)
+                raise QueryException(&#34;Queries failed again. Sorry!&#34;)
+            logger.info(&#34;The queries succeeded this time. Gathering all the results.&#34;)
+            # replace the old failed exe_ids with new successful exe_ids
+            for indx, old_exe_id in enumerate(query_exe_ids):
+                query_exe_ids[indx] = new_exe_ids_map.get(old_exe_id, old_exe_id)
+
+        if len(query_exe_ids) == 0:
+            raise ValueError(&#34;No query was submitted successfully&#34;)
+        res_df_array = []
+        for index, exe_id in enumerate(query_exe_ids):
+            df = query_futures[index].as_pandas()
+            if combine:
+                if len(df) == 0:
+                    df = pd.DataFrame({&#39;query_id&#39;: [index]})
+                else:
+                    df[&#39;query_id&#39;] = index
+            logger.info(f&#34;Got result from Query [{index}] ({exe_id})&#34;)
+            res_df_array.append(df)
+        if not combine:
+            return res_df_array
+        logger.info(&#34;Concatenating the results.&#34;)
+        # return res_df_array
+        return pd.concat(res_df_array)
+
+    def submit_batch_query(self, queries: List[str]):
+        &#34;&#34;&#34;
+        Submit multiple related queries
+        Args:
+            queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
+                    functions is easiest way to obtain queries.
+        Returns:
+            An integer representing the batch_query id. The id can be used with other batch_query functions.
+        &#34;&#34;&#34;
+        queries = list(queries)
+        to_submit_ids = list(range(len(queries)))
+        id_list = list(to_submit_ids)  # make a copy
+        submitted_ids: list[int] = []
+        submitted_execution_ids: list[str] = []
+        submitted_queries: list[str] = []
+        queries_futures: list[futures.Future] = []
+        self._batch_query_id += 1
+        batch_query_id = self._batch_query_id
+        self._batch_query_status_map[batch_query_id] = {&#39;to_submit_ids&#39;: to_submit_ids,
+                                                        &#39;all_ids&#39;: list(id_list),
+                                                        &#39;submitted_ids&#39;: submitted_ids,
+                                                        &#39;submitted_execution_ids&#39;: submitted_execution_ids,
+                                                        &#39;submitted_queries&#39;: submitted_queries,
+                                                        &#39;queries_futures&#39;: queries_futures
+                                                        }
+
+        def run_queries():
+            while to_submit_ids:
+                current_id = to_submit_ids[0]  # get the first one
+                current_query = queries[0]
+                try:
+                    execution_id, future = self.execute(current_query, run_async=True)
+                    logger.info(f&#34;Submitted queries[{current_id}] ({execution_id})&#34;)
+                    to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
+                    queries.pop(0)
+                    submitted_ids.append(current_id)
+                    submitted_execution_ids.append(execution_id)
+                    submitted_queries.append(current_query)
+                    queries_futures.append(future)
+                except ClientError as e:
+                    if e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;TooManyRequestsException&#39;:
+                        logger.info(&#34;Athena complained about too many requests. Waiting for a minute.&#34;)
+                        time.sleep(60)  # wait for a minute before submitting another query
+                    elif e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;InvalidRequestException&#39;:
+                        logger.info(f&#34;Queries[{current_id}] is Invalid: {e.response[&#39;Message&#39;]} \n {current_query}&#34;)
+                        to_submit_ids.pop(0)  # query failed, so remove it from the list
+                        queries.pop(0)
+                        raise
+                    else:
+                        raise
+
+        query_runner = Thread(target=run_queries)
+        query_runner.start()
+        return batch_query_id
+
+    def _get_query_result(self, query_id):
+        return self.get_athena_query_result(execution_id=query_id)
+
+    def get_athena_query_result(self, execution_id: str, timeout_minutes: int = 30) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the query result
+
+        Args:
+            execution_id (str): Query execution id.
+            timeout_minutes (int, optional): Timeout in minutes to wait for query to finish. Defaults to 30.
+
+        Raises:
+            QueryException: If query fails for some reason.
+
+        Returns:
+            pd.DataFrame: Query result as dataframe.
+        &#34;&#34;&#34;
+        t = time.time()
+        while time.time() - t &lt; timeout_minutes * 60:
+            stat = self.get_query_status(execution_id)
+            if stat.upper() == &#39;SUCCEEDED&#39;:
+                result = self.get_result_from_s3(execution_id)
+                self._log_execution_cost(execution_id)
+                return result
+            elif stat.upper() == &#39;FAILED&#39;:
+                error = self.get_query_error(execution_id)
+                raise QueryException(error)
+            else:
+                logger.info(f&#34;Query status is {stat}&#34;)
+                time.sleep(30)
+
+        raise QueryException(f&#39;Query timed-out. {self.get_query_status(execution_id)}&#39;)
+
+    def get_result_from_s3(self, query_execution_id: str) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns query result from s3 location.
+
+        Args:
+            query_execution_id (str): The query execution ID
+
+        Raises:
+            QueryException: If query had failed.
+
+        Returns:
+            pd.DataFrame: The query result.
+        &#34;&#34;&#34;
+        query_status = self.get_query_status(query_execution_id)
+        if query_status == &#39;SUCCEEDED&#39;:
+            path = self.get_query_output_location(query_execution_id)
+            df = dd.read_csv(path).compute()[0]
+            return df
+        # If failed, return error message
+        elif query_status == &#39;FAILED&#39;:
+            raise QueryException(self.get_query_error(query_execution_id))
+        elif query_status in [&#39;RUNNING&#39;, &#39;QUEUED&#39;, &#39;PENDING&#39;]:
+            raise QueryException(f&#34;Query still {query_status}&#34;)
+        else:
+            raise QueryException(f&#34;Query has unkown status {query_status}&#34;)
+
+    def get_query_output_location(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Get query output location in s3.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: The query location in s3.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        output_path = stat[&#39;QueryExecution&#39;][&#39;ResultConfiguration&#39;][&#39;OutputLocation&#39;]
+        return output_path
+
+    def get_query_status(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Get status of the query
+
+        Args:
+            query_id (str): Query execution id
+
+        Returns:
+            str: Status of the query.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;]
+
+    def get_query_error(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Returns the error message if query has failed.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: Error message for the query.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;StateChangeReason&#39;]
+
+    def get_all_running_queries(self):
+        &#34;&#34;&#34;
+        Gives the list of all running queries (for this instance)
+
+        Return:
+            List of query execution ids of all the queries that are currently running in Athena.
+        &#34;&#34;&#34;
+        exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)[&#39;QueryExecutionIds&#39;]
+        exe_ids = list(exe_ids)
+
+        running_ids = [i for i in exe_ids if i in self.execution_ids_history and
+                       self.get_query_status(i) == &#34;RUNNING&#34;]
+        return running_ids
+
+    def stop_all_queries(self):
+        &#34;&#34;&#34;
+        Stops all queries that are running in Athena for this instance.
+        Returns:
+            Nothing
+
+        &#34;&#34;&#34;
+        for count, stat in self._batch_query_status_map.items():
+            stat[&#39;to_submit_ids&#39;].clear()
+
+        running_ids = self.get_all_running_queries()
+        for i in running_ids:
+            self.stop_query(execution_id=i)
+
+        logger.info(f&#34;Stopped {len(running_ids)} queries&#34;)
+
+    def stop_query(self, execution_id):
+        &#34;&#34;&#34;
+        Stops a running query.
+        Args:
+            execution_id: The execution id of the query being run.
+        Returns:
+        &#34;&#34;&#34;
+        return self._aws_athena.stop_query_execution(QueryExecutionId=execution_id)
+
+    def get_cols(self, table=&#39;baseline&#39;, fuel_type=None):
+        &#34;&#34;&#34;
+        Returns the columns of for a particular table.
+        Args:
+            table: Name of the table. One of &#39;baseline&#39; or &#39;timeseries&#39;
+            fuel_type: Get only the columns for this fuel_type (&#39;electricity&#39;, &#39;gas&#39; etc)
+
+        Returns:
+            A list of column names as a list of strings.
+        &#34;&#34;&#34;
+        if table in [&#39;timeseries&#39;, &#39;ts&#39;]:
+            cols = self.ts_table.columns
+            if fuel_type:
+                cols = [c for c in cols if c.name not in [self.ts_bldgid_column.name, self.timestamp_column.name]]
+                cols = [c for c in cols if fuel_type in c.name]
+            return cols
+        elif table in [&#39;baseline&#39;, &#39;bs&#39;]:
+            cols = self.bs_table.columns
+            if fuel_type:
+                cols = [c for c in cols if &#39;simulation_output_report&#39; in c.name]
+                cols = [c for c in cols if fuel_type in c.name]
+            return cols
+        else:
+            tbl = self.get_table(table)
+            return tbl.columns
+
+    @staticmethod
+    def _simple_label(label):
+        if &#39;.&#39; in label:
+            return &#39;&#39;.join(label.split(&#39;.&#39;)[1:])
+        else:
+            return label
+
+    def _add_restrict(self, query, restrict):
+        if not restrict:
+            return query
+        where_clauses = []
+        for col, criteria in restrict:
+            if isinstance(criteria, (list, tuple)):
+                if len(criteria) &gt; 1:
+                    where_clauses.append(self.get_column(col).in_(criteria))
+                    continue
+                else:
+                    criteria = criteria[0]
+            where_clauses.append(self.get_column(col) == criteria)
+        query = query.where(*where_clauses)
+        return query
+
+    def _get_name(self, col):
+        if isinstance(col, tuple):
+            return col[1]
+        if isinstance(col, str):
+            return col
+        if isinstance(col, (sa.Column, sa.sql.elements.Label)):
+            return col.name
+        raise ValueError(f&#34;Can&#39;t get name for {col} of type {type(col)}&#34;)
+
+    def _add_join(self, query, join_list):
+        for new_table_name, baseline_column_name, new_column_name in join_list:
+            new_tbl = self.get_table(new_table_name)
+            query = query.join(new_tbl, self.bs_table.c[baseline_column_name]
+                               == new_tbl.c[new_column_name])
+        return query
+
+    def _add_group_by(self, query, group_by_selection):
+        if group_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in group_by_selection]
+            query = query.group_by(*a)
+        return query
+
+    def _add_order_by(self, query, order_by_selection):
+        if order_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in order_by_selection]
+            query = query.order_by(*a)
+        return query
+
+    def _get_weight(self, weights):
+        total_weight = self.sample_wt
+        for weight_col in weights:
+            if isinstance(weight_col, tuple):
+                tbl = self.get_table(weight_col[1])
+                total_weight *= tbl.c[weight_col[0]]
+            else:
+                total_weight *= self.get_column(weight_col)
+        return total_weight
+
+    def delete_everything(self):
+        &#34;&#34;&#34;Deletes the athena tables and data in s3 for the run.
+        &#34;&#34;&#34;
+        info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=self.bs_table.name)
+        self.pth = pathlib.Path(info[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]).parent
+        tables_to_delete = [self.bs_table.name]
+        if self.ts_table is not None:
+            tables_to_delete.append(self.ts_table.name)
+        if self.up_table is not None:
+            tables_to_delete.append(self.up_table.name)
+        print(f&#34;Will delete the following tables {tables_to_delete} and the {self.pth} folder&#34;)
+        while True:
+            curtime = datetime.datetime.now().strftime(&#39;%Y-%m-%d %H:%M&#39;)
+            confirm = input(f&#34;Enter {curtime} to confirm.&#34;)
+            if confirm == &#34;&#34;:
+                print(&#34;Abandoned the idea.&#34;)
+                break
+            if confirm != curtime:
+                print(f&#34;Please pass {curtime} as confirmation to confirm you want to delete everything.&#34;)
+                continue
+            self._aws_glue.batch_delete_table(DatabaseName=self.db_name, TablesToDelete=tables_to_delete)
+            print(&#34;Deleted the table from athena, now will delete the data in s3&#34;)
+            s3 = boto3.resource(&#39;s3&#39;)
+            bucket = s3.Bucket(self.pth.parts[1])
+            prefix = str(pathlib.Path(*self.pth.parts[2:]))
+            total_files = [file.key for file in bucket.objects.filter(Prefix=prefix)]
+            print(f&#34;There are {len(total_files)} files to be deleted. Deleting them now&#34;)
+            bucket.objects.filter(Prefix=prefix).delete()
+            print(&#34;Delete from s3 completed&#34;)
+            break</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.query_core.QueryCore"><code class="flex name class">
+<span>class <span class="ident">QueryCore</span></span>
+<span>(</span><span>workgroup: str, db_name: str, buildstock_type: str | None, table_name: Union[str, Tuple[str, str], ForwardRef(None)], timestamp_column_name: str, building_id_column_name: str, sample_weight: str, region_name: str, execution_history: str | None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>db_name</code></strong></dt>
+<dd>The athena database name</dd>
+<dt><strong><code>buildstock_type</code></strong></dt>
+<dd>'resstock' or 'comstock' runs</dd>
+<dt><strong><code>table_name</code></strong></dt>
+<dd>If a single string is provided, say, 'mfm_run', then it must correspond to two tables in athena
+named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
+as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and a
+timeseries table.</dd>
+<dt><strong><code>timestamp_column_name</code></strong></dt>
+<dd>The column name for the time column. Defaults to 'time'</dd>
+<dt><strong><code>sample_weight</code></strong></dt>
+<dd>The column name to be used to get the sample weight. Defaults to
+build_existing_model.sample_weight. Pass floats/integer to use constant sample weight.</dd>
+<dt><strong><code>region_name</code></strong></dt>
+<dd>The AWS region where the database exists. Defaults to 'us-west-2'.</dd>
+<dt><strong><code>execution_history</code></strong></dt>
+<dd>A temporary files to record which execution is run by the user, to help stop them. Will
+use .execution_history if not supplied.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class QueryCore:
+    def __init__(self, workgroup: str,
+                 db_name: str,
+                 buildstock_type: str | None,
+                 table_name: Union[str, Tuple[str, str]] | None,
+                 timestamp_column_name: str,
+                 building_id_column_name: str,
+                 sample_weight: str,
+                 region_name: str,
+                 execution_history: str | None,
+                 ) -&gt; None:
+        &#34;&#34;&#34;
+        Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
+        Args:
+            db_name: The athena database name
+            buildstock_type: &#39;resstock&#39; or &#39;comstock&#39; runs
+            table_name: If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond to two tables in athena
+                        named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
+                        as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and a
+                        timeseries table.
+            timestamp_column_name: The column name for the time column. Defaults to &#39;time&#39;
+            sample_weight: The column name to be used to get the sample weight. Defaults to
+                           build_existing_model.sample_weight. Pass floats/integer to use constant sample weight.
+            region_name: The AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
+            execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
+                    use .execution_history if not supplied.
+        &#34;&#34;&#34;
+        logger.info(f&#34;Loading {table_name} ...&#34;)
+        self.workgroup = workgroup
+        self.buildstock_type = buildstock_type
+        self._query_cache: dict[str, pd.DataFrame] = {}  # {&#34;query&#34;: query_result_df} to cache queries
+        self._session_queries: set[str] = set()  # Set of all queries that is run in current session.
+
+        self._aws_s3 = boto3.client(&#39;s3&#39;)
+        self._aws_athena = boto3.client(&#39;athena&#39;, region_name=region_name)
+        self._aws_glue = boto3.client(&#39;glue&#39;, region_name=region_name)
+
+        self._conn = Connection(work_group=workgroup, region_name=region_name,
+                                cursor_class=PandasCursor, schema_name=db_name)
+        self._async_conn = Connection(work_group=workgroup, region_name=region_name,
+                                      cursor_class=AsyncPandasCursor, schema_name=db_name, )
+
+        self.db_name = db_name
+        self.region_name = region_name
+
+        self._tables: dict = OrderedDict()  # Internal record of tables
+
+        self._batch_query_status_map: dict = {}
+        self._batch_query_id = 0
+
+        self.timestamp_column_name = timestamp_column_name
+        self.building_id_column_name = building_id_column_name
+        self.sample_weight = sample_weight
+        self.table_name = table_name
+        self._initialize_tables()
+        self._initialize_book_keeping(execution_history)
+
+        with contextlib.suppress(FileNotFoundError):
+            self.load_cache()
+
+    def load_cache(self, path: str | None = None):
+        &#34;&#34;&#34;Read and update query cache from pickle file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, reads from current directory.
+        &#34;&#34;&#34;
+        path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+        before_count = len(self._query_cache)
+        saved_cache = load_pickle(path)
+        logger.info(f&#34;{len(saved_cache)} queries cache read from {path}.&#34;)
+        self._query_cache.update(saved_cache)
+        after_count = len(self._query_cache)
+        if diff := after_count - before_count:
+            logger.info(f&#34;{diff} queries cache is updated.&#34;)
+        else:
+            logger.info(&#34;Cache already upto date.&#34;)
+
+    def save_cache(self, path: str | None = None, trim_excess: bool = False):
+        &#34;&#34;&#34;Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
+        session these queries won&#39;t have to be run on Athena and can be directly loaded from the file.
+
+        Args:
+            path (str, optional): The path to the pickle file. If not provided, the file will be saved on the current
+            directory.
+            trim_excess (bool, optional): If true, any queries in the cache that is not run in current session will be
+            remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
+            several sessions that are no longer used. Defaults to False.
+        &#34;&#34;&#34;
+        path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+        if trim_excess:
+            if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
+                for query in excess_queries:
+                    del self._query_cache[query]
+                logger.info(f&#34;{len(excess_queries)} excess queries removed from cache.&#34;)
+        save_pickle(path, self._query_cache)
+        logger.info(f&#34;{len(self._query_cache)} queries cache saved to {path}&#34;)
+
+    def _initialize_tables(self):
+        self.bs_table, self.ts_table, self.up_table = self._get_tables(self.table_name)
+
+        self.bs_bldgid_column = self.bs_table.c[self.building_id_column_name]
+        if self.ts_table is not None:
+            self.timestamp_column = self.ts_table.c[self.timestamp_column_name]
+            self.ts_bldgid_column = self.ts_table.c[self.building_id_column_name]
+        if self.up_table is not None:
+            self.up_bldgid_column = self.up_table.c[self.building_id_column_name]
+        self.sample_wt = self._get_sample_weight(self.sample_weight)
+
+    def _get_sample_weight(self, sample_weight):
+        if not sample_weight:
+            return sa.literal(1)
+        elif isinstance(sample_weight, str):
+            try:
+                return self.get_column(sample_weight)
+            except ValueError:
+                logger.error(&#34;Sample weight column not found. Using weight of 1.&#34;)
+                return sa.literal(1)
+        elif isinstance(sample_weight, (int, float)):
+            return sa.literal(sample_weight)
+
+    def get_table(self, table_name, missing_ok=False):
+
+        if isinstance(table_name, sa.schema.Table):
+            return table_name  # already a table
+
+        try:
+            return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
+        except sa.exc.NoSuchTableError:
+            if missing_ok:
+                logger.warning(f&#34;No {table_name} table is present.&#34;)
+                return None
+            else:
+                raise
+
+    def get_column(self, column_name: sa.Column | sa.sql.elements.Label | str, table_name=None):
+        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
+            return column_name  # already a col
+        if table_name:
+            valid_tables = [self.get_table(table_name)]
+        else:
+            valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+
+        if not valid_tables:
+            raise ValueError(f&#34;Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}&#34;)
+        if len(valid_tables) &gt; 1:
+            logger.warning(
+                f&#34;Column {column_name} found in multiple tables {[t.name for t in valid_tables]}.&#34;
+                f&#34;Using {valid_tables[0].name}&#34;)
+        return valid_tables[0].c[column_name]
+
+    def _get_tables(self, table_name: str | tuple):
+        self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
+                                                  workgroup=self.workgroup)
+        self._meta = sa.MetaData(bind=self._engine)
+        if isinstance(table_name, str):
+            baseline_table = self.get_table(f&#39;{table_name}_baseline&#39;)
+            ts_table = self.get_table(f&#39;{table_name}_timeseries&#39;, missing_ok=True)
+            upgrade_table = self.get_table(f&#39;{table_name}_upgrades&#39;, missing_ok=True)
+        elif isinstance(table_name, tuple):
+            baseline_table = self.get_table(f&#39;{table_name[0]}&#39;)
+            ts_table = self.get_table(f&#39;{table_name[1]}&#39;, missing_ok=True)
+            upgrade_table = self.get_table(f&#39;{table_name[2]}&#39;, missing_ok=True)
+        else:
+            baseline_table = None
+            ts_table = None
+            upgrade_table = None
+        return baseline_table, ts_table, upgrade_table
+
+    def _initialize_book_keeping(self, execution_history):
+        self._execution_history_file = execution_history or &#39;.execution_history&#39;
+        self.execution_cost = {&#39;GB&#39;: 0, &#39;Dollars&#39;: 0}  # Tracks the cost of current session. Only used for Athena query
+        self.seen_execution_ids = set()  # set to prevent double counting same execution id
+
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, &#39;r&#39;) as f:
+                existing_entries = f.readlines()
+            valid_entries = []
+            for entry in existing_entries:
+                with contextlib.suppress(ValueError, TypeError):
+                    entry_time, _ = entry.split(&#39;,&#39;)
+                    if time.time() - float(entry_time) &lt; 24 * 60 * 60:  # discard history if more than a day old
+                        valid_entries += entry
+            with open(self._execution_history_file, &#39;w&#39;) as f:
+                f.writelines(valid_entries)
+
+    @property
+    def execution_ids_history(self):
+        exe_ids = []
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, &#39;r&#39;) as f:
+                for line in f:
+                    _, exe_id = line.split(&#39;,&#39;)
+                    exe_ids.append(exe_id.strip())
+        return exe_ids
+
+    def _create_athena_engine(self, region_name: str, database: str, workgroup: str) -&gt; sa.engine.Engine:
+        connect_args = {&#34;cursor_class&#34;: PandasCursor, &#34;work_group&#34;: workgroup}
+        engine = sa.create_engine(
+            f&#34;awsathena+rest://:@athena.{region_name}.amazonaws.com:443/{database}&#34;, connect_args=connect_args
+        )
+        return engine
+
+    def delete_table(self, table_name):
+        &#34;&#34;&#34;
+        Function to delete athena table.
+        :param table_name: Athena table name
+        :return:
+        &#34;&#34;&#34;
+        delete_table_query = f&#34;&#34;&#34;DROP TABLE {self.db_name}.{table_name};&#34;&#34;&#34;
+        result, reason = self.execute_raw(delete_table_query)
+        if result.upper() == &#34;SUCCEEDED&#34;:
+            return &#34;SUCCEEDED&#34;
+        else:
+            raise QueryException(f&#34;Deleting it failed. Reason: {reason}&#34;)
+
+    def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+        &#34;&#34;&#34;
+        Function to add a table in s3.
+        :param table_name: The name of the table
+        :param table_df: The pandas dataframe to use as table data
+        :param s3_bucket: s3 bucket name
+        :param s3_prefix: s3 prefix to save the table to.
+        :param override: Whether to override eixsting table.
+        :return:
+        &#34;&#34;&#34;
+        s3_location = s3_bucket + &#39;/&#39; + s3_prefix
+        s3_data = self._aws_s3.list_objects(Bucket=s3_bucket, Prefix=f&#39;{s3_prefix}/{table_name}&#39;)
+
+        if &#39;Contents&#39; in s3_data and override is False:
+            raise DataExistsException(&#34;Table already exists&#34;, f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+        if &#39;Contents&#39; in s3_data:
+            existing_objects = [{&#39;Key&#39;: el[&#39;Key&#39;]} for el in s3_data[&#39;Contents&#39;]]
+            print(f&#34;The following existing objects is being delete and replaced: {existing_objects}&#34;)
+            print(f&#34;Saving s3://{s3_location}/{table_name}/{table_name}.parquet)&#34;)
+            self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={&#34;Objects&#34;: existing_objects})
+        print(f&#34;Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet&#34;)
+        table_df.to_parquet(f&#39;s3://{s3_location}/{table_name}/{table_name}.parquet&#39;, index=False)
+        print(&#34;Saving Done.&#34;)
+
+        column_formats = []
+        for column_name, dtype in table_df.dtypes.items():
+            if np.issubdtype(dtype, np.integer):
+                col_type = &#34;int&#34;
+            elif np.issubdtype(dtype, np.floating):
+                col_type = &#34;double&#34;
+            else:
+                col_type = &#34;string&#34;
+            column_formats.append(f&#34;`{column_name}` {col_type}&#34;)
+
+        column_formats = &#34;,&#34;.join(column_formats)
+
+        table_create_query = f&#34;&#34;&#34;
+        CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats})
+        STORED AS PARQUET
+        LOCATION &#39;s3://{s3_location}/{table_name}/&#39;
+        TBLPROPERTIES (&#39;has_encrypted_data&#39;=&#39;false&#39;);
+        &#34;&#34;&#34;
+
+        print(&#34;Running create table query.&#34;)
+        result, reason = self.execute_raw(table_create_query)
+        if result.lower() == &#34;failed&#34; and &#39;alreadyexists&#39; in reason.lower():
+            if not override:
+                existing_data = pd.read_csv(f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+                raise DataExistsException(&#34;Table already exists&#34;, existing_data)
+            print(f&#34;There was existing table {table_name} in Athena which was deleted and recreated.&#34;)
+            delete_table_query = f&#34;&#34;&#34;
+            DROP TABLE {self.db_name}.{table_name};
+            &#34;&#34;&#34;
+            result, reason = self.execute_raw(delete_table_query)
+            if result.upper() != &#34;SUCCEEDED&#34;:
+                raise QueryException(f&#34;There was an existing table named {table_name}. Deleting it failed.&#34;
+                                     f&#34; Reason: {reason}&#34;)
+            result, reason = self.execute_raw(table_create_query)
+            if result.upper() == &#34;SUCCEEDED&#34;:
+                return &#34;SUCCEEDED&#34;
+            else:
+                raise QueryException(f&#34;There was an existing table named {table_name} which is now successfully &#34;
+                                     f&#34;deleted but new table failed to be created. Reason: {reason}&#34;)
+        elif result.upper() == &#34;SUCCEEDED&#34;:
+            return &#34;SUCCEEDED&#34;
+        else:
+            raise QueryException(f&#34;Failed to create the table. Reason: {reason}&#34;)
+
+    def execute_raw(self, query, db=None, run_async=False):
+        &#34;&#34;&#34;
+        Directly executes the supplied query in Athena.
+        :param query:
+        :param db:
+        :param run_async:
+        :return:
+        &#34;&#34;&#34;
+        if not db:
+            db = self.db_name
+
+        response = self._aws_athena.start_query_execution(
+            QueryString=query,
+            QueryExecutionContext={
+                &#39;Database&#39;: db
+            },
+            WorkGroup=self.workgroup)
+        query_execution_id = response[&#39;QueryExecutionId&#39;]
+
+        if run_async:
+            return query_execution_id
+        start_time = time.time()
+        query_stat = &#34;&#34;
+        while time.time() - start_time &lt; 30*60:  # 30 minute timeout
+            query_stat = self._aws_athena.get_query_execution(QueryExecutionId=query_execution_id)
+            if query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;].lower() not in [&#39;pending&#39;, &#39;running&#39;, &#39;queued&#39;]:
+                reason = query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;].get(&#39;StateChangeReason&#39;, &#39;&#39;)
+                return query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;], reason
+            time.sleep(1)
+
+        raise TimeoutError(f&#34;Query failed to complete within 30 mins. Last status: {query_stat}&#34;)
+
+    def _save_execution_id(self, execution_id):
+        with open(self._execution_history_file, &#39;a&#39;) as f:
+            f.write(f&#39;{time.time()},{execution_id}\n&#39;)
+
+    def _log_execution_cost(self, execution_id):
+        if not execution_id.startswith(&#39;A&#39;):
+            # Can&#39;t log cost for Spark query
+            return
+        res = self._aws_athena.get_query_execution(QueryExecutionId=execution_id[1:])
+        scanned_GB = res[&#39;QueryExecution&#39;][&#39;Statistics&#39;][&#39;DataScannedInBytes&#39;] / 1e9
+        cost = scanned_GB * 5 / 1e3  # 5$ per TB scanned
+        if execution_id not in self.seen_execution_ids:
+            self.execution_cost[&#39;Dollars&#39;] += cost
+            self.execution_cost[&#39;GB&#39;] += scanned_GB
+            self.seen_execution_ids.add(execution_id)
+
+        logger.info(f&#34;{execution_id} cost {scanned_GB:.1f}GB (${cost:.1f}). Session total:&#34;
+                    f&#34; {self.execution_cost[&#39;GB&#39;]:.1f} GB (${self.execution_cost[&#39;Dollars&#39;]:.1f})&#34;)
+
+    def _compile(self, query) -&gt; str:
+        compiled_query = CustomCompiler(AthenaDialect(), query).process(query, literal_binds=True)
+        return compiled_query
+
+    def execute(self, query, run_async=False):
+        &#34;&#34;&#34;
+        Executes a query
+        Args:
+            query: The SQL query to run in Athena
+            run_async: Whether to wait until the query completes (run_async=False) or return immediately
+            (run_async=True).
+
+        Returns:
+            if run_async is False, returns the results dataframe.
+            if run_async is  True, returns the query_execution_id, futures
+        &#34;&#34;&#34;
+        if not isinstance(query, str):
+            query = self._compile(query)
+
+        self._session_queries.add(query)
+        if run_async:
+            if query in self._query_cache:
+                return &#34;CACHED&#34;, FutureDf(self._query_cache[query].copy())
+            # in case of asynchronous run, you get the execution id and futures object
+            exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[&#39;&#39;])
+
+            def get_pandas(future):
+                res = future.result()
+                if res.state != &#39;SUCCEEDED&#39;:
+                    raise OperationalError(f&#34;{res.state}: {res.state_change_reason}&#34;)
+                if query in self._query_cache:
+                    return self._query_cache[query]
+                return res.as_pandas()
+
+            result_future.as_pandas = types.MethodType(get_pandas, result_future)
+            result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
+            self._save_execution_id(exe_id)
+            return exe_id, result_future
+        else:
+            if query not in self._query_cache:
+                self._query_cache[query] = self._conn.cursor().execute(query).as_pandas()
+            return self._query_cache[query].copy()
+
+    def print_all_batch_query_status(self) -&gt; None:
+        &#34;&#34;&#34;Prints the status of all batch queries.
+        &#34;&#34;&#34;
+        for count in self._batch_query_status_map.keys():
+            print(f&#39;Query {count}: {self.get_batch_query_report(count)}\n&#39;)
+
+    def stop_batch_query(self, batch_id) -&gt; None:
+        &#34;&#34;&#34;
+        Stops all the queries running under a batch query
+        Args:
+            batch_id: The batch_id of the batch_query. Returned by :py:sumbit_batch_query
+
+        Returns:
+            None
+        &#34;&#34;&#34;
+        self._batch_query_status_map[batch_id][&#39;to_submit_ids&#39;].clear()
+        for exec_id in self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]:
+            self.stop_query(exec_id)
+
+    def get_failed_queries(self, batch_id):
+        stats = self._batch_query_status_map.get(batch_id, None)
+        failed_query_ids, failed_queries = [], []
+        if stats:
+            for i, exe_id in enumerate(stats[&#39;submitted_execution_ids&#39;]):
+                completion_stat = self.get_query_status(exe_id)
+                if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                    failed_query_ids.append(exe_id)
+                    failed_queries.append(stats[&#39;submitted_queries&#39;][i])
+        return failed_query_ids, failed_queries
+
+    def print_failed_query_errors(self, batch_id: int) -&gt; None:
+        &#34;&#34;&#34;Print the error messages for all queries that failed in batch query.
+
+        Args:
+            batch_id (int): Batch query id
+        &#34;&#34;&#34;
+        failed_ids, failed_queries = self.get_failed_queries(batch_id)
+        for exe_id, query in zip(failed_ids, failed_queries):
+            print(f&#34;Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}&#34;
+                  f&#34;\nError: {self.get_query_error(exe_id)}\n&#34;)
+
+    def get_ids_for_failed_queries(self, batch_id: int) -&gt; list[str]:
+        &#34;&#34;&#34;Returns the list of execution ids for failed queries in batch query.
+
+        Args:
+            batch_id (int): batch query id
+
+        Returns:
+            list[str]: List of failed execution ids.
+        &#34;&#34;&#34;
+        failed_ids = []
+        for i, exe_id in enumerate(self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]):
+            completion_stat = self.get_query_status(exe_id)
+            if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                failed_ids.append(self._batch_query_status_map[batch_id][&#39;submitted_ids&#39;][i])
+        return failed_ids
+
+    def get_batch_query_report(self, batch_id: int):
+        &#34;&#34;&#34;
+        Returns the status of the queries running under a batch query.
+        Args:
+            batch_id: The batch_id of the batch_query.
+
+        Returns:
+            A dictionary detailing status of the queries.
+        &#34;&#34;&#34;
+        if not (stats := self._batch_query_status_map.get(batch_id, None)):
+            raise ValueError(f&#34;{batch_id=} not found.&#34;)
+        success_count = 0
+        fail_count = 0
+        running_count = 0
+        other = 0
+        for exe_id in stats[&#39;submitted_execution_ids&#39;]:
+            if exe_id == &#39;CACHED&#39;:
+                completion_stat = &#34;SUCCEEDED&#34;
+            else:
+                completion_stat = self.get_query_status(exe_id)
+            if completion_stat == &#39;RUNNING&#39;:
+                running_count += 1
+            elif completion_stat == &#39;SUCCEEDED&#39;:
+                success_count += 1
+            elif completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                fail_count += 1
+            else:
+                # for example: QUEUED
+                other += 1
+
+        result = {&#39;Submitted&#39;: len(stats[&#39;submitted_ids&#39;]),
+                  &#39;Running&#39;: running_count,
+                  &#39;Pending&#39;: len(stats[&#39;to_submit_ids&#39;]) + other,
+                  &#39;Completed&#39;: success_count,
+                  &#39;Failed&#39;: fail_count
+                  }
+
+        return result
+
+    def did_batch_query_complete(self, batch_id):
+        &#34;&#34;&#34;
+        Checks if all the queries in a batch query has completed or not.
+        Args:
+            batch_id: The batch_id for the batch_query
+
+        Returns:
+            True or False
+        &#34;&#34;&#34;
+        status = self.get_batch_query_report(batch_id)
+        if status[&#39;Pending&#39;] &gt; 0 or status[&#39;Running&#39;] &gt; 0:
+            return False
+        else:
+            return True
+
+    def wait_for_batch_query(self, batch_id: int):
+        &#34;&#34;&#34;Waits until batch query completes.
+
+        Args:
+            batch_id (int): The batch query id.
+        &#34;&#34;&#34;
+        while True:
+            last_time = time.time()
+            last_report = None
+            report = self.get_batch_query_report(batch_id)
+            if time.time() - last_time &gt; 60 or last_report is None or report != last_report:
+                logger.info(report)
+                last_report = report
+                last_time = time.time()
+            if report[&#39;Pending&#39;] == 0 and report[&#39;Running&#39;] == 0:
+                break
+            time.sleep(20)
+
+    def get_batch_query_result(self, batch_id, combine=True, no_block=False):
+        &#34;&#34;&#34;
+        Concatenates and returns the results of all the queries of a batchquery
+        Args:
+            batch_id (int): The batch_id for the batch_query
+            no_block (bool): Whether to wait until all queries have completed or return immediately. If you use
+                            no_block = true and the batch hasn&#39;t completed, it will throw BatchStillRunning exception.
+            combine: Whether to combine the individual query result into a single dataframe
+
+        Returns:
+            The concatenated dataframe of the results of all the queries in a batch query.
+
+        &#34;&#34;&#34;
+        if no_block and self.did_batch_query_complete(batch_id) is False:
+            raise QueryException(&#39;Batch query not completed yet.&#39;)
+
+        self.wait_for_batch_query(batch_id)
+        logger.info(&#34;Batch query completed. &#34;)
+        report = self.get_batch_query_report(batch_id)
+        query_exe_ids = self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]
+        query_futures = self._batch_query_status_map[batch_id][&#39;queries_futures&#39;]
+        if report[&#39;Failed&#39;] &gt; 0:
+            logger.warning(f&#34;{report[&#39;Failed&#39;]} queries failed. Redoing them&#34;)
+            failed_ids, failed_queries = self.get_failed_queries(batch_id)
+            new_batch_id = self.submit_batch_query(failed_queries)
+            new_exe_ids = self._batch_query_status_map[new_batch_id][&#39;submitted_execution_ids&#39;]
+
+            self.wait_for_batch_query(new_batch_id)
+            new_exe_ids_map = {entry[0]: entry[1] for entry in zip(failed_ids, new_exe_ids)}
+
+            new_report = self.get_batch_query_report(new_batch_id)
+            if new_report[&#39;Failed&#39;] &gt; 0:
+                self.print_failed_query_errors(new_batch_id)
+                raise QueryException(&#34;Queries failed again. Sorry!&#34;)
+            logger.info(&#34;The queries succeeded this time. Gathering all the results.&#34;)
+            # replace the old failed exe_ids with new successful exe_ids
+            for indx, old_exe_id in enumerate(query_exe_ids):
+                query_exe_ids[indx] = new_exe_ids_map.get(old_exe_id, old_exe_id)
+
+        if len(query_exe_ids) == 0:
+            raise ValueError(&#34;No query was submitted successfully&#34;)
+        res_df_array = []
+        for index, exe_id in enumerate(query_exe_ids):
+            df = query_futures[index].as_pandas()
+            if combine:
+                if len(df) == 0:
+                    df = pd.DataFrame({&#39;query_id&#39;: [index]})
+                else:
+                    df[&#39;query_id&#39;] = index
+            logger.info(f&#34;Got result from Query [{index}] ({exe_id})&#34;)
+            res_df_array.append(df)
+        if not combine:
+            return res_df_array
+        logger.info(&#34;Concatenating the results.&#34;)
+        # return res_df_array
+        return pd.concat(res_df_array)
+
+    def submit_batch_query(self, queries: List[str]):
+        &#34;&#34;&#34;
+        Submit multiple related queries
+        Args:
+            queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
+                    functions is easiest way to obtain queries.
+        Returns:
+            An integer representing the batch_query id. The id can be used with other batch_query functions.
+        &#34;&#34;&#34;
+        queries = list(queries)
+        to_submit_ids = list(range(len(queries)))
+        id_list = list(to_submit_ids)  # make a copy
+        submitted_ids: list[int] = []
+        submitted_execution_ids: list[str] = []
+        submitted_queries: list[str] = []
+        queries_futures: list[futures.Future] = []
+        self._batch_query_id += 1
+        batch_query_id = self._batch_query_id
+        self._batch_query_status_map[batch_query_id] = {&#39;to_submit_ids&#39;: to_submit_ids,
+                                                        &#39;all_ids&#39;: list(id_list),
+                                                        &#39;submitted_ids&#39;: submitted_ids,
+                                                        &#39;submitted_execution_ids&#39;: submitted_execution_ids,
+                                                        &#39;submitted_queries&#39;: submitted_queries,
+                                                        &#39;queries_futures&#39;: queries_futures
+                                                        }
+
+        def run_queries():
+            while to_submit_ids:
+                current_id = to_submit_ids[0]  # get the first one
+                current_query = queries[0]
+                try:
+                    execution_id, future = self.execute(current_query, run_async=True)
+                    logger.info(f&#34;Submitted queries[{current_id}] ({execution_id})&#34;)
+                    to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
+                    queries.pop(0)
+                    submitted_ids.append(current_id)
+                    submitted_execution_ids.append(execution_id)
+                    submitted_queries.append(current_query)
+                    queries_futures.append(future)
+                except ClientError as e:
+                    if e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;TooManyRequestsException&#39;:
+                        logger.info(&#34;Athena complained about too many requests. Waiting for a minute.&#34;)
+                        time.sleep(60)  # wait for a minute before submitting another query
+                    elif e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;InvalidRequestException&#39;:
+                        logger.info(f&#34;Queries[{current_id}] is Invalid: {e.response[&#39;Message&#39;]} \n {current_query}&#34;)
+                        to_submit_ids.pop(0)  # query failed, so remove it from the list
+                        queries.pop(0)
+                        raise
+                    else:
+                        raise
+
+        query_runner = Thread(target=run_queries)
+        query_runner.start()
+        return batch_query_id
+
+    def _get_query_result(self, query_id):
+        return self.get_athena_query_result(execution_id=query_id)
+
+    def get_athena_query_result(self, execution_id: str, timeout_minutes: int = 30) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the query result
+
+        Args:
+            execution_id (str): Query execution id.
+            timeout_minutes (int, optional): Timeout in minutes to wait for query to finish. Defaults to 30.
+
+        Raises:
+            QueryException: If query fails for some reason.
+
+        Returns:
+            pd.DataFrame: Query result as dataframe.
+        &#34;&#34;&#34;
+        t = time.time()
+        while time.time() - t &lt; timeout_minutes * 60:
+            stat = self.get_query_status(execution_id)
+            if stat.upper() == &#39;SUCCEEDED&#39;:
+                result = self.get_result_from_s3(execution_id)
+                self._log_execution_cost(execution_id)
+                return result
+            elif stat.upper() == &#39;FAILED&#39;:
+                error = self.get_query_error(execution_id)
+                raise QueryException(error)
+            else:
+                logger.info(f&#34;Query status is {stat}&#34;)
+                time.sleep(30)
+
+        raise QueryException(f&#39;Query timed-out. {self.get_query_status(execution_id)}&#39;)
+
+    def get_result_from_s3(self, query_execution_id: str) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns query result from s3 location.
+
+        Args:
+            query_execution_id (str): The query execution ID
+
+        Raises:
+            QueryException: If query had failed.
+
+        Returns:
+            pd.DataFrame: The query result.
+        &#34;&#34;&#34;
+        query_status = self.get_query_status(query_execution_id)
+        if query_status == &#39;SUCCEEDED&#39;:
+            path = self.get_query_output_location(query_execution_id)
+            df = dd.read_csv(path).compute()[0]
+            return df
+        # If failed, return error message
+        elif query_status == &#39;FAILED&#39;:
+            raise QueryException(self.get_query_error(query_execution_id))
+        elif query_status in [&#39;RUNNING&#39;, &#39;QUEUED&#39;, &#39;PENDING&#39;]:
+            raise QueryException(f&#34;Query still {query_status}&#34;)
+        else:
+            raise QueryException(f&#34;Query has unkown status {query_status}&#34;)
+
+    def get_query_output_location(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Get query output location in s3.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: The query location in s3.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        output_path = stat[&#39;QueryExecution&#39;][&#39;ResultConfiguration&#39;][&#39;OutputLocation&#39;]
+        return output_path
+
+    def get_query_status(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Get status of the query
+
+        Args:
+            query_id (str): Query execution id
+
+        Returns:
+            str: Status of the query.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;]
+
+    def get_query_error(self, query_id: str) -&gt; str:
+        &#34;&#34;&#34;Returns the error message if query has failed.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: Error message for the query.
+        &#34;&#34;&#34;
+        stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+        return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;StateChangeReason&#39;]
+
+    def get_all_running_queries(self):
+        &#34;&#34;&#34;
+        Gives the list of all running queries (for this instance)
+
+        Return:
+            List of query execution ids of all the queries that are currently running in Athena.
+        &#34;&#34;&#34;
+        exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)[&#39;QueryExecutionIds&#39;]
+        exe_ids = list(exe_ids)
+
+        running_ids = [i for i in exe_ids if i in self.execution_ids_history and
+                       self.get_query_status(i) == &#34;RUNNING&#34;]
+        return running_ids
+
+    def stop_all_queries(self):
+        &#34;&#34;&#34;
+        Stops all queries that are running in Athena for this instance.
+        Returns:
+            Nothing
+
+        &#34;&#34;&#34;
+        for count, stat in self._batch_query_status_map.items():
+            stat[&#39;to_submit_ids&#39;].clear()
+
+        running_ids = self.get_all_running_queries()
+        for i in running_ids:
+            self.stop_query(execution_id=i)
+
+        logger.info(f&#34;Stopped {len(running_ids)} queries&#34;)
+
+    def stop_query(self, execution_id):
+        &#34;&#34;&#34;
+        Stops a running query.
+        Args:
+            execution_id: The execution id of the query being run.
+        Returns:
+        &#34;&#34;&#34;
+        return self._aws_athena.stop_query_execution(QueryExecutionId=execution_id)
+
+    def get_cols(self, table=&#39;baseline&#39;, fuel_type=None):
+        &#34;&#34;&#34;
+        Returns the columns of for a particular table.
+        Args:
+            table: Name of the table. One of &#39;baseline&#39; or &#39;timeseries&#39;
+            fuel_type: Get only the columns for this fuel_type (&#39;electricity&#39;, &#39;gas&#39; etc)
+
+        Returns:
+            A list of column names as a list of strings.
+        &#34;&#34;&#34;
+        if table in [&#39;timeseries&#39;, &#39;ts&#39;]:
+            cols = self.ts_table.columns
+            if fuel_type:
+                cols = [c for c in cols if c.name not in [self.ts_bldgid_column.name, self.timestamp_column.name]]
+                cols = [c for c in cols if fuel_type in c.name]
+            return cols
+        elif table in [&#39;baseline&#39;, &#39;bs&#39;]:
+            cols = self.bs_table.columns
+            if fuel_type:
+                cols = [c for c in cols if &#39;simulation_output_report&#39; in c.name]
+                cols = [c for c in cols if fuel_type in c.name]
+            return cols
+        else:
+            tbl = self.get_table(table)
+            return tbl.columns
+
+    @staticmethod
+    def _simple_label(label):
+        if &#39;.&#39; in label:
+            return &#39;&#39;.join(label.split(&#39;.&#39;)[1:])
+        else:
+            return label
+
+    def _add_restrict(self, query, restrict):
+        if not restrict:
+            return query
+        where_clauses = []
+        for col, criteria in restrict:
+            if isinstance(criteria, (list, tuple)):
+                if len(criteria) &gt; 1:
+                    where_clauses.append(self.get_column(col).in_(criteria))
+                    continue
+                else:
+                    criteria = criteria[0]
+            where_clauses.append(self.get_column(col) == criteria)
+        query = query.where(*where_clauses)
+        return query
+
+    def _get_name(self, col):
+        if isinstance(col, tuple):
+            return col[1]
+        if isinstance(col, str):
+            return col
+        if isinstance(col, (sa.Column, sa.sql.elements.Label)):
+            return col.name
+        raise ValueError(f&#34;Can&#39;t get name for {col} of type {type(col)}&#34;)
+
+    def _add_join(self, query, join_list):
+        for new_table_name, baseline_column_name, new_column_name in join_list:
+            new_tbl = self.get_table(new_table_name)
+            query = query.join(new_tbl, self.bs_table.c[baseline_column_name]
+                               == new_tbl.c[new_column_name])
+        return query
+
+    def _add_group_by(self, query, group_by_selection):
+        if group_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in group_by_selection]
+            query = query.group_by(*a)
+        return query
+
+    def _add_order_by(self, query, order_by_selection):
+        if order_by_selection:
+            selected_cols = list(query.selected_columns)
+            a = [sa.text(str(selected_cols.index(g) + 1)) for g in order_by_selection]
+            query = query.order_by(*a)
+        return query
+
+    def _get_weight(self, weights):
+        total_weight = self.sample_wt
+        for weight_col in weights:
+            if isinstance(weight_col, tuple):
+                tbl = self.get_table(weight_col[1])
+                total_weight *= tbl.c[weight_col[0]]
+            else:
+                total_weight *= self.get_column(weight_col)
+        return total_weight
+
+    def delete_everything(self):
+        &#34;&#34;&#34;Deletes the athena tables and data in s3 for the run.
+        &#34;&#34;&#34;
+        info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=self.bs_table.name)
+        self.pth = pathlib.Path(info[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]).parent
+        tables_to_delete = [self.bs_table.name]
+        if self.ts_table is not None:
+            tables_to_delete.append(self.ts_table.name)
+        if self.up_table is not None:
+            tables_to_delete.append(self.up_table.name)
+        print(f&#34;Will delete the following tables {tables_to_delete} and the {self.pth} folder&#34;)
+        while True:
+            curtime = datetime.datetime.now().strftime(&#39;%Y-%m-%d %H:%M&#39;)
+            confirm = input(f&#34;Enter {curtime} to confirm.&#34;)
+            if confirm == &#34;&#34;:
+                print(&#34;Abandoned the idea.&#34;)
+                break
+            if confirm != curtime:
+                print(f&#34;Please pass {curtime} as confirmation to confirm you want to delete everything.&#34;)
+                continue
+            self._aws_glue.batch_delete_table(DatabaseName=self.db_name, TablesToDelete=tables_to_delete)
+            print(&#34;Deleted the table from athena, now will delete the data in s3&#34;)
+            s3 = boto3.resource(&#39;s3&#39;)
+            bucket = s3.Bucket(self.pth.parts[1])
+            prefix = str(pathlib.Path(*self.pth.parts[2:]))
+            total_files = [file.key for file in bucket.objects.filter(Prefix=prefix)]
+            print(f&#34;There are {len(total_files)} files to be deleted. Deleting them now&#34;)
+            bucket.objects.filter(Prefix=prefix).delete()
+            print(&#34;Delete from s3 completed&#34;)
+            break</code></pre>
+</details>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="buildstock_query.main.BuildStockQuery" href="main.html#buildstock_query.main.BuildStockQuery">BuildStockQuery</a></li>
+</ul>
+<h3>Instance variables</h3>
+<dl>
+<dt id="buildstock_query.query_core.QueryCore.execution_ids_history"><code class="name">var <span class="ident">execution_ids_history</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def execution_ids_history(self):
+    exe_ids = []
+    if os.path.exists(self._execution_history_file):
+        with open(self._execution_history_file, &#39;r&#39;) as f:
+            for line in f:
+                _, exe_id = line.split(&#39;,&#39;)
+                exe_ids.append(exe_id.strip())
+    return exe_ids</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.query_core.QueryCore.add_table"><code class="name flex">
+<span>def <span class="ident">add_table</span></span>(<span>self, table_name, table_df, s3_bucket, s3_prefix, override=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function to add a table in s3.
+:param table_name: The name of the table
+:param table_df: The pandas dataframe to use as table data
+:param s3_bucket: s3 bucket name
+:param s3_prefix: s3 prefix to save the table to.
+:param override: Whether to override eixsting table.
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+    &#34;&#34;&#34;
+    Function to add a table in s3.
+    :param table_name: The name of the table
+    :param table_df: The pandas dataframe to use as table data
+    :param s3_bucket: s3 bucket name
+    :param s3_prefix: s3 prefix to save the table to.
+    :param override: Whether to override eixsting table.
+    :return:
+    &#34;&#34;&#34;
+    s3_location = s3_bucket + &#39;/&#39; + s3_prefix
+    s3_data = self._aws_s3.list_objects(Bucket=s3_bucket, Prefix=f&#39;{s3_prefix}/{table_name}&#39;)
+
+    if &#39;Contents&#39; in s3_data and override is False:
+        raise DataExistsException(&#34;Table already exists&#34;, f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+    if &#39;Contents&#39; in s3_data:
+        existing_objects = [{&#39;Key&#39;: el[&#39;Key&#39;]} for el in s3_data[&#39;Contents&#39;]]
+        print(f&#34;The following existing objects is being delete and replaced: {existing_objects}&#34;)
+        print(f&#34;Saving s3://{s3_location}/{table_name}/{table_name}.parquet)&#34;)
+        self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={&#34;Objects&#34;: existing_objects})
+    print(f&#34;Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet&#34;)
+    table_df.to_parquet(f&#39;s3://{s3_location}/{table_name}/{table_name}.parquet&#39;, index=False)
+    print(&#34;Saving Done.&#34;)
+
+    column_formats = []
+    for column_name, dtype in table_df.dtypes.items():
+        if np.issubdtype(dtype, np.integer):
+            col_type = &#34;int&#34;
+        elif np.issubdtype(dtype, np.floating):
+            col_type = &#34;double&#34;
+        else:
+            col_type = &#34;string&#34;
+        column_formats.append(f&#34;`{column_name}` {col_type}&#34;)
+
+    column_formats = &#34;,&#34;.join(column_formats)
+
+    table_create_query = f&#34;&#34;&#34;
+    CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats})
+    STORED AS PARQUET
+    LOCATION &#39;s3://{s3_location}/{table_name}/&#39;
+    TBLPROPERTIES (&#39;has_encrypted_data&#39;=&#39;false&#39;);
+    &#34;&#34;&#34;
+
+    print(&#34;Running create table query.&#34;)
+    result, reason = self.execute_raw(table_create_query)
+    if result.lower() == &#34;failed&#34; and &#39;alreadyexists&#39; in reason.lower():
+        if not override:
+            existing_data = pd.read_csv(f&#39;s3://{s3_location}/{table_name}/{table_name}.csv&#39;)
+            raise DataExistsException(&#34;Table already exists&#34;, existing_data)
+        print(f&#34;There was existing table {table_name} in Athena which was deleted and recreated.&#34;)
+        delete_table_query = f&#34;&#34;&#34;
+        DROP TABLE {self.db_name}.{table_name};
+        &#34;&#34;&#34;
+        result, reason = self.execute_raw(delete_table_query)
+        if result.upper() != &#34;SUCCEEDED&#34;:
+            raise QueryException(f&#34;There was an existing table named {table_name}. Deleting it failed.&#34;
+                                 f&#34; Reason: {reason}&#34;)
+        result, reason = self.execute_raw(table_create_query)
+        if result.upper() == &#34;SUCCEEDED&#34;:
+            return &#34;SUCCEEDED&#34;
+        else:
+            raise QueryException(f&#34;There was an existing table named {table_name} which is now successfully &#34;
+                                 f&#34;deleted but new table failed to be created. Reason: {reason}&#34;)
+    elif result.upper() == &#34;SUCCEEDED&#34;:
+        return &#34;SUCCEEDED&#34;
+    else:
+        raise QueryException(f&#34;Failed to create the table. Reason: {reason}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.delete_everything"><code class="name flex">
+<span>def <span class="ident">delete_everything</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Deletes the athena tables and data in s3 for the run.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def delete_everything(self):
+    &#34;&#34;&#34;Deletes the athena tables and data in s3 for the run.
+    &#34;&#34;&#34;
+    info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=self.bs_table.name)
+    self.pth = pathlib.Path(info[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]).parent
+    tables_to_delete = [self.bs_table.name]
+    if self.ts_table is not None:
+        tables_to_delete.append(self.ts_table.name)
+    if self.up_table is not None:
+        tables_to_delete.append(self.up_table.name)
+    print(f&#34;Will delete the following tables {tables_to_delete} and the {self.pth} folder&#34;)
+    while True:
+        curtime = datetime.datetime.now().strftime(&#39;%Y-%m-%d %H:%M&#39;)
+        confirm = input(f&#34;Enter {curtime} to confirm.&#34;)
+        if confirm == &#34;&#34;:
+            print(&#34;Abandoned the idea.&#34;)
+            break
+        if confirm != curtime:
+            print(f&#34;Please pass {curtime} as confirmation to confirm you want to delete everything.&#34;)
+            continue
+        self._aws_glue.batch_delete_table(DatabaseName=self.db_name, TablesToDelete=tables_to_delete)
+        print(&#34;Deleted the table from athena, now will delete the data in s3&#34;)
+        s3 = boto3.resource(&#39;s3&#39;)
+        bucket = s3.Bucket(self.pth.parts[1])
+        prefix = str(pathlib.Path(*self.pth.parts[2:]))
+        total_files = [file.key for file in bucket.objects.filter(Prefix=prefix)]
+        print(f&#34;There are {len(total_files)} files to be deleted. Deleting them now&#34;)
+        bucket.objects.filter(Prefix=prefix).delete()
+        print(&#34;Delete from s3 completed&#34;)
+        break</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.delete_table"><code class="name flex">
+<span>def <span class="ident">delete_table</span></span>(<span>self, table_name)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function to delete athena table.
+:param table_name: Athena table name
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def delete_table(self, table_name):
+    &#34;&#34;&#34;
+    Function to delete athena table.
+    :param table_name: Athena table name
+    :return:
+    &#34;&#34;&#34;
+    delete_table_query = f&#34;&#34;&#34;DROP TABLE {self.db_name}.{table_name};&#34;&#34;&#34;
+    result, reason = self.execute_raw(delete_table_query)
+    if result.upper() == &#34;SUCCEEDED&#34;:
+        return &#34;SUCCEEDED&#34;
+    else:
+        raise QueryException(f&#34;Deleting it failed. Reason: {reason}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.did_batch_query_complete"><code class="name flex">
+<span>def <span class="ident">did_batch_query_complete</span></span>(<span>self, batch_id)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Checks if all the queries in a batch query has completed or not.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong></dt>
+<dd>The batch_id for the batch_query</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>True or False</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def did_batch_query_complete(self, batch_id):
+    &#34;&#34;&#34;
+    Checks if all the queries in a batch query has completed or not.
+    Args:
+        batch_id: The batch_id for the batch_query
+
+    Returns:
+        True or False
+    &#34;&#34;&#34;
+    status = self.get_batch_query_report(batch_id)
+    if status[&#39;Pending&#39;] &gt; 0 or status[&#39;Running&#39;] &gt; 0:
+        return False
+    else:
+        return True</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.execute"><code class="name flex">
+<span>def <span class="ident">execute</span></span>(<span>self, query, run_async=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Executes a query</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>query</code></strong></dt>
+<dd>The SQL query to run in Athena</dd>
+<dt><strong><code>run_async</code></strong></dt>
+<dd>Whether to wait until the query completes (run_async=False) or return immediately</dd>
+</dl>
+<p>(run_async=True).</p>
+<h2 id="returns">Returns</h2>
+<p>if run_async is False, returns the results dataframe.
+if run_async is
+True, returns the query_execution_id, futures</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def execute(self, query, run_async=False):
+    &#34;&#34;&#34;
+    Executes a query
+    Args:
+        query: The SQL query to run in Athena
+        run_async: Whether to wait until the query completes (run_async=False) or return immediately
+        (run_async=True).
+
+    Returns:
+        if run_async is False, returns the results dataframe.
+        if run_async is  True, returns the query_execution_id, futures
+    &#34;&#34;&#34;
+    if not isinstance(query, str):
+        query = self._compile(query)
+
+    self._session_queries.add(query)
+    if run_async:
+        if query in self._query_cache:
+            return &#34;CACHED&#34;, FutureDf(self._query_cache[query].copy())
+        # in case of asynchronous run, you get the execution id and futures object
+        exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[&#39;&#39;])
+
+        def get_pandas(future):
+            res = future.result()
+            if res.state != &#39;SUCCEEDED&#39;:
+                raise OperationalError(f&#34;{res.state}: {res.state_change_reason}&#34;)
+            if query in self._query_cache:
+                return self._query_cache[query]
+            return res.as_pandas()
+
+        result_future.as_pandas = types.MethodType(get_pandas, result_future)
+        result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
+        self._save_execution_id(exe_id)
+        return exe_id, result_future
+    else:
+        if query not in self._query_cache:
+            self._query_cache[query] = self._conn.cursor().execute(query).as_pandas()
+        return self._query_cache[query].copy()</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.execute_raw"><code class="name flex">
+<span>def <span class="ident">execute_raw</span></span>(<span>self, query, db=None, run_async=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Directly executes the supplied query in Athena.
+:param query:
+:param db:
+:param run_async:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def execute_raw(self, query, db=None, run_async=False):
+    &#34;&#34;&#34;
+    Directly executes the supplied query in Athena.
+    :param query:
+    :param db:
+    :param run_async:
+    :return:
+    &#34;&#34;&#34;
+    if not db:
+        db = self.db_name
+
+    response = self._aws_athena.start_query_execution(
+        QueryString=query,
+        QueryExecutionContext={
+            &#39;Database&#39;: db
+        },
+        WorkGroup=self.workgroup)
+    query_execution_id = response[&#39;QueryExecutionId&#39;]
+
+    if run_async:
+        return query_execution_id
+    start_time = time.time()
+    query_stat = &#34;&#34;
+    while time.time() - start_time &lt; 30*60:  # 30 minute timeout
+        query_stat = self._aws_athena.get_query_execution(QueryExecutionId=query_execution_id)
+        if query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;].lower() not in [&#39;pending&#39;, &#39;running&#39;, &#39;queued&#39;]:
+            reason = query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;].get(&#39;StateChangeReason&#39;, &#39;&#39;)
+            return query_stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;], reason
+        time.sleep(1)
+
+    raise TimeoutError(f&#34;Query failed to complete within 30 mins. Last status: {query_stat}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_all_running_queries"><code class="name flex">
+<span>def <span class="ident">get_all_running_queries</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Gives the list of all running queries (for this instance)</p>
+<h2 id="return">Return</h2>
+<p>List of query execution ids of all the queries that are currently running in Athena.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_all_running_queries(self):
+    &#34;&#34;&#34;
+    Gives the list of all running queries (for this instance)
+
+    Return:
+        List of query execution ids of all the queries that are currently running in Athena.
+    &#34;&#34;&#34;
+    exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)[&#39;QueryExecutionIds&#39;]
+    exe_ids = list(exe_ids)
+
+    running_ids = [i for i in exe_ids if i in self.execution_ids_history and
+                   self.get_query_status(i) == &#34;RUNNING&#34;]
+    return running_ids</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_athena_query_result"><code class="name flex">
+<span>def <span class="ident">get_athena_query_result</span></span>(<span>self, execution_id: str, timeout_minutes: int = 30) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the query result</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>execution_id</code></strong> :&ensp;<code>str</code></dt>
+<dd>Query execution id.</dd>
+<dt><strong><code>timeout_minutes</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>Timeout in minutes to wait for query to finish. Defaults to 30.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code><a title="buildstock_query.query_core.QueryException" href="#buildstock_query.query_core.QueryException">QueryException</a></code></dt>
+<dd>If query fails for some reason.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code></dt>
+<dd>Query result as dataframe.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_athena_query_result(self, execution_id: str, timeout_minutes: int = 30) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Returns the query result
+
+    Args:
+        execution_id (str): Query execution id.
+        timeout_minutes (int, optional): Timeout in minutes to wait for query to finish. Defaults to 30.
+
+    Raises:
+        QueryException: If query fails for some reason.
+
+    Returns:
+        pd.DataFrame: Query result as dataframe.
+    &#34;&#34;&#34;
+    t = time.time()
+    while time.time() - t &lt; timeout_minutes * 60:
+        stat = self.get_query_status(execution_id)
+        if stat.upper() == &#39;SUCCEEDED&#39;:
+            result = self.get_result_from_s3(execution_id)
+            self._log_execution_cost(execution_id)
+            return result
+        elif stat.upper() == &#39;FAILED&#39;:
+            error = self.get_query_error(execution_id)
+            raise QueryException(error)
+        else:
+            logger.info(f&#34;Query status is {stat}&#34;)
+            time.sleep(30)
+
+    raise QueryException(f&#39;Query timed-out. {self.get_query_status(execution_id)}&#39;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_batch_query_report"><code class="name flex">
+<span>def <span class="ident">get_batch_query_report</span></span>(<span>self, batch_id: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the status of the queries running under a batch query.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong></dt>
+<dd>The batch_id of the batch_query.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A dictionary detailing status of the queries.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_batch_query_report(self, batch_id: int):
+    &#34;&#34;&#34;
+    Returns the status of the queries running under a batch query.
+    Args:
+        batch_id: The batch_id of the batch_query.
+
+    Returns:
+        A dictionary detailing status of the queries.
+    &#34;&#34;&#34;
+    if not (stats := self._batch_query_status_map.get(batch_id, None)):
+        raise ValueError(f&#34;{batch_id=} not found.&#34;)
+    success_count = 0
+    fail_count = 0
+    running_count = 0
+    other = 0
+    for exe_id in stats[&#39;submitted_execution_ids&#39;]:
+        if exe_id == &#39;CACHED&#39;:
+            completion_stat = &#34;SUCCEEDED&#34;
+        else:
+            completion_stat = self.get_query_status(exe_id)
+        if completion_stat == &#39;RUNNING&#39;:
+            running_count += 1
+        elif completion_stat == &#39;SUCCEEDED&#39;:
+            success_count += 1
+        elif completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+            fail_count += 1
+        else:
+            # for example: QUEUED
+            other += 1
+
+    result = {&#39;Submitted&#39;: len(stats[&#39;submitted_ids&#39;]),
+              &#39;Running&#39;: running_count,
+              &#39;Pending&#39;: len(stats[&#39;to_submit_ids&#39;]) + other,
+              &#39;Completed&#39;: success_count,
+              &#39;Failed&#39;: fail_count
+              }
+
+    return result</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_batch_query_result"><code class="name flex">
+<span>def <span class="ident">get_batch_query_result</span></span>(<span>self, batch_id, combine=True, no_block=False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Concatenates and returns the results of all the queries of a batchquery</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong> :&ensp;<code>int</code></dt>
+<dd>The batch_id for the batch_query</dd>
+<dt><strong><code>no_block</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Whether to wait until all queries have completed or return immediately. If you use
+no_block = true and the batch hasn't completed, it will throw BatchStillRunning exception.</dd>
+<dt><strong><code>combine</code></strong></dt>
+<dd>Whether to combine the individual query result into a single dataframe</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>The concatenated dataframe of the results of all the queries in a batch query.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_batch_query_result(self, batch_id, combine=True, no_block=False):
+    &#34;&#34;&#34;
+    Concatenates and returns the results of all the queries of a batchquery
+    Args:
+        batch_id (int): The batch_id for the batch_query
+        no_block (bool): Whether to wait until all queries have completed or return immediately. If you use
+                        no_block = true and the batch hasn&#39;t completed, it will throw BatchStillRunning exception.
+        combine: Whether to combine the individual query result into a single dataframe
+
+    Returns:
+        The concatenated dataframe of the results of all the queries in a batch query.
+
+    &#34;&#34;&#34;
+    if no_block and self.did_batch_query_complete(batch_id) is False:
+        raise QueryException(&#39;Batch query not completed yet.&#39;)
+
+    self.wait_for_batch_query(batch_id)
+    logger.info(&#34;Batch query completed. &#34;)
+    report = self.get_batch_query_report(batch_id)
+    query_exe_ids = self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]
+    query_futures = self._batch_query_status_map[batch_id][&#39;queries_futures&#39;]
+    if report[&#39;Failed&#39;] &gt; 0:
+        logger.warning(f&#34;{report[&#39;Failed&#39;]} queries failed. Redoing them&#34;)
+        failed_ids, failed_queries = self.get_failed_queries(batch_id)
+        new_batch_id = self.submit_batch_query(failed_queries)
+        new_exe_ids = self._batch_query_status_map[new_batch_id][&#39;submitted_execution_ids&#39;]
+
+        self.wait_for_batch_query(new_batch_id)
+        new_exe_ids_map = {entry[0]: entry[1] for entry in zip(failed_ids, new_exe_ids)}
+
+        new_report = self.get_batch_query_report(new_batch_id)
+        if new_report[&#39;Failed&#39;] &gt; 0:
+            self.print_failed_query_errors(new_batch_id)
+            raise QueryException(&#34;Queries failed again. Sorry!&#34;)
+        logger.info(&#34;The queries succeeded this time. Gathering all the results.&#34;)
+        # replace the old failed exe_ids with new successful exe_ids
+        for indx, old_exe_id in enumerate(query_exe_ids):
+            query_exe_ids[indx] = new_exe_ids_map.get(old_exe_id, old_exe_id)
+
+    if len(query_exe_ids) == 0:
+        raise ValueError(&#34;No query was submitted successfully&#34;)
+    res_df_array = []
+    for index, exe_id in enumerate(query_exe_ids):
+        df = query_futures[index].as_pandas()
+        if combine:
+            if len(df) == 0:
+                df = pd.DataFrame({&#39;query_id&#39;: [index]})
+            else:
+                df[&#39;query_id&#39;] = index
+        logger.info(f&#34;Got result from Query [{index}] ({exe_id})&#34;)
+        res_df_array.append(df)
+    if not combine:
+        return res_df_array
+    logger.info(&#34;Concatenating the results.&#34;)
+    # return res_df_array
+    return pd.concat(res_df_array)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_cols"><code class="name flex">
+<span>def <span class="ident">get_cols</span></span>(<span>self, table='baseline', fuel_type=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the columns of for a particular table.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>table</code></strong></dt>
+<dd>Name of the table. One of 'baseline' or 'timeseries'</dd>
+<dt><strong><code>fuel_type</code></strong></dt>
+<dd>Get only the columns for this fuel_type ('electricity', 'gas' etc)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A list of column names as a list of strings.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_cols(self, table=&#39;baseline&#39;, fuel_type=None):
+    &#34;&#34;&#34;
+    Returns the columns of for a particular table.
+    Args:
+        table: Name of the table. One of &#39;baseline&#39; or &#39;timeseries&#39;
+        fuel_type: Get only the columns for this fuel_type (&#39;electricity&#39;, &#39;gas&#39; etc)
+
+    Returns:
+        A list of column names as a list of strings.
+    &#34;&#34;&#34;
+    if table in [&#39;timeseries&#39;, &#39;ts&#39;]:
+        cols = self.ts_table.columns
+        if fuel_type:
+            cols = [c for c in cols if c.name not in [self.ts_bldgid_column.name, self.timestamp_column.name]]
+            cols = [c for c in cols if fuel_type in c.name]
+        return cols
+    elif table in [&#39;baseline&#39;, &#39;bs&#39;]:
+        cols = self.bs_table.columns
+        if fuel_type:
+            cols = [c for c in cols if &#39;simulation_output_report&#39; in c.name]
+            cols = [c for c in cols if fuel_type in c.name]
+        return cols
+    else:
+        tbl = self.get_table(table)
+        return tbl.columns</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_column"><code class="name flex">
+<span>def <span class="ident">get_column</span></span>(<span>self, column_name: sqlalchemy.sql.schema.Column | sqlalchemy.sql.elements.Label | str, table_name=None)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_column(self, column_name: sa.Column | sa.sql.elements.Label | str, table_name=None):
+    if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
+        return column_name  # already a col
+    if table_name:
+        valid_tables = [self.get_table(table_name)]
+    else:
+        valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+
+    if not valid_tables:
+        raise ValueError(f&#34;Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}&#34;)
+    if len(valid_tables) &gt; 1:
+        logger.warning(
+            f&#34;Column {column_name} found in multiple tables {[t.name for t in valid_tables]}.&#34;
+            f&#34;Using {valid_tables[0].name}&#34;)
+    return valid_tables[0].c[column_name]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_failed_queries"><code class="name flex">
+<span>def <span class="ident">get_failed_queries</span></span>(<span>self, batch_id)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_failed_queries(self, batch_id):
+    stats = self._batch_query_status_map.get(batch_id, None)
+    failed_query_ids, failed_queries = [], []
+    if stats:
+        for i, exe_id in enumerate(stats[&#39;submitted_execution_ids&#39;]):
+            completion_stat = self.get_query_status(exe_id)
+            if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+                failed_query_ids.append(exe_id)
+                failed_queries.append(stats[&#39;submitted_queries&#39;][i])
+    return failed_query_ids, failed_queries</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_ids_for_failed_queries"><code class="name flex">
+<span>def <span class="ident">get_ids_for_failed_queries</span></span>(<span>self, batch_id: int) ‑> list[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of execution ids for failed queries in batch query.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong> :&ensp;<code>int</code></dt>
+<dd>batch query id</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>list[str]</code></dt>
+<dd>List of failed execution ids.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_ids_for_failed_queries(self, batch_id: int) -&gt; list[str]:
+    &#34;&#34;&#34;Returns the list of execution ids for failed queries in batch query.
+
+    Args:
+        batch_id (int): batch query id
+
+    Returns:
+        list[str]: List of failed execution ids.
+    &#34;&#34;&#34;
+    failed_ids = []
+    for i, exe_id in enumerate(self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]):
+        completion_stat = self.get_query_status(exe_id)
+        if completion_stat in [&#39;FAILED&#39;, &#39;CANCELLED&#39;]:
+            failed_ids.append(self._batch_query_status_map[batch_id][&#39;submitted_ids&#39;][i])
+    return failed_ids</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_query_error"><code class="name flex">
+<span>def <span class="ident">get_query_error</span></span>(<span>self, query_id: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the error message if query has failed.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>query_id</code></strong> :&ensp;<code>str</code></dt>
+<dd>Query execution id.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>str</code></dt>
+<dd>Error message for the query.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_query_error(self, query_id: str) -&gt; str:
+    &#34;&#34;&#34;Returns the error message if query has failed.
+
+    Args:
+        query_id (str): Query execution id.
+
+    Returns:
+        str: Error message for the query.
+    &#34;&#34;&#34;
+    stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+    return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;StateChangeReason&#39;]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_query_output_location"><code class="name flex">
+<span>def <span class="ident">get_query_output_location</span></span>(<span>self, query_id: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get query output location in s3.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>query_id</code></strong> :&ensp;<code>str</code></dt>
+<dd>Query execution id.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>str</code></dt>
+<dd>The query location in s3.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_query_output_location(self, query_id: str) -&gt; str:
+    &#34;&#34;&#34;Get query output location in s3.
+
+    Args:
+        query_id (str): Query execution id.
+
+    Returns:
+        str: The query location in s3.
+    &#34;&#34;&#34;
+    stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+    output_path = stat[&#39;QueryExecution&#39;][&#39;ResultConfiguration&#39;][&#39;OutputLocation&#39;]
+    return output_path</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_query_status"><code class="name flex">
+<span>def <span class="ident">get_query_status</span></span>(<span>self, query_id: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get status of the query</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>query_id</code></strong> :&ensp;<code>str</code></dt>
+<dd>Query execution id</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>str</code></dt>
+<dd>Status of the query.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_query_status(self, query_id: str) -&gt; str:
+    &#34;&#34;&#34;Get status of the query
+
+    Args:
+        query_id (str): Query execution id
+
+    Returns:
+        str: Status of the query.
+    &#34;&#34;&#34;
+    stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
+    return stat[&#39;QueryExecution&#39;][&#39;Status&#39;][&#39;State&#39;]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_result_from_s3"><code class="name flex">
+<span>def <span class="ident">get_result_from_s3</span></span>(<span>self, query_execution_id: str) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns query result from s3 location.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>query_execution_id</code></strong> :&ensp;<code>str</code></dt>
+<dd>The query execution ID</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code><a title="buildstock_query.query_core.QueryException" href="#buildstock_query.query_core.QueryException">QueryException</a></code></dt>
+<dd>If query had failed.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code></dt>
+<dd>The query result.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_result_from_s3(self, query_execution_id: str) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Returns query result from s3 location.
+
+    Args:
+        query_execution_id (str): The query execution ID
+
+    Raises:
+        QueryException: If query had failed.
+
+    Returns:
+        pd.DataFrame: The query result.
+    &#34;&#34;&#34;
+    query_status = self.get_query_status(query_execution_id)
+    if query_status == &#39;SUCCEEDED&#39;:
+        path = self.get_query_output_location(query_execution_id)
+        df = dd.read_csv(path).compute()[0]
+        return df
+    # If failed, return error message
+    elif query_status == &#39;FAILED&#39;:
+        raise QueryException(self.get_query_error(query_execution_id))
+    elif query_status in [&#39;RUNNING&#39;, &#39;QUEUED&#39;, &#39;PENDING&#39;]:
+        raise QueryException(f&#34;Query still {query_status}&#34;)
+    else:
+        raise QueryException(f&#34;Query has unkown status {query_status}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.get_table"><code class="name flex">
+<span>def <span class="ident">get_table</span></span>(<span>self, table_name, missing_ok=False)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_table(self, table_name, missing_ok=False):
+
+    if isinstance(table_name, sa.schema.Table):
+        return table_name  # already a table
+
+    try:
+        return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
+    except sa.exc.NoSuchTableError:
+        if missing_ok:
+            logger.warning(f&#34;No {table_name} table is present.&#34;)
+            return None
+        else:
+            raise</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.load_cache"><code class="name flex">
+<span>def <span class="ident">load_cache</span></span>(<span>self, path: str | None = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read and update query cache from pickle file.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>path</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The path to the pickle file. If not provided, reads from current directory.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def load_cache(self, path: str | None = None):
+    &#34;&#34;&#34;Read and update query cache from pickle file.
+
+    Args:
+        path (str, optional): The path to the pickle file. If not provided, reads from current directory.
+    &#34;&#34;&#34;
+    path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+    before_count = len(self._query_cache)
+    saved_cache = load_pickle(path)
+    logger.info(f&#34;{len(saved_cache)} queries cache read from {path}.&#34;)
+    self._query_cache.update(saved_cache)
+    after_count = len(self._query_cache)
+    if diff := after_count - before_count:
+        logger.info(f&#34;{diff} queries cache is updated.&#34;)
+    else:
+        logger.info(&#34;Cache already upto date.&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.print_all_batch_query_status"><code class="name flex">
+<span>def <span class="ident">print_all_batch_query_status</span></span>(<span>self) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Prints the status of all batch queries.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def print_all_batch_query_status(self) -&gt; None:
+    &#34;&#34;&#34;Prints the status of all batch queries.
+    &#34;&#34;&#34;
+    for count in self._batch_query_status_map.keys():
+        print(f&#39;Query {count}: {self.get_batch_query_report(count)}\n&#39;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.print_failed_query_errors"><code class="name flex">
+<span>def <span class="ident">print_failed_query_errors</span></span>(<span>self, batch_id: int) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Print the error messages for all queries that failed in batch query.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong> :&ensp;<code>int</code></dt>
+<dd>Batch query id</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def print_failed_query_errors(self, batch_id: int) -&gt; None:
+    &#34;&#34;&#34;Print the error messages for all queries that failed in batch query.
+
+    Args:
+        batch_id (int): Batch query id
+    &#34;&#34;&#34;
+    failed_ids, failed_queries = self.get_failed_queries(batch_id)
+    for exe_id, query in zip(failed_ids, failed_queries):
+        print(f&#34;Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}&#34;
+              f&#34;\nError: {self.get_query_error(exe_id)}\n&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.save_cache"><code class="name flex">
+<span>def <span class="ident">save_cache</span></span>(<span>self, path: str | None = None, trim_excess: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
+session these queries won't have to be run on Athena and can be directly loaded from the file.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>path</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The path to the pickle file. If not provided, the file will be saved on the current</dd>
+<dt>directory.</dt>
+<dt><strong><code>trim_excess</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>If true, any queries in the cache that is not run in current session will be</dd>
+</dl>
+<p>remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
+several sessions that are no longer used. Defaults to False.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def save_cache(self, path: str | None = None, trim_excess: bool = False):
+    &#34;&#34;&#34;Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
+    session these queries won&#39;t have to be run on Athena and can be directly loaded from the file.
+
+    Args:
+        path (str, optional): The path to the pickle file. If not provided, the file will be saved on the current
+        directory.
+        trim_excess (bool, optional): If true, any queries in the cache that is not run in current session will be
+        remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
+        several sessions that are no longer used. Defaults to False.
+    &#34;&#34;&#34;
+    path = path or f&#34;{self.table_name}_query_cache.pkl&#34;
+    if trim_excess:
+        if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
+            for query in excess_queries:
+                del self._query_cache[query]
+            logger.info(f&#34;{len(excess_queries)} excess queries removed from cache.&#34;)
+    save_pickle(path, self._query_cache)
+    logger.info(f&#34;{len(self._query_cache)} queries cache saved to {path}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.stop_all_queries"><code class="name flex">
+<span>def <span class="ident">stop_all_queries</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Stops all queries that are running in Athena for this instance.</p>
+<h2 id="returns">Returns</h2>
+<p>Nothing</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def stop_all_queries(self):
+    &#34;&#34;&#34;
+    Stops all queries that are running in Athena for this instance.
+    Returns:
+        Nothing
+
+    &#34;&#34;&#34;
+    for count, stat in self._batch_query_status_map.items():
+        stat[&#39;to_submit_ids&#39;].clear()
+
+    running_ids = self.get_all_running_queries()
+    for i in running_ids:
+        self.stop_query(execution_id=i)
+
+    logger.info(f&#34;Stopped {len(running_ids)} queries&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.stop_batch_query"><code class="name flex">
+<span>def <span class="ident">stop_batch_query</span></span>(<span>self, batch_id) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Stops all the queries running under a batch query</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong></dt>
+<dd>The batch_id of the batch_query. Returned by :py:sumbit_batch_query</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def stop_batch_query(self, batch_id) -&gt; None:
+    &#34;&#34;&#34;
+    Stops all the queries running under a batch query
+    Args:
+        batch_id: The batch_id of the batch_query. Returned by :py:sumbit_batch_query
+
+    Returns:
+        None
+    &#34;&#34;&#34;
+    self._batch_query_status_map[batch_id][&#39;to_submit_ids&#39;].clear()
+    for exec_id in self._batch_query_status_map[batch_id][&#39;submitted_execution_ids&#39;]:
+        self.stop_query(exec_id)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.stop_query"><code class="name flex">
+<span>def <span class="ident">stop_query</span></span>(<span>self, execution_id)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Stops a running query.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>execution_id</code></strong></dt>
+<dd>The execution id of the query being run.</dd>
+</dl>
+<p>Returns:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def stop_query(self, execution_id):
+    &#34;&#34;&#34;
+    Stops a running query.
+    Args:
+        execution_id: The execution id of the query being run.
+    Returns:
+    &#34;&#34;&#34;
+    return self._aws_athena.stop_query_execution(QueryExecutionId=execution_id)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.submit_batch_query"><code class="name flex">
+<span>def <span class="ident">submit_batch_query</span></span>(<span>self, queries: List[str])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Submit multiple related queries</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>queries</code></strong></dt>
+<dd>List of queries to submit. Setting <code>get_query_only</code> flag while making calls to aggregation
+functions is easiest way to obtain queries.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>An integer representing the batch_query id. The id can be used with other batch_query functions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def submit_batch_query(self, queries: List[str]):
+    &#34;&#34;&#34;
+    Submit multiple related queries
+    Args:
+        queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
+                functions is easiest way to obtain queries.
+    Returns:
+        An integer representing the batch_query id. The id can be used with other batch_query functions.
+    &#34;&#34;&#34;
+    queries = list(queries)
+    to_submit_ids = list(range(len(queries)))
+    id_list = list(to_submit_ids)  # make a copy
+    submitted_ids: list[int] = []
+    submitted_execution_ids: list[str] = []
+    submitted_queries: list[str] = []
+    queries_futures: list[futures.Future] = []
+    self._batch_query_id += 1
+    batch_query_id = self._batch_query_id
+    self._batch_query_status_map[batch_query_id] = {&#39;to_submit_ids&#39;: to_submit_ids,
+                                                    &#39;all_ids&#39;: list(id_list),
+                                                    &#39;submitted_ids&#39;: submitted_ids,
+                                                    &#39;submitted_execution_ids&#39;: submitted_execution_ids,
+                                                    &#39;submitted_queries&#39;: submitted_queries,
+                                                    &#39;queries_futures&#39;: queries_futures
+                                                    }
+
+    def run_queries():
+        while to_submit_ids:
+            current_id = to_submit_ids[0]  # get the first one
+            current_query = queries[0]
+            try:
+                execution_id, future = self.execute(current_query, run_async=True)
+                logger.info(f&#34;Submitted queries[{current_id}] ({execution_id})&#34;)
+                to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
+                queries.pop(0)
+                submitted_ids.append(current_id)
+                submitted_execution_ids.append(execution_id)
+                submitted_queries.append(current_query)
+                queries_futures.append(future)
+            except ClientError as e:
+                if e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;TooManyRequestsException&#39;:
+                    logger.info(&#34;Athena complained about too many requests. Waiting for a minute.&#34;)
+                    time.sleep(60)  # wait for a minute before submitting another query
+                elif e.response[&#39;Error&#39;][&#39;Code&#39;] == &#39;InvalidRequestException&#39;:
+                    logger.info(f&#34;Queries[{current_id}] is Invalid: {e.response[&#39;Message&#39;]} \n {current_query}&#34;)
+                    to_submit_ids.pop(0)  # query failed, so remove it from the list
+                    queries.pop(0)
+                    raise
+                else:
+                    raise
+
+    query_runner = Thread(target=run_queries)
+    query_runner.start()
+    return batch_query_id</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.query_core.QueryCore.wait_for_batch_query"><code class="name flex">
+<span>def <span class="ident">wait_for_batch_query</span></span>(<span>self, batch_id: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Waits until batch query completes.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_id</code></strong> :&ensp;<code>int</code></dt>
+<dd>The batch query id.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def wait_for_batch_query(self, batch_id: int):
+    &#34;&#34;&#34;Waits until batch query completes.
+
+    Args:
+        batch_id (int): The batch query id.
+    &#34;&#34;&#34;
+    while True:
+        last_time = time.time()
+        last_report = None
+        report = self.get_batch_query_report(batch_id)
+        if time.time() - last_time &gt; 60 or last_report is None or report != last_report:
+            logger.info(report)
+            last_report = report
+            last_time = time.time()
+        if report[&#39;Pending&#39;] == 0 and report[&#39;Running&#39;] == 0:
+            break
+        time.sleep(20)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="buildstock_query.query_core.QueryException"><code class="flex name class">
+<span>class <span class="ident">QueryException</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class QueryException(Exception):
+    pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query" href="index.html">buildstock_query</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.query_core.QueryCore" href="#buildstock_query.query_core.QueryCore">QueryCore</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.query_core.QueryCore.add_table" href="#buildstock_query.query_core.QueryCore.add_table">add_table</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.delete_everything" href="#buildstock_query.query_core.QueryCore.delete_everything">delete_everything</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.delete_table" href="#buildstock_query.query_core.QueryCore.delete_table">delete_table</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.did_batch_query_complete" href="#buildstock_query.query_core.QueryCore.did_batch_query_complete">did_batch_query_complete</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.execute" href="#buildstock_query.query_core.QueryCore.execute">execute</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.execute_raw" href="#buildstock_query.query_core.QueryCore.execute_raw">execute_raw</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.execution_ids_history" href="#buildstock_query.query_core.QueryCore.execution_ids_history">execution_ids_history</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_all_running_queries" href="#buildstock_query.query_core.QueryCore.get_all_running_queries">get_all_running_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_athena_query_result" href="#buildstock_query.query_core.QueryCore.get_athena_query_result">get_athena_query_result</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_report" href="#buildstock_query.query_core.QueryCore.get_batch_query_report">get_batch_query_report</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_result" href="#buildstock_query.query_core.QueryCore.get_batch_query_result">get_batch_query_result</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_cols" href="#buildstock_query.query_core.QueryCore.get_cols">get_cols</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_column" href="#buildstock_query.query_core.QueryCore.get_column">get_column</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_failed_queries" href="#buildstock_query.query_core.QueryCore.get_failed_queries">get_failed_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_ids_for_failed_queries" href="#buildstock_query.query_core.QueryCore.get_ids_for_failed_queries">get_ids_for_failed_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_error" href="#buildstock_query.query_core.QueryCore.get_query_error">get_query_error</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_output_location" href="#buildstock_query.query_core.QueryCore.get_query_output_location">get_query_output_location</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_status" href="#buildstock_query.query_core.QueryCore.get_query_status">get_query_status</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_result_from_s3" href="#buildstock_query.query_core.QueryCore.get_result_from_s3">get_result_from_s3</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_table" href="#buildstock_query.query_core.QueryCore.get_table">get_table</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.load_cache" href="#buildstock_query.query_core.QueryCore.load_cache">load_cache</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.print_all_batch_query_status" href="#buildstock_query.query_core.QueryCore.print_all_batch_query_status">print_all_batch_query_status</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.print_failed_query_errors" href="#buildstock_query.query_core.QueryCore.print_failed_query_errors">print_failed_query_errors</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.save_cache" href="#buildstock_query.query_core.QueryCore.save_cache">save_cache</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_all_queries" href="#buildstock_query.query_core.QueryCore.stop_all_queries">stop_all_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_batch_query" href="#buildstock_query.query_core.QueryCore.stop_batch_query">stop_batch_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_query" href="#buildstock_query.query_core.QueryCore.stop_query">stop_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.submit_batch_query" href="#buildstock_query.query_core.QueryCore.submit_batch_query">submit_batch_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.wait_for_batch_query" href="#buildstock_query.query_core.QueryCore.wait_for_batch_query">wait_for_batch_query</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="buildstock_query.query_core.QueryException" href="#buildstock_query.query_core.QueryException">QueryException</a></code></h4>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

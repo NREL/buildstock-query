@@ -1,0 +1,2267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.tools.upgrades_visualizer API documentation</title>
+<meta name="description" content="- - - - - - - - -
+Upgrades Visualizer
+Experimental Stage.
+:author: Rajendra.Adhikari@nrel.gov" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.tools.upgrades_visualizer</code></h1>
+</header>
+<section id="section-intro">
+<hr>
+<p>Upgrades Visualizer
+Experimental Stage.
+:author: Rajendra.Adhikari@nrel.gov</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;
+- - - - - - - - -
+Upgrades Visualizer
+Experimental Stage.
+:author: Rajendra.Adhikari@nrel.gov
+&#34;&#34;&#34;
+
+from functools import reduce
+from buildstock_query import BuildStockQuery
+import numpy as np
+import re
+from collections import defaultdict, Counter
+import dash_bootstrap_components as dbc
+from dash import html, ALL, dcc
+import dash
+from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
+import plotly.graph_objects as go
+from dash_extensions.enrich import MultiplexerTransform, DashProxy
+# import os
+import dash_mantine_components as dmc
+from dash_iconify import DashIconify
+import pandas as pd
+from InquirerPy import inquirer
+
+
+# os.chdir(&#34;/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/&#34;)
+# from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
+# app = DashProxy(transforms=[
+#     # TriggerTransform(),  # enable use of Trigger objects
+#     MultiplexerTransform(),  # makes it possible to target an output multiple times in callbacks
+#     # ServersideOutputTransform(),  # enable use of ServersideOutput objects
+#     # NoOutputTransform(),  # enable callbacks without output
+#     # BlockingCallbackTransform(),  # makes it possible to skip callback invocations while a callback is running
+#     # LogTransform()  # makes it possible to write log messages to a Dash component
+# ])
+transforms = [MultiplexerTransform()]
+
+# yaml_path = &#34;/Users/radhikar/Documents/eulpda/EULP-data-analysis/notebooks/EUSS-project-file-example.yml&#34;
+yaml_path = &#34;EUSS-project-file-example.yml&#34;
+default_end_use = &#34;fuel_use_electricity_total_m_btu&#34;
+
+
+def get_app(db_name: str = &#39;euss-tests&#39;, table_name: str = &#39;res_test_03_2018_10k_20220607&#39;, workgroup: str = &#39;eulp&#39;,
+            buildstock_type: str = &#39;resstock&#39;):
+    euss_athena = BuildStockQuery(workgroup=workgroup,
+                                  db_name=db_name,
+                                  buildstock_type=buildstock_type,
+                                  table_name=table_name,
+                                  skip_reports=False)
+
+    report = euss_athena.report.get_success_report()
+    available_upgrades = list(report.index)
+    available_upgrades.remove(0)
+    euss_ua = euss_athena.get_upgrades_analyzer(yaml_path)
+    upgrade2name = {indx+1: f&#34;Upgrade {indx+1}: {upgrade[&#39;upgrade_name&#39;]}&#34; for indx,
+                    upgrade in enumerate(euss_ua.get_cfg().get(&#39;upgrades&#39;, []))}
+    upgrade2shortname = {indx+1: f&#34;Upgrade {indx+1}&#34; for indx,
+                         upgrade in enumerate(euss_ua.get_cfg().get(&#39;upgrades&#39;, []))}
+    # allupgrade2name = {0: &#34;Upgrade 0: Baseline&#34;} | upgrade2name
+    change_types = [&#34;any&#34;, &#34;no-chng&#34;, &#34;bad-chng&#34;, &#34;ok-chng&#34;, &#34;true-bad-chng&#34;, &#34;true-ok-chng&#34;]
+    chng2bldg = {}
+    for chng in change_types:
+        for upgrade in available_upgrades:
+            chng2bldg[(upgrade, chng)] = euss_athena.report.get_buildings_by_change(upgrade, chng)
+
+    def get_cols(df, prefixes=[], suffixes=[]):
+        cols = []
+        for col in df.columns:
+            for prefix in prefixes:
+                if col.startswith(prefix):
+                    cols.append(col)
+                    break
+            else:
+                for suffix in suffixes:
+                    if col.endswith(suffix):
+                        cols.append(col)
+                        break
+        return cols
+
+    res_csv_df = euss_athena.get_results_csv()
+    euss_athena.save_cache()
+    res_csv_df = res_csv_df[res_csv_df[&#39;completed_status&#39;] == &#39;Success&#39;]
+    sample_weight = res_csv_df[&#39;build_existing_model.sample_weight&#39;].iloc[0]
+    res_csv_df[&#39;upgrade&#39;] = 0
+    build_cols = [c for c in res_csv_df.columns if c.startswith(&#39;build_existing_model.&#39;)]
+    build_df = res_csv_df[build_cols]
+
+    res_csv_df = res_csv_df.rename(columns=lambda x: x.split(&#39;.&#39;)[1] if &#39;.&#39; in x else x)
+    res_csv_df = res_csv_df.drop(columns=[&#39;applicable&#39;])  # These are useless columns
+    # all_up_csvs = [res_csv_df]
+
+    upgrade2res = {0: res_csv_df}
+    for upgrade in available_upgrades:
+        print(f&#34;Getting up_csv for {upgrade}&#34;)
+        up_csv = euss_athena.get_upgrades_csv(upgrade)
+        # print(list(up_csv.columns))
+        # print(list(res_csv_df.columns))
+        # print(&#34;upgrade&#34;, i, set(up_csv.columns)  - set(res_csv_df.columns))
+        # print(&#34;upgrade&#34;, i, set(res_csv_df.columns)  - set(up_csv.columns))
+        up_csv = up_csv.loc[res_csv_df.index]
+        up_csv = up_csv.join(build_df)
+        up_csv = up_csv.rename(columns=lambda x: x.split(&#39;.&#39;)[1] if &#39;.&#39; in x else x)
+        up_csv = up_csv.drop(columns=[&#39;applicable&#39;])
+        up_csv[&#39;upgrade&#39;] = up_csv[&#39;upgrade&#39;].map(lambda x: int(x))
+        invalid_rows_keys = up_csv[&#39;completed_status&#39;] == &#39;Invalid&#39;
+        invalid_rows = up_csv[invalid_rows_keys].copy()
+        invalid_rows.update(res_csv_df[invalid_rows_keys])
+        invalid_rows[&#39;completed_status&#39;] = &#39;Invalid&#39;
+        up_csv[invalid_rows_keys] = invalid_rows
+        # up_csv = up_csv.reset_index().set_index([&#39;upgrade&#39;])
+        upgrade2res[upgrade] = up_csv
+
+    emissions_cols = get_cols(res_csv_df, suffixes=[&#39;_lb&#39;])
+    end_use_cols = get_cols(res_csv_df, [&#34;end_use_&#34;, &#34;energy_use__&#34;, &#34;fuel_use_&#34;])
+    water_usage_cols = get_cols(res_csv_df, suffixes=[&#34;_gal&#34;])
+    load_cols = get_cols(res_csv_df, [&#34;load_&#34;, &#34;flow_rate_&#34;])
+    peak_cols = get_cols(res_csv_df, [&#34;peak_&#34;])
+    unmet_cols = get_cols(res_csv_df, [&#34;unmet_&#34;])
+    area_cols = get_cols(res_csv_df, suffixes=[&#34;_ft_2&#34;, ])
+    size_cols = get_cols(res_csv_df, [&#34;size_&#34;])
+    qoi_cols = get_cols(res_csv_df, [&#34;qoi_&#34;])
+    char_cols = [c.removeprefix(&#39;build_existing_model.&#39;) for c in build_cols if &#39;applicable&#39; not in c]
+    fuels_types = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
+
+    def get_res(upgrade, applied_only=False):
+        if upgrade == 0:
+            return upgrade2res[0]
+        elif applied_only:
+            res = upgrade2res[int(upgrade)]
+            res = res[res[&#39;completed_status&#39;] != &#39;Invalid&#39;]
+            return res
+        else:
+            return upgrade2res[int(upgrade)]
+
+    def explode_str(input_str):
+        input_str = str(input_str).lower()
+        input_str = [
+            int(x) if x and x[0] in &#34;0123456789&#34; else x
+            for x in re.split(r&#34;([\&lt;\-])|([0-9]+)&#34;, input_str)
+        ]
+        return tuple(&#34;X&#34; if x is None else x for x in input_str)
+
+    def csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None,
+                      report_upgrade=None, group_cols=None):
+
+        base_vals = get_res(0)[end_use].sum(axis=1, skipna=False)
+        base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
+
+        if group_cols:
+            res_df = get_res(report_upgrade, applied_only)
+            res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
+            grouped_df = res_df.groupby(group_cols, sort=False)
+            df_generator = ((&#39;, &#39;.join(indx) if isinstance(indx, tuple) else indx, df) for (indx, df) in grouped_df)
+            df_type = &#34;groups&#34;
+        else:
+            df_type = &#34;upgrades&#34;
+            df_generator = ((f&#34;Upgrade {upgrade}&#34;, get_res(upgrade, applied_only)) for upgrade in [report_upgrade])
+
+        for indx, res_df in df_generator:
+            if change_type:
+                upgrade = indx if df_type == &#34;upgrades&#34; else report_upgrade
+                chng_upgrade = int(sync_upgrade) if sync_upgrade else upgrade
+                if chng_upgrade and chng_upgrade &gt; 0:
+                    change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
+                else:
+                    change_bldg_list = []
+                res_df = res_df.loc[res_df.index.intersection(change_bldg_list)]
+
+            if filter_bldg is not None:
+                res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
+            if len(res_df) == 0:
+                continue
+
+            sub_df = res_df[end_use].sum(axis=1, skipna=False)
+            if savings_type == &#39;Savings&#39;:
+                sub_df = base_df[sub_df.index] - sub_df
+            elif savings_type == &#39;Percent Savings&#39;:
+                sub_base_df = base_df[sub_df.index]
+                saving_df = 100 * (sub_base_df - sub_df) / sub_base_df
+                saving_df[(sub_base_df == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
+                saving_df[(sub_df == 0) &amp; (sub_base_df == 0)] = 0
+                sub_df = saving_df
+            yield indx, sub_df
+
+    def get_ylabel(end_use):
+        if len(end_use) == 1:
+            return end_use[0]
+        pure_end_use_name = end_use[0].removeprefix(&#34;end_use_&#34;)
+        pure_end_use_name = pure_end_use_name.removeprefix(&#34;fuel_use_&#34;)
+        pure_end_use_name = &#34;_&#34;.join(pure_end_use_name.split(&#34;_&#34;)[1:])
+        return f&#34;{len(end_use)}_fuels_{pure_end_use_name}&#34;
+
+    def get_distribution(end_use, savings_type=&#39;&#39;, applied_only=False, change_type=&#39;&#39;, show_all_points=False,
+                         sync_upgrade=None, filter_bldg=None, group_cols=None):
+        fig = go.Figure()
+        counter = 0
+        for upgrade in [0] + available_upgrades:
+            yvals = []
+            xvals = []
+            hovervals = []
+            points = &#39;all&#39; if show_all_points else &#39;suspectedoutliers&#39;
+            for indx, sub_df in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                              filter_bldg, upgrade, group_cols):
+                building_ids = list(sub_df.index)
+                count = sum(sub_df &lt; float(&#39;inf&#39;))
+                if counter &gt;= 200:
+                    sub_df = pd.DataFrame()
+                    fig.add_trace(go.Box(
+                        y=[],
+                        name=&#34;Too many groups&#34;
+                    ))
+                    break
+                else:
+                    xvals.extend([indx]*len(sub_df))
+                    yvals.extend(sub_df.values)
+                    hovertext = [f&#39;{indx}&lt;br&gt; Building: {bid}&lt;br&gt;Sample Count: {count}&#39;
+                                 for bid in building_ids]
+                    hovervals.extend(hovertext)
+                counter += 1
+
+            fig.add_trace(go.Box(
+                y=yvals,
+                x=xvals,
+                name=f&#39;Upgrade {upgrade}&#39;,
+                boxpoints=points,
+                boxmean=True,  # represent mean
+                hovertext=hovervals,
+                hoverinfo=&#34;all&#34;
+            ))
+
+        fig.update_layout(yaxis_title=f&#34;{get_ylabel(end_use)}&#34;,
+                          boxmode=&#34;group&#34;,
+                          xaxis_title=&#34;, &#34;.join(group_cols) if group_cols else &#39;Upgrade&#39;,
+                          title=f&#34;Distribution for {change_type} buildings&#34; if change_type else &#39;Distribution&#39;,
+                          clickmode=&#39;event+select&#39;)
+        return fig
+
+    def get_bars(end_use, value_type=&#39;mean&#39;, savings_type=&#39;&#39;, applied_only=False, change_type=&#39;&#39;,
+                 sync_upgrade=None, filter_bldg=None, group_cols=None):
+        fig = go.Figure()
+        counter = 0
+        for upgrade in [0] + available_upgrades:
+            yvals = []
+            xvals = []
+            hovervals = []
+            for indx, up_vals in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                               filter_bldg, upgrade, group_cols):
+
+                count = len(up_vals)
+                if value_type.lower() == &#39;total&#39;:
+                    val = up_vals.sum() * sample_weight
+                elif value_type.lower() == &#39;count&#39;:
+                    val = up_vals.count()
+                else:
+                    val = up_vals.mean()
+                if counter &gt;= 200:
+                    yvals.append(0)
+                    xvals.append(&#34;Too many groups&#34;)
+                    break
+                else:
+                    yvals.append(val)
+                    xvals.append(indx)
+                    hovertext = f&#34;Upgrade {upgrade}: {indx}&lt;br&gt; Average {val}. &lt;br&gt; Sample Count: {count}.&#34;
+                    f&#34;&lt;br&gt; Units Count: {count * sample_weight}.&#34;
+                    hovervals.append(hovertext)
+                counter += 1
+
+            fig.add_trace(go.Bar(
+                y=yvals,
+                x=xvals,
+                hovertext=hovervals,
+                name=f&#39;Upgrade {upgrade}&#39;,
+                hoverinfo=&#34;all&#34;
+            )).update_traces(
+                marker={&#34;line&#34;: {&#34;width&#34;: 0.5, &#34;color&#34;: &#34;rgb(0,0,0)&#34;}}
+            )
+
+        fig.update_layout(yaxis_title=f&#34;{get_ylabel(end_use)}_{value_type}&#34;,
+                          barmode=&#39;group&#39;,
+                          xaxis_title=&#34;, &#34;.join(group_cols) if group_cols else &#39;Upgrade&#39;,
+                          title=f&#34;{value_type} for {change_type} buildings&#34; if change_type else f&#39;{value_type}&#39;)
+
+        return fig
+
+    def get_end_use_cols(fuel):
+        cols = []
+        for c in end_use_cols:
+            if fuel in c or fuel == &#39;All&#39;:
+                c = c.removeprefix(f&#34;end_use_{fuel}_&#34;)
+                c = c.removeprefix(f&#34;fuel_use_{fuel}_&#34;)
+                if fuel == &#39;All&#39;:
+                    for f in sorted(fuels_types):
+                        c = c.removeprefix(f&#34;end_use_{f}_&#34;)
+                        c = c.removeprefix(f&#34;fuel_use_{f}_&#34;)
+                cols.append(c)
+        no_dup_cols = {c: None for c in cols}
+        return list(no_dup_cols.keys())
+
+    def get_all_end_use_cols(fuel, end_use):
+        all_enduses_set = set(end_use_cols)
+        valid_cols = []
+        prefix = &#34;fuel_use&#34; if end_use.startswith(&#34;total&#34;) else &#34;end_use&#34;
+        if fuel == &#39;All&#39;:
+            valid_cols.extend(f&#34;{prefix}_{f}_{end_use}&#34; for f in fuels_types
+                              if f&#34;{prefix}_{f}_{end_use}&#34; in all_enduses_set)
+
+        else:
+            valid_cols.append(f&#34;{prefix}_{fuel}_{end_use}&#34;)
+        return valid_cols
+
+    def get_opt_report(upgrade, bldg_id):
+        applied_options = list(euss_athena.report.get_applied_options(upgrade, [bldg_id])[0])
+        applied_options = [val for key, val in upgrade2res[upgrade].loc[bldg_id].items() if
+                           key.startswith(&#34;option_&#34;) and key.endswith(&#34;_name&#34;)
+                           and not (isinstance(val, float) and np.isnan(val))]
+
+        opt_vals = [(opt.split(&#39;|&#39;)[0], opt.split(&#39;|&#39;)[1]) for opt in applied_options]
+        char_cols = [&#39;_&#39;.join(opt.lower().split(&#39;|&#39;)[0].split()) for opt in applied_options]
+        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
+        option_report = [f&#34;{opt}: {base_val} =&gt; {up_val}&#34; for (opt, up_val), base_val in zip(opt_vals, baseline_vals)]
+        return option_report
+
+    def get_baseline_chars(bldg_id, char_types=None):
+        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
+        char_types = char_types or []
+        return_list = []
+        for char_type in char_types:
+            return_val = [f&#39;{k}: {v}&#39; for k, v in baseline_vals.items()
+                          if char_type in k]
+            return_list += return_val
+
+        return return_list
+
+    external_script = [&#34;https://tailwindcss.com/&#34;, {&#34;src&#34;: &#34;https://cdn.tailwindcss.com&#34;}]
+
+    app = DashProxy(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], transforms=transforms,
+                    external_scripts=external_script)
+    app.layout = html.Div([dbc.Container(html.Div([
+        dbc.Row([dbc.Col(html.H1(&#34;Upgrades Visualizer&#34;), width=&#39;auto&#39;), dbc.Col(html.Sup(&#34;beta&#34;))]),
+        dbc.Row([dbc.Col(dbc.Label(&#34;Visualization Type: &#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.RadioItems([&#34;Mean&#34;, &#34;Total&#34;, &#34;Count&#34;, &#34;Distribution&#34;], &#34;Mean&#34;,
+                                        id=&#34;radio_graph_type&#34;,
+                                        labelClassName=&#34;pr-2&#34;), width=&#39;auto&#39;),
+                #  dbc.Col(dbc.Collapse(children=[dcc.Checklist([&#39;Show all points&#39;], [],
+                 #                                               inline=True, id=&#39;check_all_points&#39;)
+                 #                                 ],
+                 #                       id=&#34;collapse_points&#34;, is_open=True), width=&#39;auto&#39;),
+                 dbc.Col(children=[dcc.Checklist([&#39;Show all points&#39;], [],
+                                                 inline=True, id=&#39;check_all_points&#39;)
+                                   ],),
+                 dbc.Col(dbc.Label(&#34;Value Type: &#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.RadioItems([&#34;Absolute&#34;, &#34;Savings&#34;, &#34;Percent Savings&#34;], &#34;Absolute&#34;,
+                                        id=&#39;radio_savings&#39;, labelClassName=&#34;pr-2&#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.Checklist(options=[&#39;Applied Only&#39;], value=[],
+                                       inline=True, id=&#39;chk_applied_only&#39;), width=&#39;auto&#39;)
+                 ]),
+        dbc.Row([dbc.Col(html.Br())]),
+        dbc.Row([dbc.Col(dcc.Loading(id=&#39;graph-loader&#39;, children=[html.Div(id=&#39;loader_label&#39;)]))]),
+        dbc.Row([dbc.Col(dcc.Graph(id=&#39;graph&#39;))]),
+
+
+    ])),
+        dbc.Row([dbc.Col(
+            dcc.Tabs(id=&#39;tab_view_type&#39;, value=&#39;energy&#39;, children=[
+                dcc.Tab(id=&#39;energy_tab&#39;, label=&#39;Energy&#39;, value=&#39;energy&#39;, children=[
+                    dcc.RadioItems(fuels_types + [&#39;All&#39;], &#34;electricity&#34;, id=&#39;radio_fuel&#39;,
+                                   labelClassName=&#34;pr-2&#34;)]
+                        ),
+                dcc.Tab(label=&#39;Water Usage&#39;, value=&#39;water&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Load&#39;, value=&#39;load&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Peak&#39;, value=&#39;peak&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Unmet Hours&#39;, value=&#39;unmet_hours&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Area&#39;, value=&#39;area&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Size&#39;, value=&#39;size&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;QOI&#39;, value=&#39;qoi&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;emissions&#39;, value=&#39;emissions&#39;, children=[]
+                        ),
+            ])
+        )
+        ], className=&#34;mx-5 mt-5&#34;),
+        dbc.Row([dbc.Col(dcc.Dropdown(id=&#39;dropdown_enduse&#39;))], className=&#34;mx-5 my-1&#34;),
+        dbc.Row([
+            dbc.Col(
+                dcc.Tabs(id=&#39;tab_view_filter&#39;, value=&#39;change&#39;, children=[
+                    dcc.Tab(label=&#39;Change&#39;, value=&#39;change&#39;, children=[
+                        dbc.Row([dbc.Col(html.Div(&#34;Restrict to buildings that have &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(change_types, &#34;&#34;, placeholder=&#34;Select change type...&#34;,
+                                                      id=&#39;dropdown_chng_type&#39;), width=&#39;2&#39;),
+                                 dbc.Col(html.Div(&#34; in &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;sync_upgrade&#39;, value=&#39;&#39;,
+                                                      options={}))
+                                 ],
+                                className=&#34;flex items-center&#34;)
+                    ]),
+                    dcc.Tab(label=&#39;Characteristics&#39;, value=&#39;char&#39;, children=[
+                        html.Div(&#34; ... and have these characteristics&#34;),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_1&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_1_choices&#39;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_2&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_2_choices&#39;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_3&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_3_choices&#39;))
+                        ])
+                    ]
+                    ),
+                    dcc.Tab(label=&#39;Option&#39;, value=&#39;option&#39;, children=[
+                        html.Div(&#34;... and which got applied these options &#34;),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_1&#39;, options=[], value=None, placeholder=&#34;coming soon&#34;),
+                                    width=3),
+                            dbc.Col(html.Div(&#34; &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_1_options&#39;, placeholder=&#34;coming soon&#34;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_2&#39;, options=[], value=None, placeholder=&#34;coming soon&#34;),
+                                    width=3),
+                            dbc.Col(html.Div(&#34; &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_2_options&#39;, placeholder=&#34;coming soon&#34;))
+                        ]),
+                    ]
+                    ),
+                    dcc.Tab(label=&#39;Building&#39;, value=&#39;building&#39;, children=[
+                        dbc.Row([dbc.Col(html.Div(&#34;Select:&#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;input_building&#39;), width=1),
+                                 dbc.Col(html.Div(&#34; in &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;report_upgrade&#39;, value=&#39;&#39;, placeholder=&#34;Upgrade ...&#34;,
+                                                      options=upgrade2shortname), width=1),
+                                 dbc.Col(html.Div(&#34;grouped by:&#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;drp-group-by&#39;, options=char_cols, value=None,
+                                                      multi=True, placeholder=&#34;Select characteristics...&#34;),
+                                         width=3),
+                                 dbc.Col(dbc.Button(&#34;&lt;= Copy&#34;, id=&#34;btn-copy&#34;, color=&#34;primary&#34;, size=&#34;sm&#34;,
+                                                    outline=True), class_name=&#34;centered-col&#34;),
+                                 dbc.Col(html.Div(&#34;Extra restriction: &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;input_building2&#39;, disabled=False), width=2),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-graph&#39;, options=[&#39;Graph&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-options&#39;, options=[&#39;Options&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-enduses&#39;, options=[&#39;Enduses&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-chars&#39;, options=[&#39;Chars&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dbc.Button(&#34;Reset&#34;, id=&#34;btn-reset&#34;, color=&#34;primary&#34;, size=&#34;sm&#34;, outline=True),
+                                         width=&#39;auto&#39;),
+                                 ]),
+                        dbc.Row([dbc.Col([
+                            dbc.Row(html.Div(id=&#34;options_report_header&#34;)),
+                            dbc.Row(dcc.Loading(id=&#39;opt-loader&#39;,
+                                                children=html.Div(id=&#34;options_report&#34;))),
+                            dcc.Store(&#34;opt_report_store&#34;)
+                        ], width=5),
+                            dbc.Col([
+                                dbc.Row([dbc.Col(html.Div(&#34;View enduse that: &#34;), width=&#39;auto&#39;),
+                                         dbc.Col(dcc.Dropdown(id=&#39;input_enduse_type&#39;,
+                                                              options=[&#39;changed&#39;, &#39;increased&#39;, &#39;decreased&#39;],
+                                                              value=&#39;changed&#39;, clearable=False),
+                                                 width=2),
+                                         dbc.Col(html.Div(), width=&#39;auto&#39;),
+                                         dbc.Col(html.Div(&#34;Charecteristics Report:&#34;), width=&#39;auto&#39;),
+                                         dbc.Col(dcc.Dropdown(id=&#39;drp-char-report&#39;, options=char_cols, value=None,
+                                                              multi=True, placeholder=&#34;Select characteristics...&#34;)),
+                                         ]),
+                                dbc.Row([dbc.Col(dcc.Loading(id=&#39;enduse_loader&#39;,
+                                                             children=html.Div(id=&#34;enduse_report&#34;))
+                                                 ),
+                                         dbc.Col(dcc.Loading(id=&#39;char_loader&#39;,
+                                                             children=html.Div(id=&#34;char_report&#34;))
+                                                 ),
+                                         ]),
+                                dcc.Store(&#34;enduse_report_store&#34;),
+                                dcc.Store(&#34;char_report_store&#34;)
+                            ], width=7)
+
+                        ]),
+                        dbc.Row([
+                            dbc.Col(width=5),
+                            dbc.Col(
+                                dbc.Row([
+                                    dbc.Col(),
+                                    dbc.Col(dbc.Button(&#34;Download All Characteristics&#34;, id=&#34;btn-dwn-chars&#34;,
+                                                       color=&#34;primary&#34;,
+                                                       size=&#34;sm&#34;, outline=True), width=&#39;auto&#39;),
+                                ]), width=7)
+                        ])
+                    ]
+                    ),
+                ]))
+        ], className=&#34;mx-5 my-1&#34;),
+        html.Div(id=&#34;status_bar&#34;),
+        dcc.Download(id=&#34;download-chars-csv&#34;),
+        dcc.Store(&#34;uirevision&#34;)
+        # dbc.Button(&#34;Kill me&#34;, id=&#34;button110&#34;)
+    ])
+
+    @app.callback(
+        Output(&#34;download-chars-csv&#34;, &#34;data&#34;),
+        Input(&#34;btn-dwn-chars&#34;, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;value&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#39;chk-chars&#39;, &#39;value&#39;),
+    )
+    def download_char(n_clicks, bldg_id, bldg_options, bldg_options2, chk_chars):
+        if not n_clicks:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_chars and bldg_options2:
+            bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+        bldg_ids = [int(b) for b in bldg_ids]
+        bdf = res_csv_df[char_cols].loc[bldg_ids]
+        return dcc.send_data_frame(bdf.to_csv, f&#34;chars_{n_clicks}.csv&#34;)
+
+    @app.callback(
+        Output(&#39;dropdown_enduse&#39;, &#34;options&#34;),
+        Output(&#39;dropdown_enduse&#39;, &#34;value&#34;),
+        Input(&#39;tab_view_type&#39;, &#34;value&#34;),
+        Input(&#39;radio_fuel&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_enduse&#39;, &#34;value&#34;)
+    )
+    def update_enduse_options(view_tab, fuel_type, current_enduse):
+        if view_tab == &#39;energy&#39;:
+            available_endues = get_end_use_cols(fuel_type)
+        elif view_tab == &#39;water&#39;:
+            available_endues = water_usage_cols
+        elif view_tab == &#39;load&#39;:
+            available_endues = load_cols
+        elif view_tab == &#39;peak&#39;:
+            available_endues = peak_cols
+        elif view_tab == &#39;unmet_hours&#39;:
+            available_endues = unmet_cols
+        elif view_tab == &#39;area&#39;:
+            available_endues = area_cols
+        elif view_tab == &#39;size&#39;:
+            available_endues = size_cols
+        elif view_tab == &#39;qoi&#39;:
+            available_endues = qoi_cols
+        elif view_tab == &#39;emissions&#39;:
+            available_endues = emissions_cols
+        else:
+            raise ValueError(f&#34;Invalid tab {view_tab}&#34;)
+
+        enduse = current_enduse or available_endues[0]
+        if fuel_type == &#39;All&#39;:
+            return available_endues, enduse
+
+        if enduse not in available_endues:
+            # print(f&#34;Bad enduse {enduse}&#34;)
+            return sorted(available_endues), available_endues[0]
+    #     print(fuel_type, f&#34;Update enduse&#34;,  available_endues, enduse)
+        return sorted(available_endues), enduse
+
+    @app.callback(
+        Output(&#34;collapse_points&#34;, &#39;is_open&#39;),
+        Input(&#39;radio_graph_type&#39;, &#34;value&#34;)
+    )
+    def disable_showpoints(graph_type):
+        print(f&#34;Graph type: {graph_type.lower() == &#39;distribution&#39;}&#34;)
+        return True
+        # return graph_type.lower() == &#34;distribution&#34;
+
+    @app.callback(
+        Output(&#34;sync_upgrade&#34;, &#39;value&#39;),
+        Output(&#34;sync_upgrade&#34;, &#39;options&#39;),
+        Output(&#34;sync_upgrade&#34;, &#39;placeholder&#39;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        State(&#34;sync_upgrade&#34;, &#34;value&#34;),
+        State(&#34;sync_upgrade&#34;, &#34;options&#34;)
+    )
+    def update_sync_upgrade(chng_type, current_sync_upgrade, sync_upgrade_options):
+        # print(chng_type, current_sync_upgrade, sync_upgrade_options)
+        if chng_type:
+            return current_sync_upgrade, upgrade2name, &#39;respective upgrades. (Click to restrict to specific upgrade)&#39;
+        else:
+            return &#39;&#39;, {}, &#39; &lt;select a change type on the left first&gt;&#39;
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;placeholder&#39;),
+        Input(&#39;input_building&#39;, &#39;options&#39;)
+    )
+    def update_building_placeholder(options):
+        return f&#34;{len(options)} Buidlings&#34; if options else &#34;0 buildings.&#34;
+
+    @app.callback(
+        Output(&#39;input_building2&#39;, &#39;placeholder&#39;),
+        Output(&#39;input_building2&#39;, &#39;value&#39;),
+        Input(&#39;input_building2&#39;, &#39;value&#39;),
+        Input(&#39;input_building2&#39;, &#39;options&#39;)
+    )
+    def update_building_placeholder2(value, options):
+        return f&#34;{len(options)} Buidlings&#34; if options else &#34;No restriction&#34;, None
+
+    @app.callback(
+        Output(&#39;tab_view_filter&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Output(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Output(&#39;check_all_points&#39;, &#34;value&#34;),
+        Input(&#39;graph&#39;, &#34;selectedData&#34;),
+        State(&#39;input_building&#39;, &#39;options&#39;)
+    )
+    def graph_click(selection_data, current_options):
+        if not selection_data or &#39;points&#39; not in selection_data or len(selection_data[&#39;points&#39;]) &lt; 1:
+            raise PreventUpdate()
+
+        selected_buildings = []
+        selected_upgrades = []
+        for point in selection_data[&#39;points&#39;]:
+            if not (match := re.search(r&#34;Building: (\d*)&#34;, point.get(&#39;hovertext&#39;, &#39;&#39;))):
+                continue
+            if bldg := match.groups()[0]:
+                upgrade_match = re.search(r&#34;Upgrade (\d*):&#34;, point.get(&#39;hovertext&#39;, &#39;&#39;))
+                upgrade = upgrade_match.groups()[0] if upgrade_match else &#39;&#39;
+                selected_buildings.append(bldg)
+                selected_upgrades.append(upgrade)
+
+        if not selected_buildings:
+            raise PreventUpdate()
+
+        if len(selected_buildings) != 1:
+            selected_buildings = list(set(selected_buildings))
+            return &#39;building&#39;, &#39;&#39;, selected_buildings, selected_upgrades[0], [&#39;Show all points&#39;]
+        current_options = current_options or selected_buildings
+        return &#39;building&#39;, selected_buildings[0], current_options, selected_upgrades[0], [&#39;Show all points&#39;]
+
+    @app.callback(
+        Output(&#39;check_all_points&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;value&#39;),
+        State(&#39;input_building&#39;, &#39;options&#39;),
+        State(&#39;check_all_points&#39;, &#39;value&#39;))
+    def uncheck_all_points(bldg_selection, bldg_options, current_val):
+        if not bldg_selection and bldg_options:
+            return [&#39;&#39;] if len(bldg_options) &gt; 1000 else current_val
+        raise PreventUpdate()
+
+    @app.callback(
+        Output(&#39;chk-graph&#39;, &#39;value&#39;),
+        Output(&#39;chk-options&#39;, &#39;value&#39;),
+        Output(&#39;chk-enduses&#39;, &#39;value&#39;),
+        Output(&#39;input_building2&#39;, &#39;options&#39;),
+        Output(&#34;uirevision&#34;, &#34;data&#34;),
+        Input(&#39;btn-reset&#39;, &#34;n_clicks&#34;)
+    )
+    def reset(n_clicks):
+        return [], [], [], [], n_clicks
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Input(&#39;btn-copy&#39;, &#34;n_clicks&#34;),
+        State(&#39;input_building2&#39;, &#39;options&#39;),
+    )
+    def copy(n_clicks, bldg_options2):
+        return bldg_options2 or dash.no_update
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Output(&#39;input_building2&#39;, &#39;options&#39;),
+        State(&#39;input_building&#39;, &#39;value&#39;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        Input(&#39;sync_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;report_upgrade&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_1&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_1_choices&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_2&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_2_choices&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_3&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_3_choices&#39;, &#39;value&#39;),
+        Input(&#39;btn-reset&#39;, &#34;n_clicks&#34;)
+    )
+    def bldg_selection(current_bldg, change_type, sync_upgrade, report_upgrade,
+                       char1, char_val1, char2, char_val2, char3, char_val3, reset_click):
+
+        if sync_upgrade and change_type:
+            valid_bldgs = list(sorted(chng2bldg[(int(sync_upgrade), change_type)]))
+        elif report_upgrade and change_type:
+            valid_bldgs = list(sorted(chng2bldg[(int(report_upgrade), change_type)]))
+            res = get_res(report_upgrade, applied_only=True)
+            valid_bldgs = list(res.index.intersection(valid_bldgs))
+        elif report_upgrade:
+            res = get_res(report_upgrade, applied_only=True)
+            valid_bldgs = list(res.index)
+        else:
+            valid_bldgs = list(upgrade2res[0].index)
+
+        chars = [char1, char2, char3]
+        char_vals = [char_val1, char_val2, char_val3]
+        base_res = upgrade2res[0].loc[valid_bldgs]
+        condition = np.ones(len(base_res), dtype=bool)
+        for char, char_val in zip(chars, char_vals):
+            if char and char_val:
+                condition &amp;= base_res[char] == char_val
+        valid_bldgs = [str(b) for b in list(base_res[condition].index)]
+
+        if current_bldg and current_bldg not in valid_bldgs:
+            current_bldg = valid_bldgs[0] if valid_bldgs else &#39;&#39;
+        return current_bldg, valid_bldgs, []
+
+    def get_char_choices(char):
+        if char:
+            res0 = upgrade2res[0]
+            unique_choices = sorted(list(res0[char].unique()))
+            return unique_choices, unique_choices[0]
+        else:
+            return [], None
+
+    @app.callback(
+        Output(&#39;drp_chr_1_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_1_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_1&#39;, &#39;value&#39;),
+    )
+    def update_char_options1(char):
+        return get_char_choices(char)
+
+    @app.callback(
+        Output(&#39;drp_chr_2_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_2_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_2&#39;, &#39;value&#39;),
+    )
+    def update_char_options2(char):
+        return get_char_choices(char)
+
+    @app.callback(
+        Output(&#39;drp_chr_3_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_3_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_3&#39;, &#39;value&#39;),
+    )
+    def update_char_options3(char):
+        return get_char_choices(char)
+
+    def get_action_button_pairs(id, bldg_list_dict, report_type=&#39;opt&#39;):
+        buttons = []
+        bldg_str = &#39;&#39; if len(bldg_list_dict[id]) &gt; 10 else &#34; [&#34; + &#39;,&#39;.join([str(b) for b in bldg_list_dict[id]]) + &#34;]&#34;
+        for type in [&#39;check&#39;, &#39;cross&#39;]:
+            icon_name = &#34;akar-icons:circle-check-fill&#34; if type == &#39;check&#39; else &#34;gridicons:cross-circle&#34;
+            button = html.Div(dmc.ActionIcon(DashIconify(icon=icon_name,
+                                                         width=20 if type == &#34;check&#34; else 22,
+                                                         height=20 if type == &#34;check&#34; else 22,
+                                                         ),
+                                             id={&#39;index&#39;: id, &#39;type&#39;: f&#39;btn-{type}&#39;, &#39;report_type&#39;: report_type},
+                                             variant=&#34;light&#34;),
+                              id=f&#34;div-tooltip-target-{type}-{id}&#34;)
+            if type == &#34;check&#34;:
+                tooltip = dbc.Tooltip(f&#34;Select these buildings.{bldg_str}&#34;,
+                                      target=f&#34;div-tooltip-target-{type}-{id}&#34;, delay={&#39;show&#39;: 1000})
+
+                col = dbc.Col(html.Div([button, tooltip]),  width=&#39;auto&#39;, class_name=&#34;col-btn-cross&#34;)
+            else:
+                tooltip = dbc.Tooltip(f&#34;Select all except these buildings.{bldg_str}&#34;,
+                                      target=f&#34;div-tooltip-target-{type}-{id}&#34;, delay={&#39;show&#39;: 1000})
+                col = dbc.Col(html.Div([button, tooltip]),  width=&#39;auto&#39;, class_name=&#34;col-btn-check&#34;)
+            buttons.append(col)
+        return buttons
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;opt&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;opt&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#34;chk-options&#34;, &#34;value&#34;),
+        State(&#34;opt_report_store&#34;, &#34;data&#34;),
+    )
+    def opt_check_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_options, opt_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Options&#34; in chk_options and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = opt_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;enduse&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;enduse&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#34;chk-enduses&#34;, &#34;value&#34;),
+        State(&#34;enduse_report_store&#34;, &#34;data&#34;),
+    )
+    def enduse_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_enduses, opt_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Enduses&#34; in chk_enduses and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = opt_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;char&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;char&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#39;chk-chars&#39;, &#39;value&#39;),
+        State(&#34;char_report_store&#34;, &#34;data&#34;),
+    )
+    def char_report_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_char, char_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_char and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = char_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#34;options_report_header&#34;, &#34;children&#34;),
+        Output(&#34;options_report&#34;, &#39;children&#39;),
+        Output(&#34;opt_report_store&#34;, &#34;data&#34;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        State(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;chk-options&#39;, &#39;value&#39;),
+    )
+    def show_opt_report(bldg_id, bldg_options, bldg_options2, report_upgrade, chk_options):
+        if not report_upgrade or not bldg_options:
+            return &#34;Select an upgrade to see options applied in that upgrade&#34;, [&#39;&#39;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Options&#34; not in chk_options:
+            raise PreventUpdate()
+
+        if &#34;Options&#34; in chk_options and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        applied_options = euss_athena.report.get_applied_options(int(report_upgrade), bldg_list, include_base_opt=True)
+        opt_only = [{entry.split(&#39;|&#39;)[0] for entry in opt.keys()} for opt in applied_options]
+        reduced_set = list(reduce(set.union, opt_only))
+
+        nested_dict = defaultdict(lambda: defaultdict(Counter))
+        bldg_list_dict = defaultdict(list)
+
+        for bldg_id, opt_dict in zip(bldg_list, applied_options):
+            for opt_para, value in opt_dict.items():
+                opt = opt_para.split(&#39;|&#39;)[0]
+                para = opt_para.split(&#39;|&#39;)[1]
+                nested_dict[opt][para][value] += 1
+                bldg_list_dict[opt].append(bldg_id)
+                bldg_list_dict[opt + &#34;|&#34; + para].append(bldg_id)
+                bldg_list_dict[opt + &#34;|&#34; + para + &#34;&lt;-&#34; + value].append(bldg_id)
+
+        def get_accord_item(opt_name):
+            total_count = sum(counter.total() for counter in nested_dict[opt_name].values())
+            children = []
+            for parameter, counter in nested_dict[opt_name].items():
+                contents = []
+                new_counter = Counter({&#34;All&#34;: counter.total()})
+                new_counter.update(counter)
+                for from_val, count in new_counter.items():
+                    if from_val == &#34;All&#34;:
+                        but_ids = f&#34;{opt_name}|{parameter}&#34;
+                    else:
+                        but_ids = f&#34;{opt_name}|{parameter}&lt;-{from_val}&#34;
+                    entry = dbc.Row([dbc.Col(f&#34;&lt;-{from_val} ({count})&#34;, width=&#34;auto&#34;),
+                                     *get_action_button_pairs(but_ids, bldg_list_dict)])
+                    contents.append(entry)
+                children.append(dmc.AccordionItem(contents, label=f&#34;{parameter} ({counter.total()})&#34;))
+
+            accordian = dmc.Accordion(children, multiple=True)
+            first_row = dbc.Row([dbc.Col(f&#34;All ({total_count})&#34;, width=&#34;auto&#34;),
+                                 *get_action_button_pairs(opt_name, bldg_list_dict)])
+            return dmc.AccordionItem([first_row, accordian], label=f&#34;{opt_name} ({total_count})&#34;)
+        if reduced_set:
+            final_report = dmc.Accordion([get_accord_item(opt_name) for opt_name in reduced_set], multiple=True)
+        else:
+            final_report = [&#34;No option got applied to the selected building(s).&#34;]
+        up_name = upgrade2name[int(report_upgrade)]
+        return f&#34;Options applied in {up_name}&#34;, final_report, dict(bldg_list_dict)
+
+    @app.callback(
+        Output(&#34;enduse_report&#34;, &#34;children&#34;),
+        Output(&#34;enduse_report_store&#34;, &#34;data&#34;),
+        State(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        Input(&#39;input_enduse_type&#39;, &#39;value&#39;),
+        Input(&#39;chk-enduses&#39;, &#39;value&#39;),
+    )
+    def show_enduse_report(report_upgrade, bldg_id, bldg_options, bldg_options2, enduse_change_type, chk_enduse):
+        if not report_upgrade or not bldg_options:
+            return [&#34;Select an upgrade to see enuse report.&#34;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Enduses&#34; not in chk_enduse:
+            raise PreventUpdate()
+
+        if &#34;Enduses&#34; in chk_enduse and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        # print(bldg_list)
+        dict_changed_enduses = euss_athena.report.get_enduses_by_change(int(report_upgrade), enduse_change_type,
+                                                                        bldg_list)
+        # print(changed_enduses)
+
+        all_changed_enduses = list(dict_changed_enduses.keys())
+        if not all_changed_enduses:
+            if bldg_id:
+                return f&#39;No enduse has {enduse_change_type} in building {bldg_id} &#39;, {}
+            else:
+                return f&#39;No enduse has {enduse_change_type} in any of the buildings&#39;, {}
+
+        enduses2bldgs = defaultdict(list)
+        for end_use, bldgs in dict_changed_enduses.items():
+            if end_use in all_changed_enduses:
+                enduses2bldgs[end_use].extend([int(bldg_id) for bldg_id in bldgs])
+
+        fuel2bldgs = defaultdict(set)
+        fuel2enduses = defaultdict(list)
+        for enduse, bldgs in enduses2bldgs.items():
+            for fuel in [&#39;all_fuel&#39;] + fuels_types:
+                if fuel in enduse:
+                    fuel2bldgs[fuel] |= set(bldgs)
+                    fuel2enduses[fuel].append(enduse)
+                    break
+            else:
+                fuel2bldgs[&#39;other&#39;] |= set(bldgs)
+                fuel2enduses[&#39;other&#39;].append(enduse)
+
+        for key, val in fuel2bldgs.items():
+            fuel2bldgs[key] = list(val)
+
+        enduses2bldgs.update(fuel2bldgs)
+
+        def get_accord_item(fuel):
+            total_count = len(enduses2bldgs[fuel])
+            contents = [dbc.Row([dbc.Col(f&#34;All {fuel} ({total_count})&#34;, width=&#34;auto&#34;),
+                                 *get_action_button_pairs(fuel, enduses2bldgs, &#34;enduse&#34;)])]
+            for enduse in fuel2enduses[fuel]:
+                count = len(enduses2bldgs[enduse])
+                row = dbc.Row([dbc.Col(f&#34;{enduse} ({count})&#34;, width=&#34;auto&#34;),
+                               *get_action_button_pairs(enduse, enduses2bldgs, &#34;enduse&#34;)])
+                contents.append(row)
+            return dmc.AccordionItem(contents, label=f&#34;{fuel} ({total_count})&#34;)
+
+        report = dmc.Accordion([get_accord_item(fuel) for fuel in fuel2enduses.keys()],  multiple=True)
+        storedict = dict(enduses2bldgs)
+        return report, storedict
+
+    @app.callback(
+        Output(&#34;char_report&#34;, &#34;children&#34;),
+        Output(&#34;char_report_store&#34;, &#34;data&#34;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        Input(&#39;drp-char-report&#39;, &#39;value&#39;),
+        Input(&#39;chk-chars&#39;, &#39;value&#39;),
+    )
+    def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
+        if not (bldg_options or bldg_options2 or bldg_id):
+            return [&#34;&#34;], {}
+        if not inp_char:
+            return [&#34;Select a characteristics to see its report.&#34;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Chars&#34; not in chk_chars:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_chars and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        chars_df = res_csv_df.loc[bldg_list][inp_char].reset_index()
+        char2bldgs = chars_df.groupby(inp_char)[&#39;building_id&#39;].agg(list).to_dict()
+        if (total_len := len(char2bldgs)) &gt; 200:
+            return [f&#34;Sorry, this would create more than 200 ({total_len}) rows.&#34;], {}
+        char_dict = {}
+        total_count = 0
+        contents = []
+        for char_vals, bldglist in char2bldgs.items():
+            but_ids = &#34;+&#34;.join(char_vals) if isinstance(char_vals, tuple) else char_vals
+            char_dict[but_ids] = [int(b) for b in bldglist]
+            count = len(bldglist)
+            total_count += count
+            contents.append(dbc.Row([dbc.Col(f&#34;{char_vals} ({count})&#34;, width=&#34;auto&#34;),
+                                     *get_action_button_pairs(but_ids, char_dict, &#34;char&#34;)]))
+
+        report = dmc.Accordion([dmc.AccordionItem(contents, label=f&#34;{inp_char} ({total_count})&#34;)])
+        return report, char_dict
+
+    @app.callback(
+        Output(&#39;graph&#39;, &#39;figure&#39;),
+        Output(&#39;loader_label&#39;, &#34;children&#34;),
+        State(&#39;tab_view_type&#39;, &#34;value&#34;),
+        Input(&#39;drp-group-by&#39;, &#39;value&#39;),
+        Input(&#39;radio_fuel&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_enduse&#39;, &#34;value&#34;),
+        Input(&#39;radio_graph_type&#39;, &#34;value&#34;),
+        Input(&#39;radio_savings&#39;, &#34;value&#34;),
+        Input(&#39;chk_applied_only&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        Input(&#39;check_all_points&#39;, &#34;value&#34;),
+        Input(&#39;sync_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;options&#39;),
+        Input(&#39;input_building2&#39;, &#39;options&#39;),
+        Input(&#39;chk-graph&#39;, &#39;value&#39;),
+        State(&#34;uirevision&#34;, &#34;data&#34;)
+    )
+    def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
+                      show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision):
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Graph&#34; not in chk_graph:
+            raise PreventUpdate()
+
+        if &#34;Graph&#34; in chk_graph and bldg_options2:
+            bldg_options = bldg_options2
+
+        bldg_options = bldg_options or []
+        if not enduse:
+            full_name = []
+        if view_tab == &#39;energy&#39;:
+            full_name = get_all_end_use_cols(fuel, enduse)
+        else:
+            full_name = [enduse]
+
+        applied_only = &#34;Applied Only&#34; in chk_applied_only
+
+        if selected_bldg:
+            filter_bldg = [int(selected_bldg)]
+        else:
+            filter_bldg = [int(b) for b in bldg_options]
+
+        # print(f&#34;Sync upgrade is {sync_upgrade}. {sync_upgrade is None}&#34;)
+        if graph_type in [&#39;Mean&#39;, &#39;Total&#39;, &#39;Count&#39;]:
+            new_figure = get_bars(full_name, graph_type, savings_type, applied_only,
+                                  chng_type, sync_upgrade, filter_bldg, grp_by)
+        elif graph_type in [&#34;Distribution&#34;]:
+            new_figure = get_distribution(full_name, savings_type, applied_only,
+                                          chng_type, &#39;Show all points&#39; in show_all_points, sync_upgrade,
+                                          filter_bldg, grp_by)
+        uirevision = uirevision or &#34;default&#34;
+        new_figure.update_layout(uirevision=uirevision)
+        return new_figure, &#34;&#34;
+
+    euss_athena.save_cache()
+    return app
+
+
+def main():
+    print(&#34;Welcome to Upgrades Visualizer.&#34;)
+    db_name = inquirer.text(message=&#34;Please enter database_name &#34;
+                            &#34;(found in postprocessing:aws:athena in the buildstock configuration file)&#34;,
+                            default=&#39;euss-tests&#39;).execute()
+    table_name = inquirer.text(message=&#34;Please enter table name (same as output folder name; found under &#34;
+                               &#34;output_directory in the buildstock configuration file)&#34;,
+                               default=&#39;res_test_03_2018_10k_20220607&#39;).execute()
+    app = get_app(db_name=db_name, table_name=table_name)
+    app.run_server(debug=False)
+
+
+if __name__ == &#39;__main__&#39;:
+    main()</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="buildstock_query.tools.upgrades_visualizer.get_app"><code class="name flex">
+<span>def <span class="ident">get_app</span></span>(<span>db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k_20220607', workgroup: str = 'eulp', buildstock_type: str = 'resstock')</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_app(db_name: str = &#39;euss-tests&#39;, table_name: str = &#39;res_test_03_2018_10k_20220607&#39;, workgroup: str = &#39;eulp&#39;,
+            buildstock_type: str = &#39;resstock&#39;):
+    euss_athena = BuildStockQuery(workgroup=workgroup,
+                                  db_name=db_name,
+                                  buildstock_type=buildstock_type,
+                                  table_name=table_name,
+                                  skip_reports=False)
+
+    report = euss_athena.report.get_success_report()
+    available_upgrades = list(report.index)
+    available_upgrades.remove(0)
+    euss_ua = euss_athena.get_upgrades_analyzer(yaml_path)
+    upgrade2name = {indx+1: f&#34;Upgrade {indx+1}: {upgrade[&#39;upgrade_name&#39;]}&#34; for indx,
+                    upgrade in enumerate(euss_ua.get_cfg().get(&#39;upgrades&#39;, []))}
+    upgrade2shortname = {indx+1: f&#34;Upgrade {indx+1}&#34; for indx,
+                         upgrade in enumerate(euss_ua.get_cfg().get(&#39;upgrades&#39;, []))}
+    # allupgrade2name = {0: &#34;Upgrade 0: Baseline&#34;} | upgrade2name
+    change_types = [&#34;any&#34;, &#34;no-chng&#34;, &#34;bad-chng&#34;, &#34;ok-chng&#34;, &#34;true-bad-chng&#34;, &#34;true-ok-chng&#34;]
+    chng2bldg = {}
+    for chng in change_types:
+        for upgrade in available_upgrades:
+            chng2bldg[(upgrade, chng)] = euss_athena.report.get_buildings_by_change(upgrade, chng)
+
+    def get_cols(df, prefixes=[], suffixes=[]):
+        cols = []
+        for col in df.columns:
+            for prefix in prefixes:
+                if col.startswith(prefix):
+                    cols.append(col)
+                    break
+            else:
+                for suffix in suffixes:
+                    if col.endswith(suffix):
+                        cols.append(col)
+                        break
+        return cols
+
+    res_csv_df = euss_athena.get_results_csv()
+    euss_athena.save_cache()
+    res_csv_df = res_csv_df[res_csv_df[&#39;completed_status&#39;] == &#39;Success&#39;]
+    sample_weight = res_csv_df[&#39;build_existing_model.sample_weight&#39;].iloc[0]
+    res_csv_df[&#39;upgrade&#39;] = 0
+    build_cols = [c for c in res_csv_df.columns if c.startswith(&#39;build_existing_model.&#39;)]
+    build_df = res_csv_df[build_cols]
+
+    res_csv_df = res_csv_df.rename(columns=lambda x: x.split(&#39;.&#39;)[1] if &#39;.&#39; in x else x)
+    res_csv_df = res_csv_df.drop(columns=[&#39;applicable&#39;])  # These are useless columns
+    # all_up_csvs = [res_csv_df]
+
+    upgrade2res = {0: res_csv_df}
+    for upgrade in available_upgrades:
+        print(f&#34;Getting up_csv for {upgrade}&#34;)
+        up_csv = euss_athena.get_upgrades_csv(upgrade)
+        # print(list(up_csv.columns))
+        # print(list(res_csv_df.columns))
+        # print(&#34;upgrade&#34;, i, set(up_csv.columns)  - set(res_csv_df.columns))
+        # print(&#34;upgrade&#34;, i, set(res_csv_df.columns)  - set(up_csv.columns))
+        up_csv = up_csv.loc[res_csv_df.index]
+        up_csv = up_csv.join(build_df)
+        up_csv = up_csv.rename(columns=lambda x: x.split(&#39;.&#39;)[1] if &#39;.&#39; in x else x)
+        up_csv = up_csv.drop(columns=[&#39;applicable&#39;])
+        up_csv[&#39;upgrade&#39;] = up_csv[&#39;upgrade&#39;].map(lambda x: int(x))
+        invalid_rows_keys = up_csv[&#39;completed_status&#39;] == &#39;Invalid&#39;
+        invalid_rows = up_csv[invalid_rows_keys].copy()
+        invalid_rows.update(res_csv_df[invalid_rows_keys])
+        invalid_rows[&#39;completed_status&#39;] = &#39;Invalid&#39;
+        up_csv[invalid_rows_keys] = invalid_rows
+        # up_csv = up_csv.reset_index().set_index([&#39;upgrade&#39;])
+        upgrade2res[upgrade] = up_csv
+
+    emissions_cols = get_cols(res_csv_df, suffixes=[&#39;_lb&#39;])
+    end_use_cols = get_cols(res_csv_df, [&#34;end_use_&#34;, &#34;energy_use__&#34;, &#34;fuel_use_&#34;])
+    water_usage_cols = get_cols(res_csv_df, suffixes=[&#34;_gal&#34;])
+    load_cols = get_cols(res_csv_df, [&#34;load_&#34;, &#34;flow_rate_&#34;])
+    peak_cols = get_cols(res_csv_df, [&#34;peak_&#34;])
+    unmet_cols = get_cols(res_csv_df, [&#34;unmet_&#34;])
+    area_cols = get_cols(res_csv_df, suffixes=[&#34;_ft_2&#34;, ])
+    size_cols = get_cols(res_csv_df, [&#34;size_&#34;])
+    qoi_cols = get_cols(res_csv_df, [&#34;qoi_&#34;])
+    char_cols = [c.removeprefix(&#39;build_existing_model.&#39;) for c in build_cols if &#39;applicable&#39; not in c]
+    fuels_types = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
+
+    def get_res(upgrade, applied_only=False):
+        if upgrade == 0:
+            return upgrade2res[0]
+        elif applied_only:
+            res = upgrade2res[int(upgrade)]
+            res = res[res[&#39;completed_status&#39;] != &#39;Invalid&#39;]
+            return res
+        else:
+            return upgrade2res[int(upgrade)]
+
+    def explode_str(input_str):
+        input_str = str(input_str).lower()
+        input_str = [
+            int(x) if x and x[0] in &#34;0123456789&#34; else x
+            for x in re.split(r&#34;([\&lt;\-])|([0-9]+)&#34;, input_str)
+        ]
+        return tuple(&#34;X&#34; if x is None else x for x in input_str)
+
+    def csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None,
+                      report_upgrade=None, group_cols=None):
+
+        base_vals = get_res(0)[end_use].sum(axis=1, skipna=False)
+        base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
+
+        if group_cols:
+            res_df = get_res(report_upgrade, applied_only)
+            res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
+            grouped_df = res_df.groupby(group_cols, sort=False)
+            df_generator = ((&#39;, &#39;.join(indx) if isinstance(indx, tuple) else indx, df) for (indx, df) in grouped_df)
+            df_type = &#34;groups&#34;
+        else:
+            df_type = &#34;upgrades&#34;
+            df_generator = ((f&#34;Upgrade {upgrade}&#34;, get_res(upgrade, applied_only)) for upgrade in [report_upgrade])
+
+        for indx, res_df in df_generator:
+            if change_type:
+                upgrade = indx if df_type == &#34;upgrades&#34; else report_upgrade
+                chng_upgrade = int(sync_upgrade) if sync_upgrade else upgrade
+                if chng_upgrade and chng_upgrade &gt; 0:
+                    change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
+                else:
+                    change_bldg_list = []
+                res_df = res_df.loc[res_df.index.intersection(change_bldg_list)]
+
+            if filter_bldg is not None:
+                res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
+            if len(res_df) == 0:
+                continue
+
+            sub_df = res_df[end_use].sum(axis=1, skipna=False)
+            if savings_type == &#39;Savings&#39;:
+                sub_df = base_df[sub_df.index] - sub_df
+            elif savings_type == &#39;Percent Savings&#39;:
+                sub_base_df = base_df[sub_df.index]
+                saving_df = 100 * (sub_base_df - sub_df) / sub_base_df
+                saving_df[(sub_base_df == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
+                saving_df[(sub_df == 0) &amp; (sub_base_df == 0)] = 0
+                sub_df = saving_df
+            yield indx, sub_df
+
+    def get_ylabel(end_use):
+        if len(end_use) == 1:
+            return end_use[0]
+        pure_end_use_name = end_use[0].removeprefix(&#34;end_use_&#34;)
+        pure_end_use_name = pure_end_use_name.removeprefix(&#34;fuel_use_&#34;)
+        pure_end_use_name = &#34;_&#34;.join(pure_end_use_name.split(&#34;_&#34;)[1:])
+        return f&#34;{len(end_use)}_fuels_{pure_end_use_name}&#34;
+
+    def get_distribution(end_use, savings_type=&#39;&#39;, applied_only=False, change_type=&#39;&#39;, show_all_points=False,
+                         sync_upgrade=None, filter_bldg=None, group_cols=None):
+        fig = go.Figure()
+        counter = 0
+        for upgrade in [0] + available_upgrades:
+            yvals = []
+            xvals = []
+            hovervals = []
+            points = &#39;all&#39; if show_all_points else &#39;suspectedoutliers&#39;
+            for indx, sub_df in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                              filter_bldg, upgrade, group_cols):
+                building_ids = list(sub_df.index)
+                count = sum(sub_df &lt; float(&#39;inf&#39;))
+                if counter &gt;= 200:
+                    sub_df = pd.DataFrame()
+                    fig.add_trace(go.Box(
+                        y=[],
+                        name=&#34;Too many groups&#34;
+                    ))
+                    break
+                else:
+                    xvals.extend([indx]*len(sub_df))
+                    yvals.extend(sub_df.values)
+                    hovertext = [f&#39;{indx}&lt;br&gt; Building: {bid}&lt;br&gt;Sample Count: {count}&#39;
+                                 for bid in building_ids]
+                    hovervals.extend(hovertext)
+                counter += 1
+
+            fig.add_trace(go.Box(
+                y=yvals,
+                x=xvals,
+                name=f&#39;Upgrade {upgrade}&#39;,
+                boxpoints=points,
+                boxmean=True,  # represent mean
+                hovertext=hovervals,
+                hoverinfo=&#34;all&#34;
+            ))
+
+        fig.update_layout(yaxis_title=f&#34;{get_ylabel(end_use)}&#34;,
+                          boxmode=&#34;group&#34;,
+                          xaxis_title=&#34;, &#34;.join(group_cols) if group_cols else &#39;Upgrade&#39;,
+                          title=f&#34;Distribution for {change_type} buildings&#34; if change_type else &#39;Distribution&#39;,
+                          clickmode=&#39;event+select&#39;)
+        return fig
+
+    def get_bars(end_use, value_type=&#39;mean&#39;, savings_type=&#39;&#39;, applied_only=False, change_type=&#39;&#39;,
+                 sync_upgrade=None, filter_bldg=None, group_cols=None):
+        fig = go.Figure()
+        counter = 0
+        for upgrade in [0] + available_upgrades:
+            yvals = []
+            xvals = []
+            hovervals = []
+            for indx, up_vals in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
+                                               filter_bldg, upgrade, group_cols):
+
+                count = len(up_vals)
+                if value_type.lower() == &#39;total&#39;:
+                    val = up_vals.sum() * sample_weight
+                elif value_type.lower() == &#39;count&#39;:
+                    val = up_vals.count()
+                else:
+                    val = up_vals.mean()
+                if counter &gt;= 200:
+                    yvals.append(0)
+                    xvals.append(&#34;Too many groups&#34;)
+                    break
+                else:
+                    yvals.append(val)
+                    xvals.append(indx)
+                    hovertext = f&#34;Upgrade {upgrade}: {indx}&lt;br&gt; Average {val}. &lt;br&gt; Sample Count: {count}.&#34;
+                    f&#34;&lt;br&gt; Units Count: {count * sample_weight}.&#34;
+                    hovervals.append(hovertext)
+                counter += 1
+
+            fig.add_trace(go.Bar(
+                y=yvals,
+                x=xvals,
+                hovertext=hovervals,
+                name=f&#39;Upgrade {upgrade}&#39;,
+                hoverinfo=&#34;all&#34;
+            )).update_traces(
+                marker={&#34;line&#34;: {&#34;width&#34;: 0.5, &#34;color&#34;: &#34;rgb(0,0,0)&#34;}}
+            )
+
+        fig.update_layout(yaxis_title=f&#34;{get_ylabel(end_use)}_{value_type}&#34;,
+                          barmode=&#39;group&#39;,
+                          xaxis_title=&#34;, &#34;.join(group_cols) if group_cols else &#39;Upgrade&#39;,
+                          title=f&#34;{value_type} for {change_type} buildings&#34; if change_type else f&#39;{value_type}&#39;)
+
+        return fig
+
+    def get_end_use_cols(fuel):
+        cols = []
+        for c in end_use_cols:
+            if fuel in c or fuel == &#39;All&#39;:
+                c = c.removeprefix(f&#34;end_use_{fuel}_&#34;)
+                c = c.removeprefix(f&#34;fuel_use_{fuel}_&#34;)
+                if fuel == &#39;All&#39;:
+                    for f in sorted(fuels_types):
+                        c = c.removeprefix(f&#34;end_use_{f}_&#34;)
+                        c = c.removeprefix(f&#34;fuel_use_{f}_&#34;)
+                cols.append(c)
+        no_dup_cols = {c: None for c in cols}
+        return list(no_dup_cols.keys())
+
+    def get_all_end_use_cols(fuel, end_use):
+        all_enduses_set = set(end_use_cols)
+        valid_cols = []
+        prefix = &#34;fuel_use&#34; if end_use.startswith(&#34;total&#34;) else &#34;end_use&#34;
+        if fuel == &#39;All&#39;:
+            valid_cols.extend(f&#34;{prefix}_{f}_{end_use}&#34; for f in fuels_types
+                              if f&#34;{prefix}_{f}_{end_use}&#34; in all_enduses_set)
+
+        else:
+            valid_cols.append(f&#34;{prefix}_{fuel}_{end_use}&#34;)
+        return valid_cols
+
+    def get_opt_report(upgrade, bldg_id):
+        applied_options = list(euss_athena.report.get_applied_options(upgrade, [bldg_id])[0])
+        applied_options = [val for key, val in upgrade2res[upgrade].loc[bldg_id].items() if
+                           key.startswith(&#34;option_&#34;) and key.endswith(&#34;_name&#34;)
+                           and not (isinstance(val, float) and np.isnan(val))]
+
+        opt_vals = [(opt.split(&#39;|&#39;)[0], opt.split(&#39;|&#39;)[1]) for opt in applied_options]
+        char_cols = [&#39;_&#39;.join(opt.lower().split(&#39;|&#39;)[0].split()) for opt in applied_options]
+        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
+        option_report = [f&#34;{opt}: {base_val} =&gt; {up_val}&#34; for (opt, up_val), base_val in zip(opt_vals, baseline_vals)]
+        return option_report
+
+    def get_baseline_chars(bldg_id, char_types=None):
+        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
+        char_types = char_types or []
+        return_list = []
+        for char_type in char_types:
+            return_val = [f&#39;{k}: {v}&#39; for k, v in baseline_vals.items()
+                          if char_type in k]
+            return_list += return_val
+
+        return return_list
+
+    external_script = [&#34;https://tailwindcss.com/&#34;, {&#34;src&#34;: &#34;https://cdn.tailwindcss.com&#34;}]
+
+    app = DashProxy(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], transforms=transforms,
+                    external_scripts=external_script)
+    app.layout = html.Div([dbc.Container(html.Div([
+        dbc.Row([dbc.Col(html.H1(&#34;Upgrades Visualizer&#34;), width=&#39;auto&#39;), dbc.Col(html.Sup(&#34;beta&#34;))]),
+        dbc.Row([dbc.Col(dbc.Label(&#34;Visualization Type: &#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.RadioItems([&#34;Mean&#34;, &#34;Total&#34;, &#34;Count&#34;, &#34;Distribution&#34;], &#34;Mean&#34;,
+                                        id=&#34;radio_graph_type&#34;,
+                                        labelClassName=&#34;pr-2&#34;), width=&#39;auto&#39;),
+                #  dbc.Col(dbc.Collapse(children=[dcc.Checklist([&#39;Show all points&#39;], [],
+                 #                                               inline=True, id=&#39;check_all_points&#39;)
+                 #                                 ],
+                 #                       id=&#34;collapse_points&#34;, is_open=True), width=&#39;auto&#39;),
+                 dbc.Col(children=[dcc.Checklist([&#39;Show all points&#39;], [],
+                                                 inline=True, id=&#39;check_all_points&#39;)
+                                   ],),
+                 dbc.Col(dbc.Label(&#34;Value Type: &#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.RadioItems([&#34;Absolute&#34;, &#34;Savings&#34;, &#34;Percent Savings&#34;], &#34;Absolute&#34;,
+                                        id=&#39;radio_savings&#39;, labelClassName=&#34;pr-2&#34;), width=&#39;auto&#39;),
+                 dbc.Col(dcc.Checklist(options=[&#39;Applied Only&#39;], value=[],
+                                       inline=True, id=&#39;chk_applied_only&#39;), width=&#39;auto&#39;)
+                 ]),
+        dbc.Row([dbc.Col(html.Br())]),
+        dbc.Row([dbc.Col(dcc.Loading(id=&#39;graph-loader&#39;, children=[html.Div(id=&#39;loader_label&#39;)]))]),
+        dbc.Row([dbc.Col(dcc.Graph(id=&#39;graph&#39;))]),
+
+
+    ])),
+        dbc.Row([dbc.Col(
+            dcc.Tabs(id=&#39;tab_view_type&#39;, value=&#39;energy&#39;, children=[
+                dcc.Tab(id=&#39;energy_tab&#39;, label=&#39;Energy&#39;, value=&#39;energy&#39;, children=[
+                    dcc.RadioItems(fuels_types + [&#39;All&#39;], &#34;electricity&#34;, id=&#39;radio_fuel&#39;,
+                                   labelClassName=&#34;pr-2&#34;)]
+                        ),
+                dcc.Tab(label=&#39;Water Usage&#39;, value=&#39;water&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Load&#39;, value=&#39;load&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Peak&#39;, value=&#39;peak&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Unmet Hours&#39;, value=&#39;unmet_hours&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Area&#39;, value=&#39;area&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;Size&#39;, value=&#39;size&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;QOI&#39;, value=&#39;qoi&#39;, children=[]
+                        ),
+                dcc.Tab(label=&#39;emissions&#39;, value=&#39;emissions&#39;, children=[]
+                        ),
+            ])
+        )
+        ], className=&#34;mx-5 mt-5&#34;),
+        dbc.Row([dbc.Col(dcc.Dropdown(id=&#39;dropdown_enduse&#39;))], className=&#34;mx-5 my-1&#34;),
+        dbc.Row([
+            dbc.Col(
+                dcc.Tabs(id=&#39;tab_view_filter&#39;, value=&#39;change&#39;, children=[
+                    dcc.Tab(label=&#39;Change&#39;, value=&#39;change&#39;, children=[
+                        dbc.Row([dbc.Col(html.Div(&#34;Restrict to buildings that have &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(change_types, &#34;&#34;, placeholder=&#34;Select change type...&#34;,
+                                                      id=&#39;dropdown_chng_type&#39;), width=&#39;2&#39;),
+                                 dbc.Col(html.Div(&#34; in &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;sync_upgrade&#39;, value=&#39;&#39;,
+                                                      options={}))
+                                 ],
+                                className=&#34;flex items-center&#34;)
+                    ]),
+                    dcc.Tab(label=&#39;Characteristics&#39;, value=&#39;char&#39;, children=[
+                        html.Div(&#34; ... and have these characteristics&#34;),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_1&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_1_choices&#39;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_2&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_2_choices&#39;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_3&#39;, options=char_cols, value=None), width=3),
+                            dbc.Col(html.Div(&#34; = &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;drp_chr_3_choices&#39;))
+                        ])
+                    ]
+                    ),
+                    dcc.Tab(label=&#39;Option&#39;, value=&#39;option&#39;, children=[
+                        html.Div(&#34;... and which got applied these options &#34;),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_1&#39;, options=[], value=None, placeholder=&#34;coming soon&#34;),
+                                    width=3),
+                            dbc.Col(html.Div(&#34; &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_1_options&#39;, placeholder=&#34;coming soon&#34;))
+                        ]),
+                        dbc.Row([
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_2&#39;, options=[], value=None, placeholder=&#34;coming soon&#34;),
+                                    width=3),
+                            dbc.Col(html.Div(&#34; &#34;), width=&#39;auto&#39;),
+                            dbc.Col(dcc.Dropdown(id=&#39;upgrade_2_options&#39;, placeholder=&#34;coming soon&#34;))
+                        ]),
+                    ]
+                    ),
+                    dcc.Tab(label=&#39;Building&#39;, value=&#39;building&#39;, children=[
+                        dbc.Row([dbc.Col(html.Div(&#34;Select:&#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;input_building&#39;), width=1),
+                                 dbc.Col(html.Div(&#34; in &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;report_upgrade&#39;, value=&#39;&#39;, placeholder=&#34;Upgrade ...&#34;,
+                                                      options=upgrade2shortname), width=1),
+                                 dbc.Col(html.Div(&#34;grouped by:&#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;drp-group-by&#39;, options=char_cols, value=None,
+                                                      multi=True, placeholder=&#34;Select characteristics...&#34;),
+                                         width=3),
+                                 dbc.Col(dbc.Button(&#34;&lt;= Copy&#34;, id=&#34;btn-copy&#34;, color=&#34;primary&#34;, size=&#34;sm&#34;,
+                                                    outline=True), class_name=&#34;centered-col&#34;),
+                                 dbc.Col(html.Div(&#34;Extra restriction: &#34;), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Dropdown(id=&#39;input_building2&#39;, disabled=False), width=2),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-graph&#39;, options=[&#39;Graph&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-options&#39;, options=[&#39;Options&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-enduses&#39;, options=[&#39;Enduses&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dcc.Checklist(id=&#39;chk-chars&#39;, options=[&#39;Chars&#39;], value=[],
+                                                       inline=True), width=&#39;auto&#39;),
+                                 dbc.Col(dbc.Button(&#34;Reset&#34;, id=&#34;btn-reset&#34;, color=&#34;primary&#34;, size=&#34;sm&#34;, outline=True),
+                                         width=&#39;auto&#39;),
+                                 ]),
+                        dbc.Row([dbc.Col([
+                            dbc.Row(html.Div(id=&#34;options_report_header&#34;)),
+                            dbc.Row(dcc.Loading(id=&#39;opt-loader&#39;,
+                                                children=html.Div(id=&#34;options_report&#34;))),
+                            dcc.Store(&#34;opt_report_store&#34;)
+                        ], width=5),
+                            dbc.Col([
+                                dbc.Row([dbc.Col(html.Div(&#34;View enduse that: &#34;), width=&#39;auto&#39;),
+                                         dbc.Col(dcc.Dropdown(id=&#39;input_enduse_type&#39;,
+                                                              options=[&#39;changed&#39;, &#39;increased&#39;, &#39;decreased&#39;],
+                                                              value=&#39;changed&#39;, clearable=False),
+                                                 width=2),
+                                         dbc.Col(html.Div(), width=&#39;auto&#39;),
+                                         dbc.Col(html.Div(&#34;Charecteristics Report:&#34;), width=&#39;auto&#39;),
+                                         dbc.Col(dcc.Dropdown(id=&#39;drp-char-report&#39;, options=char_cols, value=None,
+                                                              multi=True, placeholder=&#34;Select characteristics...&#34;)),
+                                         ]),
+                                dbc.Row([dbc.Col(dcc.Loading(id=&#39;enduse_loader&#39;,
+                                                             children=html.Div(id=&#34;enduse_report&#34;))
+                                                 ),
+                                         dbc.Col(dcc.Loading(id=&#39;char_loader&#39;,
+                                                             children=html.Div(id=&#34;char_report&#34;))
+                                                 ),
+                                         ]),
+                                dcc.Store(&#34;enduse_report_store&#34;),
+                                dcc.Store(&#34;char_report_store&#34;)
+                            ], width=7)
+
+                        ]),
+                        dbc.Row([
+                            dbc.Col(width=5),
+                            dbc.Col(
+                                dbc.Row([
+                                    dbc.Col(),
+                                    dbc.Col(dbc.Button(&#34;Download All Characteristics&#34;, id=&#34;btn-dwn-chars&#34;,
+                                                       color=&#34;primary&#34;,
+                                                       size=&#34;sm&#34;, outline=True), width=&#39;auto&#39;),
+                                ]), width=7)
+                        ])
+                    ]
+                    ),
+                ]))
+        ], className=&#34;mx-5 my-1&#34;),
+        html.Div(id=&#34;status_bar&#34;),
+        dcc.Download(id=&#34;download-chars-csv&#34;),
+        dcc.Store(&#34;uirevision&#34;)
+        # dbc.Button(&#34;Kill me&#34;, id=&#34;button110&#34;)
+    ])
+
+    @app.callback(
+        Output(&#34;download-chars-csv&#34;, &#34;data&#34;),
+        Input(&#34;btn-dwn-chars&#34;, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;value&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#39;chk-chars&#39;, &#39;value&#39;),
+    )
+    def download_char(n_clicks, bldg_id, bldg_options, bldg_options2, chk_chars):
+        if not n_clicks:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_chars and bldg_options2:
+            bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+        bldg_ids = [int(b) for b in bldg_ids]
+        bdf = res_csv_df[char_cols].loc[bldg_ids]
+        return dcc.send_data_frame(bdf.to_csv, f&#34;chars_{n_clicks}.csv&#34;)
+
+    @app.callback(
+        Output(&#39;dropdown_enduse&#39;, &#34;options&#34;),
+        Output(&#39;dropdown_enduse&#39;, &#34;value&#34;),
+        Input(&#39;tab_view_type&#39;, &#34;value&#34;),
+        Input(&#39;radio_fuel&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_enduse&#39;, &#34;value&#34;)
+    )
+    def update_enduse_options(view_tab, fuel_type, current_enduse):
+        if view_tab == &#39;energy&#39;:
+            available_endues = get_end_use_cols(fuel_type)
+        elif view_tab == &#39;water&#39;:
+            available_endues = water_usage_cols
+        elif view_tab == &#39;load&#39;:
+            available_endues = load_cols
+        elif view_tab == &#39;peak&#39;:
+            available_endues = peak_cols
+        elif view_tab == &#39;unmet_hours&#39;:
+            available_endues = unmet_cols
+        elif view_tab == &#39;area&#39;:
+            available_endues = area_cols
+        elif view_tab == &#39;size&#39;:
+            available_endues = size_cols
+        elif view_tab == &#39;qoi&#39;:
+            available_endues = qoi_cols
+        elif view_tab == &#39;emissions&#39;:
+            available_endues = emissions_cols
+        else:
+            raise ValueError(f&#34;Invalid tab {view_tab}&#34;)
+
+        enduse = current_enduse or available_endues[0]
+        if fuel_type == &#39;All&#39;:
+            return available_endues, enduse
+
+        if enduse not in available_endues:
+            # print(f&#34;Bad enduse {enduse}&#34;)
+            return sorted(available_endues), available_endues[0]
+    #     print(fuel_type, f&#34;Update enduse&#34;,  available_endues, enduse)
+        return sorted(available_endues), enduse
+
+    @app.callback(
+        Output(&#34;collapse_points&#34;, &#39;is_open&#39;),
+        Input(&#39;radio_graph_type&#39;, &#34;value&#34;)
+    )
+    def disable_showpoints(graph_type):
+        print(f&#34;Graph type: {graph_type.lower() == &#39;distribution&#39;}&#34;)
+        return True
+        # return graph_type.lower() == &#34;distribution&#34;
+
+    @app.callback(
+        Output(&#34;sync_upgrade&#34;, &#39;value&#39;),
+        Output(&#34;sync_upgrade&#34;, &#39;options&#39;),
+        Output(&#34;sync_upgrade&#34;, &#39;placeholder&#39;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        State(&#34;sync_upgrade&#34;, &#34;value&#34;),
+        State(&#34;sync_upgrade&#34;, &#34;options&#34;)
+    )
+    def update_sync_upgrade(chng_type, current_sync_upgrade, sync_upgrade_options):
+        # print(chng_type, current_sync_upgrade, sync_upgrade_options)
+        if chng_type:
+            return current_sync_upgrade, upgrade2name, &#39;respective upgrades. (Click to restrict to specific upgrade)&#39;
+        else:
+            return &#39;&#39;, {}, &#39; &lt;select a change type on the left first&gt;&#39;
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;placeholder&#39;),
+        Input(&#39;input_building&#39;, &#39;options&#39;)
+    )
+    def update_building_placeholder(options):
+        return f&#34;{len(options)} Buidlings&#34; if options else &#34;0 buildings.&#34;
+
+    @app.callback(
+        Output(&#39;input_building2&#39;, &#39;placeholder&#39;),
+        Output(&#39;input_building2&#39;, &#39;value&#39;),
+        Input(&#39;input_building2&#39;, &#39;value&#39;),
+        Input(&#39;input_building2&#39;, &#39;options&#39;)
+    )
+    def update_building_placeholder2(value, options):
+        return f&#34;{len(options)} Buidlings&#34; if options else &#34;No restriction&#34;, None
+
+    @app.callback(
+        Output(&#39;tab_view_filter&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Output(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Output(&#39;check_all_points&#39;, &#34;value&#34;),
+        Input(&#39;graph&#39;, &#34;selectedData&#34;),
+        State(&#39;input_building&#39;, &#39;options&#39;)
+    )
+    def graph_click(selection_data, current_options):
+        if not selection_data or &#39;points&#39; not in selection_data or len(selection_data[&#39;points&#39;]) &lt; 1:
+            raise PreventUpdate()
+
+        selected_buildings = []
+        selected_upgrades = []
+        for point in selection_data[&#39;points&#39;]:
+            if not (match := re.search(r&#34;Building: (\d*)&#34;, point.get(&#39;hovertext&#39;, &#39;&#39;))):
+                continue
+            if bldg := match.groups()[0]:
+                upgrade_match = re.search(r&#34;Upgrade (\d*):&#34;, point.get(&#39;hovertext&#39;, &#39;&#39;))
+                upgrade = upgrade_match.groups()[0] if upgrade_match else &#39;&#39;
+                selected_buildings.append(bldg)
+                selected_upgrades.append(upgrade)
+
+        if not selected_buildings:
+            raise PreventUpdate()
+
+        if len(selected_buildings) != 1:
+            selected_buildings = list(set(selected_buildings))
+            return &#39;building&#39;, &#39;&#39;, selected_buildings, selected_upgrades[0], [&#39;Show all points&#39;]
+        current_options = current_options or selected_buildings
+        return &#39;building&#39;, selected_buildings[0], current_options, selected_upgrades[0], [&#39;Show all points&#39;]
+
+    @app.callback(
+        Output(&#39;check_all_points&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;value&#39;),
+        State(&#39;input_building&#39;, &#39;options&#39;),
+        State(&#39;check_all_points&#39;, &#39;value&#39;))
+    def uncheck_all_points(bldg_selection, bldg_options, current_val):
+        if not bldg_selection and bldg_options:
+            return [&#39;&#39;] if len(bldg_options) &gt; 1000 else current_val
+        raise PreventUpdate()
+
+    @app.callback(
+        Output(&#39;chk-graph&#39;, &#39;value&#39;),
+        Output(&#39;chk-options&#39;, &#39;value&#39;),
+        Output(&#39;chk-enduses&#39;, &#39;value&#39;),
+        Output(&#39;input_building2&#39;, &#39;options&#39;),
+        Output(&#34;uirevision&#34;, &#34;data&#34;),
+        Input(&#39;btn-reset&#39;, &#34;n_clicks&#34;)
+    )
+    def reset(n_clicks):
+        return [], [], [], [], n_clicks
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Input(&#39;btn-copy&#39;, &#34;n_clicks&#34;),
+        State(&#39;input_building2&#39;, &#39;options&#39;),
+    )
+    def copy(n_clicks, bldg_options2):
+        return bldg_options2 or dash.no_update
+
+    @app.callback(
+        Output(&#39;input_building&#39;, &#39;value&#39;),
+        Output(&#39;input_building&#39;, &#39;options&#39;),
+        Output(&#39;input_building2&#39;, &#39;options&#39;),
+        State(&#39;input_building&#39;, &#39;value&#39;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        Input(&#39;sync_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;report_upgrade&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_1&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_1_choices&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_2&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_2_choices&#39;, &#39;value&#39;),
+        State(&#39;drp_chr_3&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_3_choices&#39;, &#39;value&#39;),
+        Input(&#39;btn-reset&#39;, &#34;n_clicks&#34;)
+    )
+    def bldg_selection(current_bldg, change_type, sync_upgrade, report_upgrade,
+                       char1, char_val1, char2, char_val2, char3, char_val3, reset_click):
+
+        if sync_upgrade and change_type:
+            valid_bldgs = list(sorted(chng2bldg[(int(sync_upgrade), change_type)]))
+        elif report_upgrade and change_type:
+            valid_bldgs = list(sorted(chng2bldg[(int(report_upgrade), change_type)]))
+            res = get_res(report_upgrade, applied_only=True)
+            valid_bldgs = list(res.index.intersection(valid_bldgs))
+        elif report_upgrade:
+            res = get_res(report_upgrade, applied_only=True)
+            valid_bldgs = list(res.index)
+        else:
+            valid_bldgs = list(upgrade2res[0].index)
+
+        chars = [char1, char2, char3]
+        char_vals = [char_val1, char_val2, char_val3]
+        base_res = upgrade2res[0].loc[valid_bldgs]
+        condition = np.ones(len(base_res), dtype=bool)
+        for char, char_val in zip(chars, char_vals):
+            if char and char_val:
+                condition &amp;= base_res[char] == char_val
+        valid_bldgs = [str(b) for b in list(base_res[condition].index)]
+
+        if current_bldg and current_bldg not in valid_bldgs:
+            current_bldg = valid_bldgs[0] if valid_bldgs else &#39;&#39;
+        return current_bldg, valid_bldgs, []
+
+    def get_char_choices(char):
+        if char:
+            res0 = upgrade2res[0]
+            unique_choices = sorted(list(res0[char].unique()))
+            return unique_choices, unique_choices[0]
+        else:
+            return [], None
+
+    @app.callback(
+        Output(&#39;drp_chr_1_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_1_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_1&#39;, &#39;value&#39;),
+    )
+    def update_char_options1(char):
+        return get_char_choices(char)
+
+    @app.callback(
+        Output(&#39;drp_chr_2_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_2_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_2&#39;, &#39;value&#39;),
+    )
+    def update_char_options2(char):
+        return get_char_choices(char)
+
+    @app.callback(
+        Output(&#39;drp_chr_3_choices&#39;, &#39;options&#39;),
+        Output(&#39;drp_chr_3_choices&#39;, &#39;value&#39;),
+        Input(&#39;drp_chr_3&#39;, &#39;value&#39;),
+    )
+    def update_char_options3(char):
+        return get_char_choices(char)
+
+    def get_action_button_pairs(id, bldg_list_dict, report_type=&#39;opt&#39;):
+        buttons = []
+        bldg_str = &#39;&#39; if len(bldg_list_dict[id]) &gt; 10 else &#34; [&#34; + &#39;,&#39;.join([str(b) for b in bldg_list_dict[id]]) + &#34;]&#34;
+        for type in [&#39;check&#39;, &#39;cross&#39;]:
+            icon_name = &#34;akar-icons:circle-check-fill&#34; if type == &#39;check&#39; else &#34;gridicons:cross-circle&#34;
+            button = html.Div(dmc.ActionIcon(DashIconify(icon=icon_name,
+                                                         width=20 if type == &#34;check&#34; else 22,
+                                                         height=20 if type == &#34;check&#34; else 22,
+                                                         ),
+                                             id={&#39;index&#39;: id, &#39;type&#39;: f&#39;btn-{type}&#39;, &#39;report_type&#39;: report_type},
+                                             variant=&#34;light&#34;),
+                              id=f&#34;div-tooltip-target-{type}-{id}&#34;)
+            if type == &#34;check&#34;:
+                tooltip = dbc.Tooltip(f&#34;Select these buildings.{bldg_str}&#34;,
+                                      target=f&#34;div-tooltip-target-{type}-{id}&#34;, delay={&#39;show&#39;: 1000})
+
+                col = dbc.Col(html.Div([button, tooltip]),  width=&#39;auto&#39;, class_name=&#34;col-btn-cross&#34;)
+            else:
+                tooltip = dbc.Tooltip(f&#34;Select all except these buildings.{bldg_str}&#34;,
+                                      target=f&#34;div-tooltip-target-{type}-{id}&#34;, delay={&#39;show&#39;: 1000})
+                col = dbc.Col(html.Div([button, tooltip]),  width=&#39;auto&#39;, class_name=&#34;col-btn-check&#34;)
+            buttons.append(col)
+        return buttons
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;opt&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;opt&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#34;chk-options&#34;, &#34;value&#34;),
+        State(&#34;opt_report_store&#34;, &#34;data&#34;),
+    )
+    def opt_check_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_options, opt_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Options&#34; in chk_options and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = opt_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;enduse&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;enduse&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#34;chk-enduses&#34;, &#34;value&#34;),
+        State(&#34;enduse_report_store&#34;, &#34;data&#34;),
+    )
+    def enduse_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_enduses, opt_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Enduses&#34; in chk_enduses and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = opt_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#39;status_bar&#39;, &#34;children&#34;),
+        Output(&#39;input_building2&#39;, &#34;options&#34;),
+        Input({&#34;type&#34;: &#34;btn-check&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;char&#34;}, &#34;n_clicks&#34;),
+        Input({&#34;type&#34;: &#34;btn-cross&#34;, &#34;index&#34;: ALL, &#34;report_type&#34;: &#34;char&#34;}, &#34;n_clicks&#34;),
+        State(&#34;input_building&#34;, &#34;options&#34;),
+        State(&#34;input_building2&#34;, &#34;options&#34;),
+        State(&#39;chk-chars&#39;, &#39;value&#39;),
+        State(&#34;char_report_store&#34;, &#34;data&#34;),
+    )
+    def char_report_button_click(check_clicks, cross_clicks, bldg_options, bldg_options2, chk_char, char_report):
+        triggers = dash.callback_context.triggered_prop_ids
+        if len(triggers) != 1:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_char and bldg_options2:
+            bldg_list = [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(b) for b in bldg_options]
+
+        trigger_val = next(iter(triggers.values()))
+        buildings = char_report.get(trigger_val[&#39;index&#39;], [])
+        if trigger_val[&#39;type&#39;] == &#39;btn-check&#39;:
+            return &#39;&#39;, [str(b) for b in buildings]
+
+        bldg_set = set(buildings)
+        except_buildings = [str(v) for v in bldg_list if int(v) not in bldg_set]
+        return &#39;&#39;, except_buildings
+
+    @app.callback(
+        Output(&#34;options_report_header&#34;, &#34;children&#34;),
+        Output(&#34;options_report&#34;, &#39;children&#39;),
+        Output(&#34;opt_report_store&#34;, &#34;data&#34;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        State(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;chk-options&#39;, &#39;value&#39;),
+    )
+    def show_opt_report(bldg_id, bldg_options, bldg_options2, report_upgrade, chk_options):
+        if not report_upgrade or not bldg_options:
+            return &#34;Select an upgrade to see options applied in that upgrade&#34;, [&#39;&#39;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Options&#34; not in chk_options:
+            raise PreventUpdate()
+
+        if &#34;Options&#34; in chk_options and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        applied_options = euss_athena.report.get_applied_options(int(report_upgrade), bldg_list, include_base_opt=True)
+        opt_only = [{entry.split(&#39;|&#39;)[0] for entry in opt.keys()} for opt in applied_options]
+        reduced_set = list(reduce(set.union, opt_only))
+
+        nested_dict = defaultdict(lambda: defaultdict(Counter))
+        bldg_list_dict = defaultdict(list)
+
+        for bldg_id, opt_dict in zip(bldg_list, applied_options):
+            for opt_para, value in opt_dict.items():
+                opt = opt_para.split(&#39;|&#39;)[0]
+                para = opt_para.split(&#39;|&#39;)[1]
+                nested_dict[opt][para][value] += 1
+                bldg_list_dict[opt].append(bldg_id)
+                bldg_list_dict[opt + &#34;|&#34; + para].append(bldg_id)
+                bldg_list_dict[opt + &#34;|&#34; + para + &#34;&lt;-&#34; + value].append(bldg_id)
+
+        def get_accord_item(opt_name):
+            total_count = sum(counter.total() for counter in nested_dict[opt_name].values())
+            children = []
+            for parameter, counter in nested_dict[opt_name].items():
+                contents = []
+                new_counter = Counter({&#34;All&#34;: counter.total()})
+                new_counter.update(counter)
+                for from_val, count in new_counter.items():
+                    if from_val == &#34;All&#34;:
+                        but_ids = f&#34;{opt_name}|{parameter}&#34;
+                    else:
+                        but_ids = f&#34;{opt_name}|{parameter}&lt;-{from_val}&#34;
+                    entry = dbc.Row([dbc.Col(f&#34;&lt;-{from_val} ({count})&#34;, width=&#34;auto&#34;),
+                                     *get_action_button_pairs(but_ids, bldg_list_dict)])
+                    contents.append(entry)
+                children.append(dmc.AccordionItem(contents, label=f&#34;{parameter} ({counter.total()})&#34;))
+
+            accordian = dmc.Accordion(children, multiple=True)
+            first_row = dbc.Row([dbc.Col(f&#34;All ({total_count})&#34;, width=&#34;auto&#34;),
+                                 *get_action_button_pairs(opt_name, bldg_list_dict)])
+            return dmc.AccordionItem([first_row, accordian], label=f&#34;{opt_name} ({total_count})&#34;)
+        if reduced_set:
+            final_report = dmc.Accordion([get_accord_item(opt_name) for opt_name in reduced_set], multiple=True)
+        else:
+            final_report = [&#34;No option got applied to the selected building(s).&#34;]
+        up_name = upgrade2name[int(report_upgrade)]
+        return f&#34;Options applied in {up_name}&#34;, final_report, dict(bldg_list_dict)
+
+    @app.callback(
+        Output(&#34;enduse_report&#34;, &#34;children&#34;),
+        Output(&#34;enduse_report_store&#34;, &#34;data&#34;),
+        State(&#39;report_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        Input(&#39;input_enduse_type&#39;, &#39;value&#39;),
+        Input(&#39;chk-enduses&#39;, &#39;value&#39;),
+    )
+    def show_enduse_report(report_upgrade, bldg_id, bldg_options, bldg_options2, enduse_change_type, chk_enduse):
+        if not report_upgrade or not bldg_options:
+            return [&#34;Select an upgrade to see enuse report.&#34;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Enduses&#34; not in chk_enduse:
+            raise PreventUpdate()
+
+        if &#34;Enduses&#34; in chk_enduse and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        # print(bldg_list)
+        dict_changed_enduses = euss_athena.report.get_enduses_by_change(int(report_upgrade), enduse_change_type,
+                                                                        bldg_list)
+        # print(changed_enduses)
+
+        all_changed_enduses = list(dict_changed_enduses.keys())
+        if not all_changed_enduses:
+            if bldg_id:
+                return f&#39;No enduse has {enduse_change_type} in building {bldg_id} &#39;, {}
+            else:
+                return f&#39;No enduse has {enduse_change_type} in any of the buildings&#39;, {}
+
+        enduses2bldgs = defaultdict(list)
+        for end_use, bldgs in dict_changed_enduses.items():
+            if end_use in all_changed_enduses:
+                enduses2bldgs[end_use].extend([int(bldg_id) for bldg_id in bldgs])
+
+        fuel2bldgs = defaultdict(set)
+        fuel2enduses = defaultdict(list)
+        for enduse, bldgs in enduses2bldgs.items():
+            for fuel in [&#39;all_fuel&#39;] + fuels_types:
+                if fuel in enduse:
+                    fuel2bldgs[fuel] |= set(bldgs)
+                    fuel2enduses[fuel].append(enduse)
+                    break
+            else:
+                fuel2bldgs[&#39;other&#39;] |= set(bldgs)
+                fuel2enduses[&#39;other&#39;].append(enduse)
+
+        for key, val in fuel2bldgs.items():
+            fuel2bldgs[key] = list(val)
+
+        enduses2bldgs.update(fuel2bldgs)
+
+        def get_accord_item(fuel):
+            total_count = len(enduses2bldgs[fuel])
+            contents = [dbc.Row([dbc.Col(f&#34;All {fuel} ({total_count})&#34;, width=&#34;auto&#34;),
+                                 *get_action_button_pairs(fuel, enduses2bldgs, &#34;enduse&#34;)])]
+            for enduse in fuel2enduses[fuel]:
+                count = len(enduses2bldgs[enduse])
+                row = dbc.Row([dbc.Col(f&#34;{enduse} ({count})&#34;, width=&#34;auto&#34;),
+                               *get_action_button_pairs(enduse, enduses2bldgs, &#34;enduse&#34;)])
+                contents.append(row)
+            return dmc.AccordionItem(contents, label=f&#34;{fuel} ({total_count})&#34;)
+
+        report = dmc.Accordion([get_accord_item(fuel) for fuel in fuel2enduses.keys()],  multiple=True)
+        storedict = dict(enduses2bldgs)
+        return report, storedict
+
+    @app.callback(
+        Output(&#34;char_report&#34;, &#34;children&#34;),
+        Output(&#34;char_report_store&#34;, &#34;data&#34;),
+        Input(&#39;input_building&#39;, &#34;value&#34;),
+        Input(&#39;input_building&#39;, &#34;options&#34;),
+        Input(&#39;input_building2&#39;, &#34;options&#34;),
+        Input(&#39;drp-char-report&#39;, &#39;value&#39;),
+        Input(&#39;chk-chars&#39;, &#39;value&#39;),
+    )
+    def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
+        if not (bldg_options or bldg_options2 or bldg_id):
+            return [&#34;&#34;], {}
+        if not inp_char:
+            return [&#34;Select a characteristics to see its report.&#34;], {}
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Chars&#34; not in chk_chars:
+            raise PreventUpdate()
+
+        if &#34;Chars&#34; in chk_chars and bldg_options2:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
+        else:
+            bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
+
+        chars_df = res_csv_df.loc[bldg_list][inp_char].reset_index()
+        char2bldgs = chars_df.groupby(inp_char)[&#39;building_id&#39;].agg(list).to_dict()
+        if (total_len := len(char2bldgs)) &gt; 200:
+            return [f&#34;Sorry, this would create more than 200 ({total_len}) rows.&#34;], {}
+        char_dict = {}
+        total_count = 0
+        contents = []
+        for char_vals, bldglist in char2bldgs.items():
+            but_ids = &#34;+&#34;.join(char_vals) if isinstance(char_vals, tuple) else char_vals
+            char_dict[but_ids] = [int(b) for b in bldglist]
+            count = len(bldglist)
+            total_count += count
+            contents.append(dbc.Row([dbc.Col(f&#34;{char_vals} ({count})&#34;, width=&#34;auto&#34;),
+                                     *get_action_button_pairs(but_ids, char_dict, &#34;char&#34;)]))
+
+        report = dmc.Accordion([dmc.AccordionItem(contents, label=f&#34;{inp_char} ({total_count})&#34;)])
+        return report, char_dict
+
+    @app.callback(
+        Output(&#39;graph&#39;, &#39;figure&#39;),
+        Output(&#39;loader_label&#39;, &#34;children&#34;),
+        State(&#39;tab_view_type&#39;, &#34;value&#34;),
+        Input(&#39;drp-group-by&#39;, &#39;value&#39;),
+        Input(&#39;radio_fuel&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_enduse&#39;, &#34;value&#34;),
+        Input(&#39;radio_graph_type&#39;, &#34;value&#34;),
+        Input(&#39;radio_savings&#39;, &#34;value&#34;),
+        Input(&#39;chk_applied_only&#39;, &#34;value&#34;),
+        Input(&#39;dropdown_chng_type&#39;, &#34;value&#34;),
+        Input(&#39;check_all_points&#39;, &#34;value&#34;),
+        Input(&#39;sync_upgrade&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;value&#39;),
+        Input(&#39;input_building&#39;, &#39;options&#39;),
+        Input(&#39;input_building2&#39;, &#39;options&#39;),
+        Input(&#39;chk-graph&#39;, &#39;value&#39;),
+        State(&#34;uirevision&#34;, &#34;data&#34;)
+    )
+    def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
+                      show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision):
+
+        if dash.callback_context.triggered_id == &#39;input_building2&#39; and &#34;Graph&#34; not in chk_graph:
+            raise PreventUpdate()
+
+        if &#34;Graph&#34; in chk_graph and bldg_options2:
+            bldg_options = bldg_options2
+
+        bldg_options = bldg_options or []
+        if not enduse:
+            full_name = []
+        if view_tab == &#39;energy&#39;:
+            full_name = get_all_end_use_cols(fuel, enduse)
+        else:
+            full_name = [enduse]
+
+        applied_only = &#34;Applied Only&#34; in chk_applied_only
+
+        if selected_bldg:
+            filter_bldg = [int(selected_bldg)]
+        else:
+            filter_bldg = [int(b) for b in bldg_options]
+
+        # print(f&#34;Sync upgrade is {sync_upgrade}. {sync_upgrade is None}&#34;)
+        if graph_type in [&#39;Mean&#39;, &#39;Total&#39;, &#39;Count&#39;]:
+            new_figure = get_bars(full_name, graph_type, savings_type, applied_only,
+                                  chng_type, sync_upgrade, filter_bldg, grp_by)
+        elif graph_type in [&#34;Distribution&#34;]:
+            new_figure = get_distribution(full_name, savings_type, applied_only,
+                                          chng_type, &#39;Show all points&#39; in show_all_points, sync_upgrade,
+                                          filter_bldg, grp_by)
+        uirevision = uirevision or &#34;default&#34;
+        new_figure.update_layout(uirevision=uirevision)
+        return new_figure, &#34;&#34;
+
+    euss_athena.save_cache()
+    return app</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.upgrades_visualizer.main"><code class="name flex">
+<span>def <span class="ident">main</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def main():
+    print(&#34;Welcome to Upgrades Visualizer.&#34;)
+    db_name = inquirer.text(message=&#34;Please enter database_name &#34;
+                            &#34;(found in postprocessing:aws:athena in the buildstock configuration file)&#34;,
+                            default=&#39;euss-tests&#39;).execute()
+    table_name = inquirer.text(message=&#34;Please enter table name (same as output folder name; found under &#34;
+                               &#34;output_directory in the buildstock configuration file)&#34;,
+                               default=&#39;res_test_03_2018_10k_20220607&#39;).execute()
+    app = get_app(db_name=db_name, table_name=table_name)
+    app.run_server(debug=False)</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query.tools" href="index.html">buildstock_query.tools</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="buildstock_query.tools.upgrades_visualizer.get_app" href="#buildstock_query.tools.upgrades_visualizer.get_app">get_app</a></code></li>
+<li><code><a title="buildstock_query.tools.upgrades_visualizer.main" href="#buildstock_query.tools.upgrades_visualizer.main">main</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

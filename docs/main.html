@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.main API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.main</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import contextlib
+import sqlalchemy as sa
+from sqlalchemy.sql import func as safunc
+from typing import List, Tuple, Union
+import logging
+import re
+from buildstock_query.tools.upgrades_analyzer import UpgradesAnalyzer
+from buildstock_query.query_core import QueryCore
+from buildstock_query.report_query import BuildStockReport
+from buildstock_query.aggregate_query import BuildStockAggregate
+from buildstock_query.savings_query import BuildStockSavings
+from buildstock_query.utility_query import BuildStockUtility
+import pandas as pd
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+FUELS = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
+
+
+class BuildStockQuery(QueryCore):
+    def __init__(self,
+                 workgroup: str,
+                 db_name: str,
+                 table_name: str | tuple[str, str],
+                 buildstock_type: str = &#39;resstock&#39;,
+                 timestamp_column_name: str = &#39;time&#39;,
+                 building_id_column_name: str = &#39;building_id&#39;,
+                 sample_weight: str = &#34;build_existing_model.sample_weight&#34;,
+                 region_name: str = &#39;us-west-2&#39;,
+                 execution_history: str | None = None,
+                 skip_reports: bool | None = False,
+                 ) -&gt; None:
+        &#34;&#34;&#34;A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
+
+        Args:
+            workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
+            db_name (str): The athena database name
+            buildstock_type (str, optional): &#39;resstock&#39; or &#39;comstock&#39; runs. Defaults to &#39;resstock&#39;
+            table_name (str or tuple[str, str]): If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond
+                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
+                as a tuple, (such as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and
+                a timeseries table.
+            timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
+            building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
+            sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
+                use constant sample weight.. Defaults to &#34;build_existing_model.sample_weight&#34;.
+            region_name (str, optional): the AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
+            execution_history (str, optional): A temporary files to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied.
+            skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
+                prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+        &#34;&#34;&#34;
+
+        super().__init__(
+            workgroup=workgroup,
+            db_name=db_name,
+            buildstock_type=buildstock_type,
+            table_name=table_name,
+            timestamp_column_name=timestamp_column_name,
+            building_id_column_name=building_id_column_name,
+            sample_weight=sample_weight,
+            region_name=region_name,
+            execution_history=execution_history
+        )
+        #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
+        self.report: BuildStockReport = BuildStockReport(self)
+        #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
+        self.agg: BuildStockAggregate = BuildStockAggregate(self)
+        #: `buildstock_query.savings_query.BuildStockSavings` object to perform savings queries
+        self.savings = BuildStockSavings(self)
+        #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
+        self.utility = BuildStockUtility(self)
+
+        with contextlib.suppress(FileNotFoundError):
+            self.load_cache()
+
+        if not skip_reports:
+            logger.info(&#34;Getting Success counts...&#34;)
+            print(self.report.get_success_report())
+            if self.ts_table is not None:
+                self.report.check_ts_bs_integrity()
+        self.save_cache()
+
+    def get_buildstock_df(self) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the building characteristics data by quering Athena tables using the same format as that produced
+        by the sampler and written as buildstock.csv. It only includes buildings with successful simulation.
+        Returns:
+            pd.DataFrame: The buildstock.csv dataframe.
+        &#34;&#34;&#34;
+        results_df = self.get_results_csv()
+        results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+        buildstock_df = results_df[buildstock_cols]
+        buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
+                           if c.startswith(&#34;build_existing_model.&#34;)]
+        buildstock_df.columns = buildstock_cols
+        return buildstock_df
+
+    def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+        &#34;&#34;&#34;
+            Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
+
+        Args:
+            yaml_file (str): The path to the buildstock configuration file.
+
+        Returns:
+            UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+        &#34;&#34;&#34;
+
+        buildstock_df = self.get_buildstock_df()
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+        return ua
+
+    def _get_rows_per_building(self, get_query_only=False):
+        select_cols = []
+        if self.up_table is not None:
+            select_cols.append(self.ts_table.c[&#39;upgrade&#39;])
+        select_cols.extend((self.ts_bldgid_column, safunc.count().label(&#34;row_count&#34;)))
+        ts_query = sa.select(select_cols)
+        if self.up_table is not None:
+            ts_query = ts_query.group_by(sa.text(&#39;1&#39;), sa.text(&#39;2&#39;))
+        else:
+            ts_query = ts_query.group_by(sa.text(&#39;1&#39;))
+
+        if get_query_only:
+            return self._compile(ts_query)
+        df = self.execute(ts_query)
+        if (df[&#39;row_count&#39;] == df[&#39;row_count&#39;][0]).all():  # verify all buildings got same number of rows
+            return df[&#39;row_count&#39;][0]
+        else:
+            raise ValueError(&#34;Not all buildings have same number of rows.&#34;)
+
+    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+        &#34;&#34;&#34;
+            Find distinct vals.
+        Args:
+            column (str): The column in the table for which distinct vals is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct vals.
+        &#34;&#34;&#34;
+        table_name = self.bs_table.name if table_name is None else table_name
+        tbl = self.get_table(table_name)
+        query = sa.select(tbl.c[column]).distinct()
+        if get_query_only:
+            return self._compile(query)
+
+        r = self.execute(query, run_async=False)
+        return r[column]
+
+    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
+                           get_query_only: bool = False) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;
+            Find distinct counts.
+        Args:
+            column (str): The column in the table for which distinct counts is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct counts.
+        &#34;&#34;&#34;
+        tbl = self.bs_table if table_name is None else self.get_table(table_name)
+        query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
+                           safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
+        query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
+        if get_query_only:
+            return self._compile(query)
+
+        r = self.execute(query, run_async=False)
+        return r
+
+    def get_results_csv(self,
+                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                        get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run
+        Args:
+            restrict (List[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
+                results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only (bool): If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
+        query = self._add_restrict(query, restrict)
+        compiled_query = self._compile(query)
+        if get_query_only:
+            return compiled_query
+        self._session_queries.add(compiled_query)
+        if compiled_query in self._query_cache:
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+        logger.info(&#34;Making results_csv query ...&#34;)
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_upgrades_csv(self, upgrade=None,
+                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                         get_query_only: bool = False, copy=True):
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select([&#39;*&#39;]).select_from(self.up_table)
+        if upgrade:
+            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+
+        query = self._add_restrict(query, restrict)
+        compiled_query = self._compile(query)
+        if get_query_only:
+            return compiled_query
+        self._session_queries.add(compiled_query)
+        if compiled_query in self._query_cache:
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+        logger.info(&#34;Making results_csv query for upgrade ...&#34;)
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings based on the restrict list
+        Args:
+            restrict (List[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
+                    should be specified as a list of tuple.
+                    Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only (bool): If set to true, returns the query string instead of the result. Default is False.
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select(self.bs_bldgid_column)
+        query = self._add_restrict(query, restrict)
+        if get_query_only:
+            return self._compile(query)
+        res = self.execute(query)
+        return res
+
+    def _get_simulation_info(self, get_query_only=False):
+        # find the simulation time interval
+        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        bldg_df = self.execute(query0)
+        bldg_id = bldg_df.iloc[0].values[0]
+        query1 = sa.select([self.timestamp_column.distinct().label(&#39;time&#39;)]).where(self.ts_bldgid_column == bldg_id)
+        query1 = query1.order_by(self.timestamp_column).limit(2)
+        if get_query_only:
+            return self._compile(query1)
+
+        two_times = self.execute(query1)
+        time1 = two_times[self.timestamp_column_name].iloc[0]
+        time2 = two_times[self.timestamp_column_name].iloc[1]
+        sim_year = time1.year
+        sim_interval_seconds = (time2 - time1).total_seconds()
+        return sim_year, sim_interval_seconds
+
+    def _get_gcol(self, column):  # gcol =&gt; group by col
+        if isinstance(column, sa.Column):
+            return column.label(self._simple_label(column.name))  # already a col
+
+        if isinstance(column, sa.sql.elements.Label):
+            return column
+
+        if isinstance(column, tuple):
+            try:
+                return self.get_column(column[0]).label(column[1])
+            except ValueError:
+                new_name = f&#34;build_existing_model.{column[0]}&#34;
+                return self.get_column(new_name).label(column[1])
+        elif isinstance(column, str):
+            try:
+                return self.get_column(column).label(self._simple_label(column))
+            except ValueError as e:
+                if not column.startswith(&#34;build_existing_model.&#34;):
+                    new_name = f&#34;build_existing_model.{column}&#34;
+                    return self.get_column(new_name).label(column)
+                raise ValueError(f&#34;Invalid column name {column}&#34;) from e
+        else:
+            raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
+
+    def _get_enduse_cols(self, enduses, table=&#39;baseline&#39;) -&gt; list[sa.Column]:
+        tbls_dict = {&#39;baseline&#39;: self.bs_table,
+                     &#39;upgrade&#39;: self.up_table,
+                     &#39;timeseries&#39;: self.ts_table}
+        tbl = tbls_dict[table]
+        try:
+            enduse_cols = [tbl.c[e] for e in enduses]
+        except KeyError as e:
+            if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
+                enduse_cols = [tbl.c[f&#34;report_simulation_output.{e}&#34;] for e in enduses]
+            else:
+                raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from e
+        return enduse_cols
+
+    def get_groupby_cols(self) -&gt; List[str]:
+        &#34;&#34;&#34;Find list of building characteristics that can be used for grouping.
+
+        Returns:
+            List[str]: List of building characteristics.
+        &#34;&#34;&#34;
+        cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
+                if y.startswith(&#34;build_existing_model.&#34;)}
+        return list(cols)
+
+    def _validate_group_by(self, group_by):
+        valid_groupby_cols = self.get_groupby_cols()
+        group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
+        if not set(group_by_cols).issubset(valid_groupby_cols):
+            invalid_cols = &#34;, &#34;.join(f&#39;&#34;{x}&#34;&#39; for x in set(group_by).difference(valid_groupby_cols))
+            raise ValueError(f&#34;The following are not valid columns in the database: {invalid_cols}&#34;)
+        return group_by
+        # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
+        # performance
+
+    def get_available_upgrades(self) -&gt; list:
+        &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
+        Returns:
+            list: List of upgrades
+        &#34;&#34;&#34;
+        return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)
+
+    def _validate_upgrade(self, upgrade_id):
+        upgrade_id = 0 if upgrade_id in (None, &#39;0&#39;) else upgrade_id
+        available_upgrades = self.get_available_upgrades() or [0]
+        if upgrade_id not in set(available_upgrades):
+            raise ValueError(f&#34;`upgrade_id` = {upgrade_id} is not a valid upgrade.&#34;
+                             &#34;It doesn&#39;t exist or have no successful run&#34;)
+        return str(upgrade_id)
+
+    def _split_restrict(self, restrict):
+        # Some cols like &#34;state&#34; might be available in both ts and bs table
+        bs_restrict = []  # restrict to apply to baseline table
+        ts_restrict = []  # restrict to apply to timeseries table
+        for col, restrict_vals in restrict:
+            if col in self.ts_table.columns:  # prioritize ts table
+                ts_restrict.append([self.ts_table.c[col], restrict_vals])
+            else:
+                bs_restrict.append([self._get_gcol(col), restrict_vals])
+        return bs_restrict, ts_restrict
+
+    def _split_group_by(self, processed_group_by):
+        # Some cols like &#34;state&#34; might be available in both ts and bs table
+        ts_group_by = []  # restrict to apply to baseline table
+        bs_group_by = []  # restrict to apply to timeseries table
+        for g in processed_group_by:
+            if g.name in self.ts_table.columns:
+                ts_group_by.append(g)
+            else:
+                bs_group_by.append(g)
+        return bs_group_by, ts_group_by
+
+    def _clean_group_by(self, group_by):
+        &#34;&#34;&#34;
+        :param group_by: The group_by list
+        :return: cleaned version of group_by
+        Sometimes, it is necessary to include the table name in the group_by column. For example, a group_by could be
+        [&#39;time&#39;, &#39;&#34;res_national_53_2018_baseline&#34;.&#34;build_existing_model.state&#34;&#39;]. This is necessary if the another table
+        (such as correction factors table) that has the same column (&#34;build_existing_model.state&#34;) as the baseline
+        table. However, the query result will not include the table name in columns, so it is necessary to transform
+        the group_by to a cleaner version ([&#39;time&#39;, &#39;build_existing_model.state&#39;]).
+        Othertimes, quotes are used in group_by columns, such as [&#39;&#34;time&#34;&#39;], but the query result will not contain the
+        quote so it is necessary to remove the quote.
+        Some other time, a group_by column is specified as a tuple of column and a as name. For example, group_by can
+        contain [(&#39;month(time)&#39;, &#39;MOY&#39;)], in this case, we want to convert it into just &#39;MOY&#39; since that is what will be
+        present in the returned query.
+        &#34;&#34;&#34;
+        new_group_by = []
+        for col in group_by:
+            if isinstance(col, tuple):
+                new_group_by.append(col[1])
+                continue
+
+            if match := re.search(r&#39;&#34;[\w\.]*&#34;\.&#34;([\w\.]*)&#34;&#39;, col) or re.search(r&#39;&#34;([\w\.]*)&#34;&#39;, col):
+                new_group_by.append(match.group(1))
+            else:
+                new_group_by.append(col)
+        return new_group_by
+
+    def _process_groupby_cols(self, group_by, annual_only=False):
+        if not group_by:
+            return []
+        if annual_only:
+            new_group_by = []
+            for entry in group_by:
+                if isinstance(entry, str) and not entry.startswith(&#34;build_existing_model.&#34;):
+                    new_group_by.append(f&#34;build_existing_model.{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(&#34;build_existing_model.&#34;):
+                    new_group_by.append((f&#34;build_existing_model.{entry[0]}&#34;, entry[1]))
+                else:
+                    new_group_by.append(entry)
+            group_by = new_group_by
+        return [self._get_gcol(entry) for entry in group_by]
+
+    def _get_simulation_timesteps_count(self):
+        # find the simulation time interval
+        query = sa.select([self.ts_bldgid_column, safunc.sum(1).label(&#39;count&#39;)])
+        query = query.group_by(self.ts_bldgid_column)
+        sim_timesteps_count = self.execute(query)
+        bld0_step_count = sim_timesteps_count[&#39;count&#39;].iloc[0]
+        n_buildings_with_same_count = sum(sim_timesteps_count[&#39;count&#39;] == bld0_step_count)
+        if n_buildings_with_same_count != len(sim_timesteps_count):
+            logger.warning(&#34;Not all buildings have the same number of timestamps. This can cause wrong&#34;
+                           &#34;scaled_units_count and other problems.&#34;)
+
+        return bld0_step_count
+
+    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings belonging to given list of locations.
+        Args:
+            location_col: The column used for &#34;build_existing_model.county&#34; etc
+            locations: list of `build_existing_model.location&#39; strings
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        &#34;&#34;&#34;
+        query = sa.select([self.bs_bldgid_column])
+        query = query.where(self.get_column(location_col).in_(locations))
+        query = self._add_order_by(query, [self.bs_bldgid_column])
+        if get_query_only:
+            return self._compile(query)
+        res = self.execute(query)
+        return res</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.main.BuildStockQuery"><code class="flex name class">
+<span>class <span class="ident">BuildStockQuery</span></span>
+<span>(</span><span>workgroup: str, db_name: str, table_name: str | tuple[str, str], buildstock_type: str = 'resstock', timestamp_column_name: str = 'time', building_id_column_name: str = 'building_id', sample_weight: str = 'build_existing_model.sample_weight', region_name: str = 'us-west-2', execution_history: str | None = None, skip_reports: bool | None = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>workgroup</code></strong> :&ensp;<code>str</code></dt>
+<dd>The workgroup for athena. The cost will be charged based on workgroup.</dd>
+<dt><strong><code>db_name</code></strong> :&ensp;<code>str</code></dt>
+<dd>The athena database name</dd>
+<dt><strong><code>buildstock_type</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>'resstock' or 'comstock' runs. Defaults to 'resstock'</dd>
+<dt><strong><code>table_name</code></strong> :&ensp;<code>str</code> or <code>tuple[str, str]</code></dt>
+<dd>If a single string is provided, say, 'mfm_run', then it must correspond
+to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
+as a tuple, (such as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and
+a timeseries table.</dd>
+<dt><strong><code>timestamp_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The column name for the time column. Defaults to 'time'</dd>
+<dt><strong><code>building_id_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The column name for building_id. Defaults to 'building_id'</dd>
+<dt><strong><code>sample_weight</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The column name to be used to get the sample weight. Pass floats/integer to
+use constant sample weight.. Defaults to "build_existing_model.sample_weight".</dd>
+<dt><strong><code>region_name</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>the AWS region where the database exists. Defaults to 'us-west-2'.</dd>
+<dt><strong><code>execution_history</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>A temporary files to record which execution is run by the user,
+to help stop them. Will use .execution_history if not supplied.</dd>
+<dt><strong><code>skip_reports</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>If true, skips report printing during initialization. If False (default),
+prints report from <code><a title="buildstock_query.report_query.BuildStockReport.get_success_report" href="report_query.html#buildstock_query.report_query.BuildStockReport.get_success_report">BuildStockReport.get_success_report()</a></code>.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class BuildStockQuery(QueryCore):
+    def __init__(self,
+                 workgroup: str,
+                 db_name: str,
+                 table_name: str | tuple[str, str],
+                 buildstock_type: str = &#39;resstock&#39;,
+                 timestamp_column_name: str = &#39;time&#39;,
+                 building_id_column_name: str = &#39;building_id&#39;,
+                 sample_weight: str = &#34;build_existing_model.sample_weight&#34;,
+                 region_name: str = &#39;us-west-2&#39;,
+                 execution_history: str | None = None,
+                 skip_reports: bool | None = False,
+                 ) -&gt; None:
+        &#34;&#34;&#34;A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
+
+        Args:
+            workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
+            db_name (str): The athena database name
+            buildstock_type (str, optional): &#39;resstock&#39; or &#39;comstock&#39; runs. Defaults to &#39;resstock&#39;
+            table_name (str or tuple[str, str]): If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond
+                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
+                as a tuple, (such as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and
+                a timeseries table.
+            timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
+            building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
+            sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
+                use constant sample weight.. Defaults to &#34;build_existing_model.sample_weight&#34;.
+            region_name (str, optional): the AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
+            execution_history (str, optional): A temporary files to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied.
+            skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
+                prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+        &#34;&#34;&#34;
+
+        super().__init__(
+            workgroup=workgroup,
+            db_name=db_name,
+            buildstock_type=buildstock_type,
+            table_name=table_name,
+            timestamp_column_name=timestamp_column_name,
+            building_id_column_name=building_id_column_name,
+            sample_weight=sample_weight,
+            region_name=region_name,
+            execution_history=execution_history
+        )
+        #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
+        self.report: BuildStockReport = BuildStockReport(self)
+        #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
+        self.agg: BuildStockAggregate = BuildStockAggregate(self)
+        #: `buildstock_query.savings_query.BuildStockSavings` object to perform savings queries
+        self.savings = BuildStockSavings(self)
+        #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
+        self.utility = BuildStockUtility(self)
+
+        with contextlib.suppress(FileNotFoundError):
+            self.load_cache()
+
+        if not skip_reports:
+            logger.info(&#34;Getting Success counts...&#34;)
+            print(self.report.get_success_report())
+            if self.ts_table is not None:
+                self.report.check_ts_bs_integrity()
+        self.save_cache()
+
+    def get_buildstock_df(self) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the building characteristics data by quering Athena tables using the same format as that produced
+        by the sampler and written as buildstock.csv. It only includes buildings with successful simulation.
+        Returns:
+            pd.DataFrame: The buildstock.csv dataframe.
+        &#34;&#34;&#34;
+        results_df = self.get_results_csv()
+        results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+        buildstock_df = results_df[buildstock_cols]
+        buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
+                           if c.startswith(&#34;build_existing_model.&#34;)]
+        buildstock_df.columns = buildstock_cols
+        return buildstock_df
+
+    def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+        &#34;&#34;&#34;
+            Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
+
+        Args:
+            yaml_file (str): The path to the buildstock configuration file.
+
+        Returns:
+            UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+        &#34;&#34;&#34;
+
+        buildstock_df = self.get_buildstock_df()
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+        return ua
+
+    def _get_rows_per_building(self, get_query_only=False):
+        select_cols = []
+        if self.up_table is not None:
+            select_cols.append(self.ts_table.c[&#39;upgrade&#39;])
+        select_cols.extend((self.ts_bldgid_column, safunc.count().label(&#34;row_count&#34;)))
+        ts_query = sa.select(select_cols)
+        if self.up_table is not None:
+            ts_query = ts_query.group_by(sa.text(&#39;1&#39;), sa.text(&#39;2&#39;))
+        else:
+            ts_query = ts_query.group_by(sa.text(&#39;1&#39;))
+
+        if get_query_only:
+            return self._compile(ts_query)
+        df = self.execute(ts_query)
+        if (df[&#39;row_count&#39;] == df[&#39;row_count&#39;][0]).all():  # verify all buildings got same number of rows
+            return df[&#39;row_count&#39;][0]
+        else:
+            raise ValueError(&#34;Not all buildings have same number of rows.&#34;)
+
+    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+        &#34;&#34;&#34;
+            Find distinct vals.
+        Args:
+            column (str): The column in the table for which distinct vals is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct vals.
+        &#34;&#34;&#34;
+        table_name = self.bs_table.name if table_name is None else table_name
+        tbl = self.get_table(table_name)
+        query = sa.select(tbl.c[column]).distinct()
+        if get_query_only:
+            return self._compile(query)
+
+        r = self.execute(query, run_async=False)
+        return r[column]
+
+    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
+                           get_query_only: bool = False) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;
+            Find distinct counts.
+        Args:
+            column (str): The column in the table for which distinct counts is needed.
+            table_name (str, optional): The table in athena. Defaults to baseline table.
+            get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+        Returns:
+            pd.Series: The distinct counts.
+        &#34;&#34;&#34;
+        tbl = self.bs_table if table_name is None else self.get_table(table_name)
+        query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
+                           safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
+        query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
+        if get_query_only:
+            return self._compile(query)
+
+        r = self.execute(query, run_async=False)
+        return r
+
+    def get_results_csv(self,
+                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                        get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run
+        Args:
+            restrict (List[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
+                results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only (bool): If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
+        query = self._add_restrict(query, restrict)
+        compiled_query = self._compile(query)
+        if get_query_only:
+            return compiled_query
+        self._session_queries.add(compiled_query)
+        if compiled_query in self._query_cache:
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+        logger.info(&#34;Making results_csv query ...&#34;)
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_upgrades_csv(self, upgrade=None,
+                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                         get_query_only: bool = False, copy=True):
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select([&#39;*&#39;]).select_from(self.up_table)
+        if upgrade:
+            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+
+        query = self._add_restrict(query, restrict)
+        compiled_query = self._compile(query)
+        if get_query_only:
+            return compiled_query
+        self._session_queries.add(compiled_query)
+        if compiled_query in self._query_cache:
+            return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+        logger.info(&#34;Making results_csv query for upgrade ...&#34;)
+        return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings based on the restrict list
+        Args:
+            restrict (List[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
+                    should be specified as a list of tuple.
+                    Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            get_query_only (bool): If set to true, returns the query string instead of the result. Default is False.
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        query = sa.select(self.bs_bldgid_column)
+        query = self._add_restrict(query, restrict)
+        if get_query_only:
+            return self._compile(query)
+        res = self.execute(query)
+        return res
+
+    def _get_simulation_info(self, get_query_only=False):
+        # find the simulation time interval
+        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        bldg_df = self.execute(query0)
+        bldg_id = bldg_df.iloc[0].values[0]
+        query1 = sa.select([self.timestamp_column.distinct().label(&#39;time&#39;)]).where(self.ts_bldgid_column == bldg_id)
+        query1 = query1.order_by(self.timestamp_column).limit(2)
+        if get_query_only:
+            return self._compile(query1)
+
+        two_times = self.execute(query1)
+        time1 = two_times[self.timestamp_column_name].iloc[0]
+        time2 = two_times[self.timestamp_column_name].iloc[1]
+        sim_year = time1.year
+        sim_interval_seconds = (time2 - time1).total_seconds()
+        return sim_year, sim_interval_seconds
+
+    def _get_gcol(self, column):  # gcol =&gt; group by col
+        if isinstance(column, sa.Column):
+            return column.label(self._simple_label(column.name))  # already a col
+
+        if isinstance(column, sa.sql.elements.Label):
+            return column
+
+        if isinstance(column, tuple):
+            try:
+                return self.get_column(column[0]).label(column[1])
+            except ValueError:
+                new_name = f&#34;build_existing_model.{column[0]}&#34;
+                return self.get_column(new_name).label(column[1])
+        elif isinstance(column, str):
+            try:
+                return self.get_column(column).label(self._simple_label(column))
+            except ValueError as e:
+                if not column.startswith(&#34;build_existing_model.&#34;):
+                    new_name = f&#34;build_existing_model.{column}&#34;
+                    return self.get_column(new_name).label(column)
+                raise ValueError(f&#34;Invalid column name {column}&#34;) from e
+        else:
+            raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
+
+    def _get_enduse_cols(self, enduses, table=&#39;baseline&#39;) -&gt; list[sa.Column]:
+        tbls_dict = {&#39;baseline&#39;: self.bs_table,
+                     &#39;upgrade&#39;: self.up_table,
+                     &#39;timeseries&#39;: self.ts_table}
+        tbl = tbls_dict[table]
+        try:
+            enduse_cols = [tbl.c[e] for e in enduses]
+        except KeyError as e:
+            if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
+                enduse_cols = [tbl.c[f&#34;report_simulation_output.{e}&#34;] for e in enduses]
+            else:
+                raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from e
+        return enduse_cols
+
+    def get_groupby_cols(self) -&gt; List[str]:
+        &#34;&#34;&#34;Find list of building characteristics that can be used for grouping.
+
+        Returns:
+            List[str]: List of building characteristics.
+        &#34;&#34;&#34;
+        cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
+                if y.startswith(&#34;build_existing_model.&#34;)}
+        return list(cols)
+
+    def _validate_group_by(self, group_by):
+        valid_groupby_cols = self.get_groupby_cols()
+        group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
+        if not set(group_by_cols).issubset(valid_groupby_cols):
+            invalid_cols = &#34;, &#34;.join(f&#39;&#34;{x}&#34;&#39; for x in set(group_by).difference(valid_groupby_cols))
+            raise ValueError(f&#34;The following are not valid columns in the database: {invalid_cols}&#34;)
+        return group_by
+        # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
+        # performance
+
+    def get_available_upgrades(self) -&gt; list:
+        &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
+        Returns:
+            list: List of upgrades
+        &#34;&#34;&#34;
+        return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)
+
+    def _validate_upgrade(self, upgrade_id):
+        upgrade_id = 0 if upgrade_id in (None, &#39;0&#39;) else upgrade_id
+        available_upgrades = self.get_available_upgrades() or [0]
+        if upgrade_id not in set(available_upgrades):
+            raise ValueError(f&#34;`upgrade_id` = {upgrade_id} is not a valid upgrade.&#34;
+                             &#34;It doesn&#39;t exist or have no successful run&#34;)
+        return str(upgrade_id)
+
+    def _split_restrict(self, restrict):
+        # Some cols like &#34;state&#34; might be available in both ts and bs table
+        bs_restrict = []  # restrict to apply to baseline table
+        ts_restrict = []  # restrict to apply to timeseries table
+        for col, restrict_vals in restrict:
+            if col in self.ts_table.columns:  # prioritize ts table
+                ts_restrict.append([self.ts_table.c[col], restrict_vals])
+            else:
+                bs_restrict.append([self._get_gcol(col), restrict_vals])
+        return bs_restrict, ts_restrict
+
+    def _split_group_by(self, processed_group_by):
+        # Some cols like &#34;state&#34; might be available in both ts and bs table
+        ts_group_by = []  # restrict to apply to baseline table
+        bs_group_by = []  # restrict to apply to timeseries table
+        for g in processed_group_by:
+            if g.name in self.ts_table.columns:
+                ts_group_by.append(g)
+            else:
+                bs_group_by.append(g)
+        return bs_group_by, ts_group_by
+
+    def _clean_group_by(self, group_by):
+        &#34;&#34;&#34;
+        :param group_by: The group_by list
+        :return: cleaned version of group_by
+        Sometimes, it is necessary to include the table name in the group_by column. For example, a group_by could be
+        [&#39;time&#39;, &#39;&#34;res_national_53_2018_baseline&#34;.&#34;build_existing_model.state&#34;&#39;]. This is necessary if the another table
+        (such as correction factors table) that has the same column (&#34;build_existing_model.state&#34;) as the baseline
+        table. However, the query result will not include the table name in columns, so it is necessary to transform
+        the group_by to a cleaner version ([&#39;time&#39;, &#39;build_existing_model.state&#39;]).
+        Othertimes, quotes are used in group_by columns, such as [&#39;&#34;time&#34;&#39;], but the query result will not contain the
+        quote so it is necessary to remove the quote.
+        Some other time, a group_by column is specified as a tuple of column and a as name. For example, group_by can
+        contain [(&#39;month(time)&#39;, &#39;MOY&#39;)], in this case, we want to convert it into just &#39;MOY&#39; since that is what will be
+        present in the returned query.
+        &#34;&#34;&#34;
+        new_group_by = []
+        for col in group_by:
+            if isinstance(col, tuple):
+                new_group_by.append(col[1])
+                continue
+
+            if match := re.search(r&#39;&#34;[\w\.]*&#34;\.&#34;([\w\.]*)&#34;&#39;, col) or re.search(r&#39;&#34;([\w\.]*)&#34;&#39;, col):
+                new_group_by.append(match.group(1))
+            else:
+                new_group_by.append(col)
+        return new_group_by
+
+    def _process_groupby_cols(self, group_by, annual_only=False):
+        if not group_by:
+            return []
+        if annual_only:
+            new_group_by = []
+            for entry in group_by:
+                if isinstance(entry, str) and not entry.startswith(&#34;build_existing_model.&#34;):
+                    new_group_by.append(f&#34;build_existing_model.{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(&#34;build_existing_model.&#34;):
+                    new_group_by.append((f&#34;build_existing_model.{entry[0]}&#34;, entry[1]))
+                else:
+                    new_group_by.append(entry)
+            group_by = new_group_by
+        return [self._get_gcol(entry) for entry in group_by]
+
+    def _get_simulation_timesteps_count(self):
+        # find the simulation time interval
+        query = sa.select([self.ts_bldgid_column, safunc.sum(1).label(&#39;count&#39;)])
+        query = query.group_by(self.ts_bldgid_column)
+        sim_timesteps_count = self.execute(query)
+        bld0_step_count = sim_timesteps_count[&#39;count&#39;].iloc[0]
+        n_buildings_with_same_count = sum(sim_timesteps_count[&#39;count&#39;] == bld0_step_count)
+        if n_buildings_with_same_count != len(sim_timesteps_count):
+            logger.warning(&#34;Not all buildings have the same number of timestamps. This can cause wrong&#34;
+                           &#34;scaled_units_count and other problems.&#34;)
+
+        return bld0_step_count
+
+    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings belonging to given list of locations.
+        Args:
+            location_col: The column used for &#34;build_existing_model.county&#34; etc
+            locations: list of `build_existing_model.location&#39; strings
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+        &#34;&#34;&#34;
+        query = sa.select([self.bs_bldgid_column])
+        query = query.where(self.get_column(location_col).in_(locations))
+        query = self._add_order_by(query, [self.bs_bldgid_column])
+        if get_query_only:
+            return self._compile(query)
+        res = self.execute(query)
+        return res</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="buildstock_query.query_core.QueryCore" href="query_core.html#buildstock_query.query_core.QueryCore">QueryCore</a></li>
+</ul>
+<h3>Instance variables</h3>
+<dl>
+<dt id="buildstock_query.main.BuildStockQuery.agg"><code class="name">var <span class="ident">agg</span></code></dt>
+<dd>
+<div class="desc"><p><code><a title="buildstock_query.aggregate_query.BuildStockAggregate" href="aggregate_query.html#buildstock_query.aggregate_query.BuildStockAggregate">BuildStockAggregate</a></code> object to perform aggregate queries</p></div>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.report"><code class="name">var <span class="ident">report</span></code></dt>
+<dd>
+<div class="desc"><p><code><a title="buildstock_query.report_query.BuildStockReport" href="report_query.html#buildstock_query.report_query.BuildStockReport">BuildStockReport</a></code> object to perform report queries</p></div>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.savings"><code class="name">var <span class="ident">savings</span></code></dt>
+<dd>
+<div class="desc"><p><code><a title="buildstock_query.savings_query.BuildStockSavings" href="savings_query.html#buildstock_query.savings_query.BuildStockSavings">BuildStockSavings</a></code> object to perform savings queries</p></div>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.utility"><code class="name">var <span class="ident">utility</span></code></dt>
+<dd>
+<div class="desc"><p><code><a title="buildstock_query.utility_query.BuildStockUtility" href="utility_query.html#buildstock_query.utility_query.BuildStockUtility">BuildStockUtility</a></code> object to perform utility queries</p></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.main.BuildStockQuery.get_available_upgrades"><code class="name flex">
+<span>def <span class="ident">get_available_upgrades</span></span>(<span>self) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the available upgrade scenarios and their identifier numbers.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>list</code></dt>
+<dd>List of upgrades</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_available_upgrades(self) -&gt; list:
+    &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
+    Returns:
+        list: List of upgrades
+    &#34;&#34;&#34;
+    return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_building_ids"><code class="name flex">
+<span>def <span class="ident">get_building_ids</span></span>(<span>self, restrict: Optional[List[Tuple[str, List]]] = None, get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of buildings based on the restrict list</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>restrict</code></strong> :&ensp;<code>List[Tuple[str, List]]</code>, optional</dt>
+<dd>The list of where condition to restrict the results to. It
+should be specified as a list of tuple.
+Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]</code></dd>
+<dt><strong><code>get_query_only</code></strong> :&ensp;<code>bool</code></dt>
+<dd>If set to true, returns the query string instead of the result. Default is False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe consisting of the building ids belonging to the provided list of locations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the list of buildings based on the restrict list
+    Args:
+        restrict (List[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
+                should be specified as a list of tuple.
+                Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+        get_query_only (bool): If set to true, returns the query string instead of the result. Default is False.
+
+    Returns:
+        Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+    &#34;&#34;&#34;
+    restrict = list(restrict) if restrict else []
+    query = sa.select(self.bs_bldgid_column)
+    query = self._add_restrict(query, restrict)
+    if get_query_only:
+        return self._compile(query)
+    res = self.execute(query)
+    return res</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_buildings_by_locations"><code class="name flex">
+<span>def <span class="ident">get_buildings_by_locations</span></span>(<span>self, location_col, locations: List[str], get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of buildings belonging to given list of locations.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>location_col</code></strong></dt>
+<dd>The column used for "build_existing_model.county" etc</dd>
+<dt><strong><code>locations</code></strong></dt>
+<dd>list of `build_existing_model.location' strings</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the query string instead of the result</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe consisting of the building ids belonging to the provided list of locations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the list of buildings belonging to given list of locations.
+    Args:
+        location_col: The column used for &#34;build_existing_model.county&#34; etc
+        locations: list of `build_existing_model.location&#39; strings
+        get_query_only: If set to true, returns the query string instead of the result
+
+    Returns:
+        Pandas dataframe consisting of the building ids belonging to the provided list of locations.
+
+    &#34;&#34;&#34;
+    query = sa.select([self.bs_bldgid_column])
+    query = query.where(self.get_column(location_col).in_(locations))
+    query = self._add_order_by(query, [self.bs_bldgid_column])
+    if get_query_only:
+        return self._compile(query)
+    res = self.execute(query)
+    return res</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_buildstock_df"><code class="name flex">
+<span>def <span class="ident">get_buildstock_df</span></span>(<span>self) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the building characteristics data by quering Athena tables using the same format as that produced
+by the sampler and written as buildstock.csv. It only includes buildings with successful simulation.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code></dt>
+<dd>The buildstock.csv dataframe.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_buildstock_df(self) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Returns the building characteristics data by quering Athena tables using the same format as that produced
+    by the sampler and written as buildstock.csv. It only includes buildings with successful simulation.
+    Returns:
+        pd.DataFrame: The buildstock.csv dataframe.
+    &#34;&#34;&#34;
+    results_df = self.get_results_csv()
+    results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
+    buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+    buildstock_df = results_df[buildstock_cols]
+    buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
+                       if c.startswith(&#34;build_existing_model.&#34;)]
+    buildstock_df.columns = buildstock_cols
+    return buildstock_df</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_distinct_count"><code class="name flex">
+<span>def <span class="ident">get_distinct_count</span></span>(<span>self, column: str, table_name: str | None = None, weight_column: str | None = None, get_query_only: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find distinct counts.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>column</code></strong> :&ensp;<code>str</code></dt>
+<dd>The column in the table for which distinct counts is needed.</dd>
+<dt><strong><code>table_name</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The table in athena. Defaults to baseline table.</dd>
+<dt><strong><code>get_query_only</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>If true, only returns the SQL query. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.Series</code></dt>
+<dd>The distinct counts.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
+                       get_query_only: bool = False) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;
+        Find distinct counts.
+    Args:
+        column (str): The column in the table for which distinct counts is needed.
+        table_name (str, optional): The table in athena. Defaults to baseline table.
+        get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+    Returns:
+        pd.Series: The distinct counts.
+    &#34;&#34;&#34;
+    tbl = self.bs_table if table_name is None else self.get_table(table_name)
+    query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
+                       safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
+    query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
+    if get_query_only:
+        return self._compile(query)
+
+    r = self.execute(query, run_async=False)
+    return r</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_distinct_vals"><code class="name flex">
+<span>def <span class="ident">get_distinct_vals</span></span>(<span>self, column: str, table_name: str | None = None, get_query_only: bool = False) ‑> pandas.core.series.Series</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find distinct vals.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>column</code></strong> :&ensp;<code>str</code></dt>
+<dd>The column in the table for which distinct vals is needed.</dd>
+<dt><strong><code>table_name</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The table in athena. Defaults to baseline table.</dd>
+<dt><strong><code>get_query_only</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>If true, only returns the SQL query. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.Series</code></dt>
+<dd>The distinct vals.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+    &#34;&#34;&#34;
+        Find distinct vals.
+    Args:
+        column (str): The column in the table for which distinct vals is needed.
+        table_name (str, optional): The table in athena. Defaults to baseline table.
+        get_query_only (bool, optional): If true, only returns the SQL query. Defaults to False.
+
+    Returns:
+        pd.Series: The distinct vals.
+    &#34;&#34;&#34;
+    table_name = self.bs_table.name if table_name is None else table_name
+    tbl = self.get_table(table_name)
+    query = sa.select(tbl.c[column]).distinct()
+    if get_query_only:
+        return self._compile(query)
+
+    r = self.execute(query, run_async=False)
+    return r[column]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_groupby_cols"><code class="name flex">
+<span>def <span class="ident">get_groupby_cols</span></span>(<span>self) ‑> List[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find list of building characteristics that can be used for grouping.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>List[str]</code></dt>
+<dd>List of building characteristics.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_groupby_cols(self) -&gt; List[str]:
+    &#34;&#34;&#34;Find list of building characteristics that can be used for grouping.
+
+    Returns:
+        List[str]: List of building characteristics.
+    &#34;&#34;&#34;
+    cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
+            if y.startswith(&#34;build_existing_model.&#34;)}
+    return list(cols)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_results_csv"><code class="name flex">
+<span>def <span class="ident">get_results_csv</span></span>(<span>self, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None, get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the results_csv table for the BuildStock run</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>restrict</code></strong> :&ensp;<code>List[Tuple[str, Union[List, str, int]]]</code>, optional</dt>
+<dd>The list of where condition to restrict the
+results to. It should be specified as a list of tuple.
+Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]</code></dd>
+<dt><strong><code>get_query_only</code></strong> :&ensp;<code>bool</code></dt>
+<dd>If set to true, returns the list of queries to run instead of the result.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_results_csv(self,
+                    restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                    get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the results_csv table for the BuildStock run
+    Args:
+        restrict (List[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
+            results to. It should be specified as a list of tuple.
+                  Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+        get_query_only (bool): If set to true, returns the list of queries to run instead of the result.
+
+    Returns:
+        Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+    &#34;&#34;&#34;
+    restrict = list(restrict) if restrict else []
+    query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
+    query = self._add_restrict(query, restrict)
+    compiled_query = self._compile(query)
+    if get_query_only:
+        return compiled_query
+    self._session_queries.add(compiled_query)
+    if compiled_query in self._query_cache:
+        return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+    logger.info(&#34;Making results_csv query ...&#34;)
+    return self.execute(query).set_index(self.bs_bldgid_column.name)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer"><code class="name flex">
+<span>def <span class="ident">get_upgrades_analyzer</span></span>(<span>self, yaml_file: str) ‑> <a title="buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer" href="tools/upgrades_analyzer.html#buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer">UpgradesAnalyzer</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>yaml_file</code></strong> :&ensp;<code>str</code></dt>
+<dd>The path to the buildstock configuration file.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>UpgradesAnalyzer</code></dt>
+<dd>returns UpgradesAnalyzer object. See UpgradesAnalyzer.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+    &#34;&#34;&#34;
+        Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
+
+    Args:
+        yaml_file (str): The path to the buildstock configuration file.
+
+    Returns:
+        UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+    &#34;&#34;&#34;
+
+    buildstock_df = self.get_buildstock_df()
+    ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+    return ua</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_upgrades_csv"><code class="name flex">
+<span>def <span class="ident">get_upgrades_csv</span></span>(<span>self, upgrade=None, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None, get_query_only: bool = False, copy=True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the results_csv table for the BuildStock run</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>restrict</code></strong></dt>
+<dd>The list of where condition to restrict the results to. It should be specified as a list of tuple.
+Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]</code></dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the list of queries to run instead of the result.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_upgrades_csv(self, upgrade=None,
+                     restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                     get_query_only: bool = False, copy=True):
+    &#34;&#34;&#34;
+    Returns the results_csv table for the BuildStock run
+    Args:
+        restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                  Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+        get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+    Returns:
+        Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+    &#34;&#34;&#34;
+    restrict = list(restrict) if restrict else []
+    query = sa.select([&#39;*&#39;]).select_from(self.up_table)
+    if upgrade:
+        query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+
+    query = self._add_restrict(query, restrict)
+    compiled_query = self._compile(query)
+    if get_query_only:
+        return compiled_query
+    self._session_queries.add(compiled_query)
+    if compiled_query in self._query_cache:
+        return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
+    logger.info(&#34;Making results_csv query for upgrade ...&#34;)
+    return self.execute(query).set_index(self.bs_bldgid_column.name)</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="buildstock_query.query_core.QueryCore" href="query_core.html#buildstock_query.query_core.QueryCore">QueryCore</a></b></code>:
+<ul class="hlist">
+<li><code><a title="buildstock_query.query_core.QueryCore.add_table" href="query_core.html#buildstock_query.query_core.QueryCore.add_table">add_table</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.delete_everything" href="query_core.html#buildstock_query.query_core.QueryCore.delete_everything">delete_everything</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.delete_table" href="query_core.html#buildstock_query.query_core.QueryCore.delete_table">delete_table</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.did_batch_query_complete" href="query_core.html#buildstock_query.query_core.QueryCore.did_batch_query_complete">did_batch_query_complete</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.execute" href="query_core.html#buildstock_query.query_core.QueryCore.execute">execute</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.execute_raw" href="query_core.html#buildstock_query.query_core.QueryCore.execute_raw">execute_raw</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_all_running_queries" href="query_core.html#buildstock_query.query_core.QueryCore.get_all_running_queries">get_all_running_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_athena_query_result" href="query_core.html#buildstock_query.query_core.QueryCore.get_athena_query_result">get_athena_query_result</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_report" href="query_core.html#buildstock_query.query_core.QueryCore.get_batch_query_report">get_batch_query_report</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_result" href="query_core.html#buildstock_query.query_core.QueryCore.get_batch_query_result">get_batch_query_result</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_cols" href="query_core.html#buildstock_query.query_core.QueryCore.get_cols">get_cols</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_ids_for_failed_queries" href="query_core.html#buildstock_query.query_core.QueryCore.get_ids_for_failed_queries">get_ids_for_failed_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_error" href="query_core.html#buildstock_query.query_core.QueryCore.get_query_error">get_query_error</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_output_location" href="query_core.html#buildstock_query.query_core.QueryCore.get_query_output_location">get_query_output_location</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_query_status" href="query_core.html#buildstock_query.query_core.QueryCore.get_query_status">get_query_status</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_result_from_s3" href="query_core.html#buildstock_query.query_core.QueryCore.get_result_from_s3">get_result_from_s3</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.load_cache" href="query_core.html#buildstock_query.query_core.QueryCore.load_cache">load_cache</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.print_all_batch_query_status" href="query_core.html#buildstock_query.query_core.QueryCore.print_all_batch_query_status">print_all_batch_query_status</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.print_failed_query_errors" href="query_core.html#buildstock_query.query_core.QueryCore.print_failed_query_errors">print_failed_query_errors</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.save_cache" href="query_core.html#buildstock_query.query_core.QueryCore.save_cache">save_cache</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_all_queries" href="query_core.html#buildstock_query.query_core.QueryCore.stop_all_queries">stop_all_queries</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_batch_query" href="query_core.html#buildstock_query.query_core.QueryCore.stop_batch_query">stop_batch_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.stop_query" href="query_core.html#buildstock_query.query_core.QueryCore.stop_query">stop_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.submit_batch_query" href="query_core.html#buildstock_query.query_core.QueryCore.submit_batch_query">submit_batch_query</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.wait_for_batch_query" href="query_core.html#buildstock_query.query_core.QueryCore.wait_for_batch_query">wait_for_batch_query</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query" href="index.html">buildstock_query</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.main.BuildStockQuery" href="#buildstock_query.main.BuildStockQuery">BuildStockQuery</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.main.BuildStockQuery.agg" href="#buildstock_query.main.BuildStockQuery.agg">agg</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_available_upgrades" href="#buildstock_query.main.BuildStockQuery.get_available_upgrades">get_available_upgrades</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_building_ids" href="#buildstock_query.main.BuildStockQuery.get_building_ids">get_building_ids</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_buildings_by_locations" href="#buildstock_query.main.BuildStockQuery.get_buildings_by_locations">get_buildings_by_locations</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_buildstock_df" href="#buildstock_query.main.BuildStockQuery.get_buildstock_df">get_buildstock_df</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_count" href="#buildstock_query.main.BuildStockQuery.get_distinct_count">get_distinct_count</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_vals" href="#buildstock_query.main.BuildStockQuery.get_distinct_vals">get_distinct_vals</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_groupby_cols" href="#buildstock_query.main.BuildStockQuery.get_groupby_cols">get_groupby_cols</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_results_csv" href="#buildstock_query.main.BuildStockQuery.get_results_csv">get_results_csv</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer" href="#buildstock_query.main.BuildStockQuery.get_upgrades_analyzer">get_upgrades_analyzer</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_csv" href="#buildstock_query.main.BuildStockQuery.get_upgrades_csv">get_upgrades_csv</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.report" href="#buildstock_query.main.BuildStockQuery.report">report</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.savings" href="#buildstock_query.main.BuildStockQuery.savings">savings</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.utility" href="#buildstock_query.main.BuildStockQuery.utility">utility</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

@@ -41,7 +41,8 @@ yaml_path = "EUSS-project-file-example.yml"
 default_end_use = "fuel_use_electricity_total_m_btu"
 
 
-def get_app(db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k_20220607', workgroup: str = 'eulp', buildstock_type: str = 'resstock'):
+def get_app(db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k_20220607', workgroup: str = 'eulp',
+            buildstock_type: str = 'resstock'):
     euss_athena = BuildStockQuery(workgroup=workgroup,
                                   db_name=db_name,
                                   buildstock_type=buildstock_type,
@@ -342,12 +343,12 @@ def get_app(db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k
                                         id="radio_graph_type",
                                         labelClassName="pr-2"), width='auto'),
                 #  dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
-                #                                               inline=True, id='check_all_points')
-                #                                 ],
-                #                       id="collapse_points", is_open=True), width='auto'),
+                 #                                               inline=True, id='check_all_points')
+                 #                                 ],
+                 #                       id="collapse_points", is_open=True), width='auto'),
                  dbc.Col(children=[dcc.Checklist(['Show all points'], [],
-                                                              inline=True, id='check_all_points')
-                                                ],),
+                                                 inline=True, id='check_all_points')
+                                   ],),
                  dbc.Col(dbc.Label("Value Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",
                                         id='radio_savings', labelClassName="pr-2"), width='auto'),
@@ -1094,6 +1095,7 @@ def get_app(db_name: str = 'euss-tests', table_name: str = 'res_test_03_2018_10k
 
 
 def main():
+    print("Welcome to Upgrades Visualizer.")
     db_name = inquirer.text(message="Please enter database_name "
                             "(found in postprocessing:aws:athena in the buildstock configuration file)",
                             default='euss-tests').execute()

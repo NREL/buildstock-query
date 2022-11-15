@@ -1,14 +1,3 @@
-"""
-# EULPAthena
-- - - - - - - - -
-A class to run AWS Athena queries for the EULP project using built-in query functions. New query use cases for the
-EULP project should be implemented as member function of this class.
-
-:author: Rajendra.Adhikari@nrel.gov
-
-:author: Anthony.Fontanini@nrel.gov
-"""
-
 import buildstock_query.main as main
 import logging
 from typing import List, Any, Tuple
@@ -20,21 +9,25 @@ logger = logging.getLogger(__name__)
 
 
 class BuildStockUtility:
+    """
+    Class to perform electric utility centric queries.
+    """
+
     def __init__(self, buildstock_query: 'main.BuildStockQuery',
                  eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
         """
-        A class to run AWS Athena queries for the EULP project using built-in query functions. Look up definition in \
-        the ResStockAthena to understand other args and kwargs.
+        Class to perform electric utility centric queries
         Args:
             eia_mapping_year: The year of the EIA form 861 service territory map to use when mapping to utility \
-            service territories. Currently, only 2018 and 2012 are valid years.
+                              service territories. Currently, only 2018 and 2012 are valid years.
+            eia_mapping_version: The EIA mapping version to use.
         """
-        self.bsq = buildstock_query
-        self.agg = buildstock_query.agg
-        self.group_query_id = 0
+        self._bsq = buildstock_query
+        self._agg = buildstock_query.agg
+        self._group_query_id = 0
         self.eia_mapping_year = eia_mapping_year
         self.eia_mapping_version = eia_mapping_version
-        self.cache: dict = defaultdict()
+        self._cache: dict = defaultdict()
 
     def _aggregate_ts_by_map(self,
                              map_table_name: str,
@@ -61,26 +54,26 @@ class BuildStockUtility:
             logger.info(f"Submitting query for {current_ids}")
             if split_endues:
                 logger.info("Splitting the query into separate queries for each enduse.")
-                result_df = self.agg.aggregate_timeseries(enduses=enduses,
-                                                          group_by=[id_column] + group_by,
-                                                          join_list=join_list,
-                                                          weights=['weight'],
-                                                          sort=True,
-                                                          restrict=[(id_column, current_ids)],
-                                                          run_async=False,
-                                                          get_query_only=get_query_only,
-                                                          split_enduses=True)
+                result_df = self._agg.aggregate_timeseries(enduses=enduses,
+                                                           group_by=[id_column] + group_by,
+                                                           join_list=join_list,
+                                                           weights=['weight'],
+                                                           sort=True,
+                                                           restrict=[(id_column, current_ids)],
+                                                           run_async=False,
+                                                           get_query_only=get_query_only,
+                                                           split_enduses=True)
                 results_array.append(result_df)
             else:
-                query = self.agg.aggregate_timeseries(enduses=enduses,
-                                                      group_by=[id_column] + group_by,
-                                                      join_list=join_list,
-                                                      weights=['weight'],
-                                                      sort=True,
-                                                      restrict=[(id_column, current_ids)],
-                                                      run_async=True,
-                                                      get_query_only=True,
-                                                      split_enduses=False)
+                query = self._agg.aggregate_timeseries(enduses=enduses,
+                                                       group_by=[id_column] + group_by,
+                                                       join_list=join_list,
+                                                       weights=['weight'],
+                                                       sort=True,
+                                                       restrict=[(id_column, current_ids)],
+                                                       run_async=True,
+                                                       get_query_only=True,
+                                                       split_enduses=False)
                 results_array.append(query)
 
         if get_query_only:
@@ -93,8 +86,8 @@ class BuildStockUtility:
             return all_dfs
         else:
             # In this case, results_array will contain the queries
-            batch_query_id = self.bsq.submit_batch_query(results_array)
-            return self.bsq.get_batch_query_result(batch_id=batch_query_id)
+            batch_query_id = self._bsq.submit_batch_query(results_array)
+            return self._bsq.get_batch_query_result(batch_id=batch_query_id)
 
     def get_eiaid_map(self) -> tuple[str, str, str]:
         if self.eia_mapping_version == 1:
@@ -114,7 +107,7 @@ class BuildStockUtility:
 
         return map_table_name, map_baseline_column, map_eiaid_column
 
-    def aggregate_ts_by_eiaid(self, eiaid_list: List[str], 
+    def aggregate_ts_by_eiaid(self, eiaid_list: List[str],
                               enduses: List[str] | None = None,
                               group_by: List[str] | None = None,
                               get_query_only: bool = False,
@@ -169,13 +162,13 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
-        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
-        result = self.agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
-                                           sort=True,
-                                           join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
-                                           weights=['weight'],
-                                           restrict=restrict,
-                                           get_query_only=get_query_only)
+        eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
+        result = self._agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+                                            sort=True,
+                                            join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
+                                            weights=['weight'],
+                                            restrict=restrict,
+                                            get_query_only=get_query_only)
         return result
 
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] | None = None,
@@ -194,12 +187,12 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
-        result = self.agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
-                                           join_list=join_list,
-                                           weights=['weight'],
-                                           sort=True,
-                                           get_query_only=get_query_only)
+        eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
+        result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+                                            join_list=join_list,
+                                            weights=['weight'],
+                                            sort=True,
+                                            get_query_only=get_query_only)
         return result
 
     def get_filtered_results_csv_by_eiaid(
@@ -216,13 +209,13 @@ class BuildStockUtility:
             Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        query = sa.select(['*']).select_from(self.bsq.bs_table)
-        query = self.bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.bsq.get_column("weight") > 0)
+        query = sa.select(['*']).select_from(self._bsq.bs_table)
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self._bsq.get_column("weight") > 0)
         if get_query_only:
-            return self.bsq._compile(query)
-        res = self.bsq.execute(query)
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
         return res
 
     def get_eiaids(self, restrict: List[Tuple[str, List]] | None = None):
@@ -238,21 +231,21 @@ class BuildStockUtility:
         """
         restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_col = self.bsq.get_column("eiaid", eiaid_map_table_name)
-        if 'eiaids' in self.cache:
-            if self.bsq.db_name + '/' + eiaid_map_table_name in self.cache['eiaids']:
-                return self.cache['eiaids'][self.bsq.db_name + '/' + eiaid_map_table_name]
+        eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
+        if 'eiaids' in self._cache:
+            if self._bsq.db_name + '/' + eiaid_map_table_name in self._cache['eiaids']:
+                return self._cache['eiaids'][self._bsq.db_name + '/' + eiaid_map_table_name]
         else:
-            self.cache['eiaids'] = {}
+            self._cache['eiaids'] = {}
 
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
-        annual_agg = self.agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
-                                               restrict=restrict,
-                                               join_list=join_list,
-                                               weights=['weight'],
-                                               sort=True)
-        self.cache['eiaids'] = list(annual_agg['eiaid'].values)
-        return self.cache['eiaids']
+        annual_agg = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
+                                                restrict=restrict,
+                                                join_list=join_list,
+                                                weights=['weight'],
+                                                sort=True)
+        self._cache['eiaids'] = list(annual_agg['eiaid'].values)
+        return self._cache['eiaids']
 
     def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
@@ -268,13 +261,13 @@ class BuildStockUtility:
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        query = sa.select([self.bsq.bs_bldgid_column.distinct()])
-        query = self.bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.bsq.get_column("weight") > 0)
+        query = sa.select([self._bsq.bs_bldgid_column.distinct()])
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self._bsq.get_column("weight") > 0)
         if get_query_only:
-            return self.bsq._compile(query)
-        res = self.bsq.execute(query)
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
         return res
 
     def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
@@ -292,11 +285,11 @@ class BuildStockUtility:
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        self.bsq.get_table(eiaid_map_table_name)
-        query = sa.select([self.bsq.get_column(map_eiaid_column).distinct()])
-        query = self.bsq._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self.bsq.get_column("weight") > 0)
+        self._bsq.get_table(eiaid_map_table_name)
+        query = sa.select([self._bsq.get_column(map_eiaid_column).distinct()])
+        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = query.where(self._bsq.get_column("weight") > 0)
         if get_query_only:
-            return self.bsq._compile(query)
-        res = self.bsq.execute(query)
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
         return res

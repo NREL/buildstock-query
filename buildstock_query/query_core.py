@@ -1,14 +1,3 @@
-"""
-# ResStockAthena
-- - - - - - - - -
-A class to run AWS Athena queries to get various data from a ResStock run. All queries and aggregation that can be
-common accross different ResStock projects should be implemented in this class. For queries that are project specific, a
-new class can be created by inheriting ResStockAthena and adding in the project specific logic and queries.
-
-:author: Rajendra.Adhikari@nrel.gov
-"""
-
-
 import boto3
 import contextlib
 import pathlib
@@ -47,17 +36,16 @@ class QueryException(Exception):
 class QueryCore:
     def __init__(self, workgroup: str,
                  db_name: str,
-                 buildstock_type: str | None = None,
-                 table_name: Union[str, Tuple[str, str]] | None = None,
-                 timestamp_column_name: str = 'time',
-                 building_id_column_name: str = 'building_id',
-                 sample_weight: str = "build_existing_model.sample_weight",
-                 region_name: str = 'us-west-2',
-                 execution_history=None,
-                 skip_reports=False
+                 buildstock_type: str | None,
+                 table_name: Union[str, Tuple[str, str]] | None,
+                 timestamp_column_name: str,
+                 building_id_column_name: str,
+                 sample_weight: str,
+                 region_name: str,
+                 execution_history: str | None,
                  ) -> None:
         """
-        A class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
+        Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
         Args:
             db_name: The athena database name
             buildstock_type: 'resstock' or 'comstock' runs
@@ -171,7 +159,7 @@ class QueryCore:
             return table_name  # already a table
 
         try:
-            return self._tables.setdefault(table_name, sa.Table(table_name, self.meta, autoload_with=self.engine))
+            return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
         except sa.exc.NoSuchTableError:
             if missing_ok:
                 logger.warning(f"No {table_name} table is present.")
@@ -196,9 +184,9 @@ class QueryCore:
         return valid_tables[0].c[column_name]
 
     def _get_tables(self, table_name: str | tuple):
-        self.engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
-                                                 workgroup=self.workgroup)
-        self.meta = sa.MetaData(bind=self.engine)
+        self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
+                                                  workgroup=self.workgroup)
+        self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
             baseline_table = self.get_table(f'{table_name}_baseline')
             ts_table = self.get_table(f'{table_name}_timeseries', missing_ok=True)
@@ -214,12 +202,12 @@ class QueryCore:
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
-        self.execution_history_file = execution_history or '.execution_history'
+        self._execution_history_file = execution_history or '.execution_history'
         self.execution_cost = {'GB': 0, 'Dollars': 0}  # Tracks the cost of current session. Only used for Athena query
         self.seen_execution_ids = set()  # set to prevent double counting same execution id
 
-        if os.path.exists(self.execution_history_file):
-            with open(self.execution_history_file, 'r') as f:
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, 'r') as f:
                 existing_entries = f.readlines()
             valid_entries = []
             for entry in existing_entries:
@@ -227,14 +215,14 @@ class QueryCore:
                     entry_time, _ = entry.split(',')
                     if time.time() - float(entry_time) < 24 * 60 * 60:  # discard history if more than a day old
                         valid_entries += entry
-            with open(self.execution_history_file, 'w') as f:
+            with open(self._execution_history_file, 'w') as f:
                 f.writelines(valid_entries)
 
     @property
     def execution_ids_history(self):
         exe_ids = []
-        if os.path.exists(self.execution_history_file):
-            with open(self.execution_history_file, 'r') as f:
+        if os.path.exists(self._execution_history_file):
+            with open(self._execution_history_file, 'r') as f:
                 for line in f:
                     _, exe_id = line.split(',')
                     exe_ids.append(exe_id.strip())
@@ -361,7 +349,7 @@ class QueryCore:
         raise TimeoutError(f"Query failed to complete within 30 mins. Last status: {query_stat}")
 
     def _save_execution_id(self, execution_id):
-        with open(self.execution_history_file, 'a') as f:
+        with open(self._execution_history_file, 'a') as f:
             f.write(f'{time.time()},{execution_id}\n')
 
     def _log_execution_cost(self, execution_id):
@@ -422,11 +410,13 @@ class QueryCore:
                 self._query_cache[query] = self._conn.cursor().execute(query).as_pandas()
             return self._query_cache[query].copy()
 
-    def print_all_batch_query_status(self):
+    def print_all_batch_query_status(self) -> None:
+        """Prints the status of all batch queries.
+        """
         for count in self._batch_query_status_map.keys():
             print(f'Query {count}: {self.get_batch_query_report(count)}\n')
 
-    def stop_batch_query(self, batch_id):
+    def stop_batch_query(self, batch_id) -> None:
         """
         Stops all the queries running under a batch query
         Args:
@@ -450,13 +440,26 @@ class QueryCore:
                     failed_queries.append(stats['submitted_queries'][i])
         return failed_query_ids, failed_queries
 
-    def print_failed_query_errors(self, batch_id):
+    def print_failed_query_errors(self, batch_id: int) -> None:
+        """Print the error messages for all queries that failed in batch query.
+
+        Args:
+            batch_id (int): Batch query id
+        """
         failed_ids, failed_queries = self.get_failed_queries(batch_id)
         for exe_id, query in zip(failed_ids, failed_queries):
             print(f"Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}"
                   f"\nError: {self.get_query_error(exe_id)}\n")
 
-    def get_ids_for_failed_queries(self, batch_id):
+    def get_ids_for_failed_queries(self, batch_id: int) -> list[str]:
+        """Returns the list of execution ids for failed queries in batch query.
+
+        Args:
+            batch_id (int): batch query id
+
+        Returns:
+            list[str]: List of failed execution ids.
+        """
         failed_ids = []
         for i, exe_id in enumerate(self._batch_query_status_map[batch_id]['submitted_execution_ids']):
             completion_stat = self.get_query_status(exe_id)
@@ -518,7 +521,12 @@ class QueryCore:
         else:
             return True
 
-    def wait_for_batch_query(self, batch_id):
+    def wait_for_batch_query(self, batch_id: int):
+        """Waits until batch query completes.
+
+        Args:
+            batch_id (int): The batch query id.
+        """
         while True:
             last_time = time.time()
             last_report = None
@@ -643,10 +651,22 @@ class QueryCore:
         query_runner.start()
         return batch_query_id
 
-    def get_query_result(self, query_id):
+    def _get_query_result(self, query_id):
         return self.get_athena_query_result(execution_id=query_id)
 
-    def get_athena_query_result(self, execution_id, timeout_minutes=60):
+    def get_athena_query_result(self, execution_id: str, timeout_minutes: int = 30) -> pd.DataFrame:
+        """Returns the query result
+
+        Args:
+            execution_id (str): Query execution id.
+            timeout_minutes (int, optional): Timeout in minutes to wait for query to finish. Defaults to 30.
+
+        Raises:
+            QueryException: If query fails for some reason.
+
+        Returns:
+            pd.DataFrame: Query result as dataframe.
+        """
         t = time.time()
         while time.time() - t < timeout_minutes * 60:
             stat = self.get_query_status(execution_id)
@@ -663,7 +683,18 @@ class QueryCore:
 
         raise QueryException(f'Query timed-out. {self.get_query_status(execution_id)}')
 
-    def get_result_from_s3(self, query_execution_id):
+    def get_result_from_s3(self, query_execution_id: str) -> pd.DataFrame:
+        """Returns query result from s3 location.
+
+        Args:
+            query_execution_id (str): The query execution ID
+
+        Raises:
+            QueryException: If query had failed.
+
+        Returns:
+            pd.DataFrame: The query result.
+        """
         query_status = self.get_query_status(query_execution_id)
         if query_status == 'SUCCEEDED':
             path = self.get_query_output_location(query_execution_id)
@@ -677,16 +708,40 @@ class QueryCore:
         else:
             raise QueryException(f"Query has unkown status {query_status}")
 
-    def get_query_output_location(self, query_id):
+    def get_query_output_location(self, query_id: str) -> str:
+        """Get query output location in s3.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: The query location in s3.
+        """
         stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
         output_path = stat['QueryExecution']['ResultConfiguration']['OutputLocation']
         return output_path
 
-    def get_query_status(self, query_id):
+    def get_query_status(self, query_id: str) -> str:
+        """Get status of the query
+
+        Args:
+            query_id (str): Query execution id
+
+        Returns:
+            str: Status of the query.
+        """
         stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
         return stat['QueryExecution']['Status']['State']
 
-    def get_query_error(self, query_id):
+    def get_query_error(self, query_id: str) -> str:
+        """Returns the error message if query has failed.
+
+        Args:
+            query_id (str): Query execution id.
+
+        Returns:
+            str: Error message for the query.
+        """
         stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
         return stat['QueryExecution']['Status']['StateChangeReason']
 
@@ -818,6 +873,8 @@ class QueryCore:
         return total_weight
 
     def delete_everything(self):
+        """Deletes the athena tables and data in s3 for the run.
+        """
         info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=self.bs_table.name)
         self.pth = pathlib.Path(info['Table']['StorageDescriptor']['Location']).parent
         tables_to_delete = [self.bs_table.name]

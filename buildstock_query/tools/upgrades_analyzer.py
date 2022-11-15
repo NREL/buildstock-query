@@ -1,10 +1,3 @@
-"""
-# Utils
-- - - - - - - - -
-Different utility functions
-
-:author: Rajendra.Adhikari@nrel.gov
-"""
 from functools import reduce
 import yaml
 import pandas as pd
@@ -48,7 +41,12 @@ class UpgradesAnalyzer:
         self.total_samples = len(self.buildstock_df)
         self._logic_cache: dict = {}
 
-    def get_cfg(self):
+    def get_cfg(self) -> dict:
+        """Get the buildstock configuration file as a dictionary object.
+
+        Returns:
+            dict: The buildstock configuration file.
+        """
         with open(self.yaml_file) as f:
             config = yaml.load(f, Loader=yaml.SafeLoader)
         return config
@@ -423,7 +421,12 @@ class UpgradesAnalyzer:
 
         return logic_array, logic_str
 
-    def save_detailed_report_all(self, file_path):
+    def save_detailed_report_all(self, file_path: str):
+        """Save detailed text based upgrade report.
+
+        Args:
+            file_path (str): Output file.
+        """
         cfg = self.get_cfg()
         all_report = ""
         for upgrade in range(1, len(cfg['upgrades']) + 1):

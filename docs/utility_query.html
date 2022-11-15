@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.utility_query API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.utility_query</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">import buildstock_query.main as main
+import logging
+from typing import List, Any, Tuple
+import pandas as pd
+import sqlalchemy as sa
+from collections import defaultdict
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class BuildStockUtility:
+    &#34;&#34;&#34;
+    Class to perform electric utility centric queries.
+    &#34;&#34;&#34;
+
+    def __init__(self, buildstock_query: &#39;main.BuildStockQuery&#39;,
+                 eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
+        &#34;&#34;&#34;
+        Class to perform electric utility centric queries
+        Args:
+            eia_mapping_year: The year of the EIA form 861 service territory map to use when mapping to utility \
+                              service territories. Currently, only 2018 and 2012 are valid years.
+            eia_mapping_version: The EIA mapping version to use.
+        &#34;&#34;&#34;
+        self._bsq = buildstock_query
+        self._agg = buildstock_query.agg
+        self._group_query_id = 0
+        self.eia_mapping_year = eia_mapping_year
+        self.eia_mapping_version = eia_mapping_version
+        self._cache: dict = defaultdict()
+
+    def _aggregate_ts_by_map(self,
+                             map_table_name: str,
+                             baseline_column: str,
+                             map_column: str,
+                             id_column: str,
+                             id_list: List[Any],
+                             enduses: List[str],
+                             group_by: List[str] | None = None,
+                             get_query_only: bool = False,
+                             query_group_size: int = 1,
+                             split_endues: bool = False):
+
+        group_by = [] if group_by is None else group_by
+        new_table = map_table_name
+        join_list = [(new_table, baseline_column, map_column)]
+        logger.info(f&#34;Will submit request for {id_list}&#34;)
+        GS = query_group_size
+        id_list_batches = [id_list[i:i+GS] for i in range(0, len(id_list), GS)]
+        results_array = []
+        for current_ids in id_list_batches:
+            if len(current_ids) == 1:
+                current_ids = current_ids[0]
+            logger.info(f&#34;Submitting query for {current_ids}&#34;)
+            if split_endues:
+                logger.info(&#34;Splitting the query into separate queries for each enduse.&#34;)
+                result_df = self._agg.aggregate_timeseries(enduses=enduses,
+                                                           group_by=[id_column] + group_by,
+                                                           join_list=join_list,
+                                                           weights=[&#39;weight&#39;],
+                                                           sort=True,
+                                                           restrict=[(id_column, current_ids)],
+                                                           run_async=False,
+                                                           get_query_only=get_query_only,
+                                                           split_enduses=True)
+                results_array.append(result_df)
+            else:
+                query = self._agg.aggregate_timeseries(enduses=enduses,
+                                                       group_by=[id_column] + group_by,
+                                                       join_list=join_list,
+                                                       weights=[&#39;weight&#39;],
+                                                       sort=True,
+                                                       restrict=[(id_column, current_ids)],
+                                                       run_async=True,
+                                                       get_query_only=True,
+                                                       split_enduses=False)
+                results_array.append(query)
+
+        if get_query_only:
+            return results_array
+
+        if split_endues:
+            # In this case, the resuls_array will contain the result dataframes
+            logger.info(&#34;Concatenating the results from all IDs&#34;)
+            all_dfs = pd.concat(results_array)
+            return all_dfs
+        else:
+            # In this case, results_array will contain the queries
+            batch_query_id = self._bsq.submit_batch_query(results_array)
+            return self._bsq.get_batch_query_result(batch_id=batch_query_id)
+
+    def get_eiaid_map(self) -&gt; tuple[str, str, str]:
+        if self.eia_mapping_version == 1:
+            map_table_name = &#39;eiaid_weights&#39;
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        elif self.eia_mapping_version == 2:
+            map_table_name = &#39;v2_eiaid_weights&#39;
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        elif self.eia_mapping_version == 3:
+            map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        else:
+            raise ValueError(&#34;Invalid mapping_version&#34;)
+
+        return map_table_name, map_baseline_column, map_eiaid_column
+
+    def aggregate_ts_by_eiaid(self, eiaid_list: List[str],
+                              enduses: List[str] | None = None,
+                              group_by: List[str] | None = None,
+                              get_query_only: bool = False,
+                              query_group_size: int | None = None,
+                              split_endues: bool = False,
+                              ):
+        &#34;&#34;&#34;
+        Aggregates the timeseries result, grouping by utilities.
+        Args:
+            eiaid_list: The list of utility ids (EIAID) assigned by EIA.
+            enduses: The list of enduses to aggregate
+            group_by: Additional columns to group the aggregation by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+            query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
+                              used as large as possible that doesn&#39;t result in query timeout.
+            split_endues: Query each enduses separately to spread load on Athena
+
+        Returns:
+            Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        eiaid_list = [str(e) for e in eiaid_list]
+        if not enduses:
+            raise ValueError(&#34;Need to provide enduses&#34;)
+        id_column = &#39;eiaid&#39;
+
+        if query_group_size is None:
+            query_group_size = min(100, len(eiaid_list))
+
+        return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
+                                         eiaid_list, enduses, group_by, get_query_only,
+                                         query_group_size, split_endues)
+
+    def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] | None = None,
+                                       group_by: List[str] | None = None,
+                                       get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
+        provided.
+        Args:
+            eiaid_list: The list of utility ids (EIAID) to aggregate for
+            group_by: Additional columns to group by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query instead of the result
+
+        Returns:
+            Pandas dataframe with the units counts
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        group_by = [] if group_by is None else group_by
+        restrict = [(&#39;eiaid&#39;, eiaid_list)] if eiaid_list else None
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        result = self._agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+                                            sort=True,
+                                            join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
+                                            weights=[&#39;weight&#39;],
+                                            restrict=restrict,
+                                            get_query_only=get_query_only)
+        return result
+
+    def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] | None = None,
+                                  get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Aggregates the annual consumption in the baseline table, grouping by all the utilities
+        Args:
+            enduses: The list of enduses to aggregate
+            group_by: Additional columns to group the aggregation by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+        Returns:
+            Pandas dataframe with the annual sum of the requested enduses, grouped by utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+        group_by = [] if group_by is None else group_by
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+                                            join_list=join_list,
+                                            weights=[&#39;weight&#39;],
+                                            sort=True,
+                                            get_query_only=get_query_only)
+        return result
+
+    def get_filtered_results_csv_by_eiaid(
+            self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns a portion of the results csvs, which belongs to given list of utilities
+        Args:
+            eiaids: The eiaid list of utitlies
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res
+
+    def get_eiaids(self, restrict: List[Tuple[str, List]] | None = None):
+        &#34;&#34;&#34;
+        Returns the list of building
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+        Returns:
+            Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        if &#39;eiaids&#39; in self._cache:
+            if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
+                return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
+        else:
+            self._cache[&#39;eiaids&#39;] = {}
+
+        join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+        annual_agg = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
+                                                restrict=restrict,
+                                                join_list=join_list,
+                                                weights=[&#39;weight&#39;],
+                                                sort=True)
+        self._cache[&#39;eiaids&#39;] = list(annual_agg[&#39;eiaid&#39;].values)
+        return self._cache[&#39;eiaids&#39;]
+
+    def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings belonging to the given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
+
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select([self._bsq.bs_bldgid_column.distinct()])
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res
+
+    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the locations (for version 1) or counties (for version 2) belonging to the
+            provided list of utilities.
+
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        self._bsq.get_table(eiaid_map_table_name)
+        query = sa.select([self._bsq.get_column(map_eiaid_column).distinct()])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.utility_query.BuildStockUtility"><code class="flex name class">
+<span>class <span class="ident">BuildStockUtility</span></span>
+<span>(</span><span>buildstock_query: main.BuildStockQuery, eia_mapping_year: int = 2018, eia_mapping_version: int = 1)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Class to perform electric utility centric queries.</p>
+<p>Class to perform electric utility centric queries</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eia_mapping_year</code></strong></dt>
+<dd>The year of the EIA form 861 service territory map to use when mapping to utility
+service territories. Currently, only 2018 and 2012 are valid years.</dd>
+<dt><strong><code>eia_mapping_version</code></strong></dt>
+<dd>The EIA mapping version to use.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class BuildStockUtility:
+    &#34;&#34;&#34;
+    Class to perform electric utility centric queries.
+    &#34;&#34;&#34;
+
+    def __init__(self, buildstock_query: &#39;main.BuildStockQuery&#39;,
+                 eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
+        &#34;&#34;&#34;
+        Class to perform electric utility centric queries
+        Args:
+            eia_mapping_year: The year of the EIA form 861 service territory map to use when mapping to utility \
+                              service territories. Currently, only 2018 and 2012 are valid years.
+            eia_mapping_version: The EIA mapping version to use.
+        &#34;&#34;&#34;
+        self._bsq = buildstock_query
+        self._agg = buildstock_query.agg
+        self._group_query_id = 0
+        self.eia_mapping_year = eia_mapping_year
+        self.eia_mapping_version = eia_mapping_version
+        self._cache: dict = defaultdict()
+
+    def _aggregate_ts_by_map(self,
+                             map_table_name: str,
+                             baseline_column: str,
+                             map_column: str,
+                             id_column: str,
+                             id_list: List[Any],
+                             enduses: List[str],
+                             group_by: List[str] | None = None,
+                             get_query_only: bool = False,
+                             query_group_size: int = 1,
+                             split_endues: bool = False):
+
+        group_by = [] if group_by is None else group_by
+        new_table = map_table_name
+        join_list = [(new_table, baseline_column, map_column)]
+        logger.info(f&#34;Will submit request for {id_list}&#34;)
+        GS = query_group_size
+        id_list_batches = [id_list[i:i+GS] for i in range(0, len(id_list), GS)]
+        results_array = []
+        for current_ids in id_list_batches:
+            if len(current_ids) == 1:
+                current_ids = current_ids[0]
+            logger.info(f&#34;Submitting query for {current_ids}&#34;)
+            if split_endues:
+                logger.info(&#34;Splitting the query into separate queries for each enduse.&#34;)
+                result_df = self._agg.aggregate_timeseries(enduses=enduses,
+                                                           group_by=[id_column] + group_by,
+                                                           join_list=join_list,
+                                                           weights=[&#39;weight&#39;],
+                                                           sort=True,
+                                                           restrict=[(id_column, current_ids)],
+                                                           run_async=False,
+                                                           get_query_only=get_query_only,
+                                                           split_enduses=True)
+                results_array.append(result_df)
+            else:
+                query = self._agg.aggregate_timeseries(enduses=enduses,
+                                                       group_by=[id_column] + group_by,
+                                                       join_list=join_list,
+                                                       weights=[&#39;weight&#39;],
+                                                       sort=True,
+                                                       restrict=[(id_column, current_ids)],
+                                                       run_async=True,
+                                                       get_query_only=True,
+                                                       split_enduses=False)
+                results_array.append(query)
+
+        if get_query_only:
+            return results_array
+
+        if split_endues:
+            # In this case, the resuls_array will contain the result dataframes
+            logger.info(&#34;Concatenating the results from all IDs&#34;)
+            all_dfs = pd.concat(results_array)
+            return all_dfs
+        else:
+            # In this case, results_array will contain the queries
+            batch_query_id = self._bsq.submit_batch_query(results_array)
+            return self._bsq.get_batch_query_result(batch_id=batch_query_id)
+
+    def get_eiaid_map(self) -&gt; tuple[str, str, str]:
+        if self.eia_mapping_version == 1:
+            map_table_name = &#39;eiaid_weights&#39;
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        elif self.eia_mapping_version == 2:
+            map_table_name = &#39;v2_eiaid_weights&#39;
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        elif self.eia_mapping_version == 3:
+            map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
+            map_baseline_column = &#39;build_existing_model.county&#39;
+            map_eiaid_column = &#39;county&#39;
+        else:
+            raise ValueError(&#34;Invalid mapping_version&#34;)
+
+        return map_table_name, map_baseline_column, map_eiaid_column
+
+    def aggregate_ts_by_eiaid(self, eiaid_list: List[str],
+                              enduses: List[str] | None = None,
+                              group_by: List[str] | None = None,
+                              get_query_only: bool = False,
+                              query_group_size: int | None = None,
+                              split_endues: bool = False,
+                              ):
+        &#34;&#34;&#34;
+        Aggregates the timeseries result, grouping by utilities.
+        Args:
+            eiaid_list: The list of utility ids (EIAID) assigned by EIA.
+            enduses: The list of enduses to aggregate
+            group_by: Additional columns to group the aggregation by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+            query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
+                              used as large as possible that doesn&#39;t result in query timeout.
+            split_endues: Query each enduses separately to spread load on Athena
+
+        Returns:
+            Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        eiaid_list = [str(e) for e in eiaid_list]
+        if not enduses:
+            raise ValueError(&#34;Need to provide enduses&#34;)
+        id_column = &#39;eiaid&#39;
+
+        if query_group_size is None:
+            query_group_size = min(100, len(eiaid_list))
+
+        return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
+                                         eiaid_list, enduses, group_by, get_query_only,
+                                         query_group_size, split_endues)
+
+    def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] | None = None,
+                                       group_by: List[str] | None = None,
+                                       get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
+        provided.
+        Args:
+            eiaid_list: The list of utility ids (EIAID) to aggregate for
+            group_by: Additional columns to group by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query instead of the result
+
+        Returns:
+            Pandas dataframe with the units counts
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        group_by = [] if group_by is None else group_by
+        restrict = [(&#39;eiaid&#39;, eiaid_list)] if eiaid_list else None
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        result = self._agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+                                            sort=True,
+                                            join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
+                                            weights=[&#39;weight&#39;],
+                                            restrict=restrict,
+                                            get_query_only=get_query_only)
+        return result
+
+    def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] | None = None,
+                                  get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Aggregates the annual consumption in the baseline table, grouping by all the utilities
+        Args:
+            enduses: The list of enduses to aggregate
+            group_by: Additional columns to group the aggregation by
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+        Returns:
+            Pandas dataframe with the annual sum of the requested enduses, grouped by utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+        group_by = [] if group_by is None else group_by
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+                                            join_list=join_list,
+                                            weights=[&#39;weight&#39;],
+                                            sort=True,
+                                            get_query_only=get_query_only)
+        return result
+
+    def get_filtered_results_csv_by_eiaid(
+            self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns a portion of the results csvs, which belongs to given list of utilities
+        Args:
+            eiaids: The eiaid list of utitlies
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+        Returns:
+            Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res
+
+    def get_eiaids(self, restrict: List[Tuple[str, List]] | None = None):
+        &#34;&#34;&#34;
+        Returns the list of building
+        Args:
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+        Returns:
+            Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
+        &#34;&#34;&#34;
+        restrict = list(restrict) if restrict else []
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        if &#39;eiaids&#39; in self._cache:
+            if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
+                return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
+        else:
+            self._cache[&#39;eiaids&#39;] = {}
+
+        join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+        annual_agg = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
+                                                restrict=restrict,
+                                                join_list=join_list,
+                                                weights=[&#39;weight&#39;],
+                                                sort=True)
+        self._cache[&#39;eiaids&#39;] = list(annual_agg[&#39;eiaid&#39;].values)
+        return self._cache[&#39;eiaids&#39;]
+
+    def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of buildings belonging to the given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
+
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        query = sa.select([self._bsq.bs_bldgid_column.distinct()])
+        query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res
+
+    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+        &#34;&#34;&#34;
+        Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
+        Args:
+            eiaids: list of utility EIAIDs
+            mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                             should be used
+            get_query_only: If set to true, returns the query string instead of the result
+
+        Returns:
+            Pandas dataframe consisting of the locations (for version 1) or counties (for version 2) belonging to the
+            provided list of utilities.
+
+        &#34;&#34;&#34;
+        eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+        self._bsq.get_table(eiaid_map_table_name)
+        query = sa.select([self._bsq.get_column(map_eiaid_column).distinct()])
+        query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        if get_query_only:
+            return self._bsq._compile(query)
+        res = self._bsq.execute(query)
+        return res</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.utility_query.BuildStockUtility.aggregate_annual_by_eiaid"><code class="name flex">
+<span>def <span class="ident">aggregate_annual_by_eiaid</span></span>(<span>self, enduses: List[str], group_by: Optional[List[str]] = None, get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Aggregates the annual consumption in the baseline table, grouping by all the utilities</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>enduses</code></strong></dt>
+<dd>The list of enduses to aggregate</dd>
+<dt><strong><code>group_by</code></strong></dt>
+<dd>Additional columns to group the aggregation by</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the list of queries to run instead of the result.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe with the annual sum of the requested enduses, grouped by utilities</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: List[str] | None = None,
+                              get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Aggregates the annual consumption in the baseline table, grouping by all the utilities
+    Args:
+        enduses: The list of enduses to aggregate
+        group_by: Additional columns to group the aggregation by
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the list of queries to run instead of the result.
+    Returns:
+        Pandas dataframe with the annual sum of the requested enduses, grouped by utilities
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+    group_by = [] if group_by is None else group_by
+    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+                                        join_list=join_list,
+                                        weights=[&#39;weight&#39;],
+                                        sort=True,
+                                        get_query_only=get_query_only)
+    return result</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.aggregate_ts_by_eiaid"><code class="name flex">
+<span>def <span class="ident">aggregate_ts_by_eiaid</span></span>(<span>self, eiaid_list: List[str], enduses: Optional[List[str]] = None, group_by: Optional[List[str]] = None, get_query_only: bool = False, query_group_size: int | None = None, split_endues: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Aggregates the timeseries result, grouping by utilities.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eiaid_list</code></strong></dt>
+<dd>The list of utility ids (EIAID) assigned by EIA.</dd>
+<dt><strong><code>enduses</code></strong></dt>
+<dd>The list of enduses to aggregate</dd>
+<dt><strong><code>group_by</code></strong></dt>
+<dd>Additional columns to group the aggregation by</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the list of queries to run instead of the result.</dd>
+<dt><strong><code>query_group_size</code></strong></dt>
+<dd>The number of eiaids to be grouped together when running athena queries. This should be
+used as large as possible that doesn't result in query timeout.</dd>
+<dt><strong><code>split_endues</code></strong></dt>
+<dd>Query each enduses separately to spread load on Athena</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def aggregate_ts_by_eiaid(self, eiaid_list: List[str],
+                          enduses: List[str] | None = None,
+                          group_by: List[str] | None = None,
+                          get_query_only: bool = False,
+                          query_group_size: int | None = None,
+                          split_endues: bool = False,
+                          ):
+    &#34;&#34;&#34;
+    Aggregates the timeseries result, grouping by utilities.
+    Args:
+        eiaid_list: The list of utility ids (EIAID) assigned by EIA.
+        enduses: The list of enduses to aggregate
+        group_by: Additional columns to group the aggregation by
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the list of queries to run instead of the result.
+        query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
+                          used as large as possible that doesn&#39;t result in query timeout.
+        split_endues: Query each enduses separately to spread load on Athena
+
+    Returns:
+        Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    eiaid_list = [str(e) for e in eiaid_list]
+    if not enduses:
+        raise ValueError(&#34;Need to provide enduses&#34;)
+    id_column = &#39;eiaid&#39;
+
+    if query_group_size is None:
+        query_group_size = min(100, len(eiaid_list))
+
+    return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
+                                     eiaid_list, enduses, group_by, get_query_only,
+                                     query_group_size, split_endues)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.aggregate_unit_counts_by_eiaid"><code class="name flex">
+<span>def <span class="ident">aggregate_unit_counts_by_eiaid</span></span>(<span>self, eiaid_list: Optional[List[str]] = None, group_by: Optional[List[str]] = None, get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
+provided.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eiaid_list</code></strong></dt>
+<dd>The list of utility ids (EIAID) to aggregate for</dd>
+<dt><strong><code>group_by</code></strong></dt>
+<dd>Additional columns to group by</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the query instead of the result</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe with the units counts</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def aggregate_unit_counts_by_eiaid(self, eiaid_list: List[str] | None = None,
+                                   group_by: List[str] | None = None,
+                                   get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
+    provided.
+    Args:
+        eiaid_list: The list of utility ids (EIAID) to aggregate for
+        group_by: Additional columns to group by
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the query instead of the result
+
+    Returns:
+        Pandas dataframe with the units counts
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    group_by = [] if group_by is None else group_by
+    restrict = [(&#39;eiaid&#39;, eiaid_list)] if eiaid_list else None
+    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    result = self._agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+                                        sort=True,
+                                        join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
+                                        weights=[&#39;weight&#39;],
+                                        restrict=restrict,
+                                        get_query_only=get_query_only)
+    return result</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.get_buildings_by_eiaids"><code class="name flex">
+<span>def <span class="ident">get_buildings_by_eiaids</span></span>(<span>self, eiaids: List[str], get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of buildings belonging to the given list of utilities.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eiaids</code></strong></dt>
+<dd>list of utility EIAIDs</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the query string instead of the result</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe consisting of the building ids belonging to the provided list of utilities.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the list of buildings belonging to the given list of utilities.
+    Args:
+        eiaids: list of utility EIAIDs
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the query string instead of the result
+
+    Returns:
+        Pandas dataframe consisting of the building ids belonging to the provided list of utilities.
+
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    query = sa.select([self._bsq.bs_bldgid_column.distinct()])
+    query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+    query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+    query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+    if get_query_only:
+        return self._bsq._compile(query)
+    res = self._bsq.execute(query)
+    return res</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.get_eiaid_map"><code class="name flex">
+<span>def <span class="ident">get_eiaid_map</span></span>(<span>self) ‑> tuple[str, str, str]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_eiaid_map(self) -&gt; tuple[str, str, str]:
+    if self.eia_mapping_version == 1:
+        map_table_name = &#39;eiaid_weights&#39;
+        map_baseline_column = &#39;build_existing_model.county&#39;
+        map_eiaid_column = &#39;county&#39;
+    elif self.eia_mapping_version == 2:
+        map_table_name = &#39;v2_eiaid_weights&#39;
+        map_baseline_column = &#39;build_existing_model.county&#39;
+        map_eiaid_column = &#39;county&#39;
+    elif self.eia_mapping_version == 3:
+        map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
+        map_baseline_column = &#39;build_existing_model.county&#39;
+        map_eiaid_column = &#39;county&#39;
+    else:
+        raise ValueError(&#34;Invalid mapping_version&#34;)
+
+    return map_table_name, map_baseline_column, map_eiaid_column</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.get_eiaids"><code class="name flex">
+<span>def <span class="ident">get_eiaids</span></span>(<span>self, restrict: Optional[List[Tuple[str, List]]] = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of building</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>restrict</code></strong></dt>
+<dd>The list of where condition to restrict the results to. It should be specified as a list of tuple.
+Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]</code></dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe consisting of the eiaids belonging to the provided list of locations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_eiaids(self, restrict: List[Tuple[str, List]] | None = None):
+    &#34;&#34;&#34;
+    Returns the list of building
+    Args:
+        restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                  Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+    Returns:
+        Pandas dataframe consisting of the eiaids belonging to the provided list of locations.
+    &#34;&#34;&#34;
+    restrict = list(restrict) if restrict else []
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    if &#39;eiaids&#39; in self._cache:
+        if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
+            return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
+    else:
+        self._cache[&#39;eiaids&#39;] = {}
+
+    join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
+    annual_agg = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col],
+                                            restrict=restrict,
+                                            join_list=join_list,
+                                            weights=[&#39;weight&#39;],
+                                            sort=True)
+    self._cache[&#39;eiaids&#39;] = list(annual_agg[&#39;eiaid&#39;].values)
+    return self._cache[&#39;eiaids&#39;]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.get_filtered_results_csv_by_eiaid"><code class="name flex">
+<span>def <span class="ident">get_filtered_results_csv_by_eiaid</span></span>(<span>self, eiaids: List[str], get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns a portion of the results csvs, which belongs to given list of utilities</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eiaids</code></strong></dt>
+<dd>The eiaid list of utitlies</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the list of queries to run instead of the result.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_filtered_results_csv_by_eiaid(
+        self, eiaids: List[str], get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns a portion of the results csvs, which belongs to given list of utilities
+    Args:
+        eiaids: The eiaid list of utitlies
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the list of queries to run instead of the result.
+
+    Returns:
+        Pandas dataframe that is a subset of the results csv, that belongs to provided list of utilities
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
+    query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
+    query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+    query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+    if get_query_only:
+        return self._bsq._compile(query)
+    res = self._bsq.execute(query)
+    return res</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.utility_query.BuildStockUtility.get_locations_by_eiaids"><code class="name flex">
+<span>def <span class="ident">get_locations_by_eiaids</span></span>(<span>self, eiaids: List[str], get_query_only: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>eiaids</code></strong></dt>
+<dd>list of utility EIAIDs</dd>
+<dt><strong><code>mapping_version</code></strong></dt>
+<dd>Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+should be used</dd>
+<dt><strong><code>get_query_only</code></strong></dt>
+<dd>If set to true, returns the query string instead of the result</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Pandas dataframe consisting of the locations (for version 1) or counties (for version 2) belonging to the
+provided list of utilities.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
+    &#34;&#34;&#34;
+    Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
+    Args:
+        eiaids: list of utility EIAIDs
+        mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
+                         should be used
+        get_query_only: If set to true, returns the query string instead of the result
+
+    Returns:
+        Pandas dataframe consisting of the locations (for version 1) or counties (for version 2) belonging to the
+        provided list of utilities.
+
+    &#34;&#34;&#34;
+    eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
+    self._bsq.get_table(eiaid_map_table_name)
+    query = sa.select([self._bsq.get_column(map_eiaid_column).distinct()])
+    query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
+    query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+    if get_query_only:
+        return self._bsq._compile(query)
+    res = self._bsq.execute(query)
+    return res</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query" href="index.html">buildstock_query</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.utility_query.BuildStockUtility" href="#buildstock_query.utility_query.BuildStockUtility">BuildStockUtility</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.aggregate_annual_by_eiaid" href="#buildstock_query.utility_query.BuildStockUtility.aggregate_annual_by_eiaid">aggregate_annual_by_eiaid</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.aggregate_ts_by_eiaid" href="#buildstock_query.utility_query.BuildStockUtility.aggregate_ts_by_eiaid">aggregate_ts_by_eiaid</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.aggregate_unit_counts_by_eiaid" href="#buildstock_query.utility_query.BuildStockUtility.aggregate_unit_counts_by_eiaid">aggregate_unit_counts_by_eiaid</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.get_buildings_by_eiaids" href="#buildstock_query.utility_query.BuildStockUtility.get_buildings_by_eiaids">get_buildings_by_eiaids</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.get_eiaid_map" href="#buildstock_query.utility_query.BuildStockUtility.get_eiaid_map">get_eiaid_map</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.get_eiaids" href="#buildstock_query.utility_query.BuildStockUtility.get_eiaids">get_eiaids</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.get_filtered_results_csv_by_eiaid" href="#buildstock_query.utility_query.BuildStockUtility.get_filtered_results_csv_by_eiaid">get_filtered_results_csv_by_eiaid</a></code></li>
+<li><code><a title="buildstock_query.utility_query.BuildStockUtility.get_locations_by_eiaids" href="#buildstock_query.utility_query.BuildStockUtility.get_locations_by_eiaids">get_locations_by_eiaids</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
