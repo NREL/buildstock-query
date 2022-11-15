@@ -13,6 +13,7 @@ FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord
 class BuildStockAggregate:
     """A class to perform various aggregation queries for both timeseries and annual results.
     """
+
     def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
         self._bsq = buildstock_query
 

@@ -153,7 +153,7 @@ class QueryCore:
         elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
 
-    def get_table(self, table_name, missing_ok=False):
+    def get_table(self, table_name: str | sa.schema.Table, missing_ok=False):
 
         if isinstance(table_name, sa.schema.Table):
             return table_name  # already a table
@@ -170,7 +170,7 @@ class QueryCore:
     def get_column(self, column_name: sa.Column | sa.sql.elements.Label | str, table_name=None):
         if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
             return column_name  # already a col
-        if table_name:
+        if table_name is not None:
             valid_tables = [self.get_table(table_name)]
         else:
             valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
@@ -698,7 +698,7 @@ class QueryCore:
         query_status = self.get_query_status(query_execution_id)
         if query_status == 'SUCCEEDED':
             path = self.get_query_output_location(query_execution_id)
-            df = dd.read_csv(path).compute()[0]
+            df = dd.read_csv(path).compute()
             return df
         # If failed, return error message
         elif query_status == 'FAILED':
@@ -817,18 +817,19 @@ class QueryCore:
         else:
             return label
 
-    def _add_restrict(self, query, restrict):
+    def _add_restrict(self, query, restrict, bs_only=False):
         if not restrict:
             return query
         where_clauses = []
-        for col, criteria in restrict:
+        for col_str, criteria in restrict:
+            col = self.get_column(col_str, table_name=self.bs_table) if bs_only else self.get_column(col_str)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
                     where_clauses.append(self.get_column(col).in_(criteria))
                     continue
                 else:
                     criteria = criteria[0]
-            where_clauses.append(self.get_column(col) == criteria)
+            where_clauses.append(col == criteria)
         query = query.where(*where_clauses)
         return query
 

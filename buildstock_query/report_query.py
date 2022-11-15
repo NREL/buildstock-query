@@ -439,7 +439,7 @@ class BuildStockReport:
 
         restrict = list(restrict) if restrict else []
         restrict.insert(0, ('completed_status', ['Success']))
-        query = self._bsq._add_restrict(query, restrict)
+        query = self._bsq._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._bsq._compile(query)
 

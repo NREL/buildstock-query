@@ -187,7 +187,7 @@ class BuildStockQuery(QueryCore):
         """
         restrict = list(restrict) if restrict else []
         query = sa.select(['*']).select_from(self.bs_table)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -215,7 +215,7 @@ class BuildStockQuery(QueryCore):
         if upgrade:
             query = query.where(self.up_table.c['upgrade'] == str(upgrade))
 
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -240,7 +240,7 @@ class BuildStockQuery(QueryCore):
         """
         restrict = list(restrict) if restrict else []
         query = sa.select(self.bs_bldgid_column)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
