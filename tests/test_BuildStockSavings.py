@@ -78,6 +78,9 @@ class TestResStockSavings:
         assert np.isclose(ts_full_savings, annual_savings_full[f"{enduses[0]}__savings"], rtol=1e-3)
         ts_applied_savings = ts_savings_applied[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
         assert np.isclose(ts_applied_savings, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
+        # Verify that the absolute value is correct
+        assert np.isclose(ts_full_savings, 69690252.003256, rtol=1e-3)
+        assert np.isclose(annual_savings_full[f"{enduses[0]}__savings"], 69670293.34012, rtol=1e-3)
 
     def test_savings_shape_with_grouping(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
