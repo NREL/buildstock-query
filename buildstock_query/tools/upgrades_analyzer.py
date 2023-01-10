@@ -355,13 +355,14 @@ class UpgradesAnalyzer:
         n_diff = len(self.buildstock_df_original.compare(df)) - n_applied
         if n_diff > 0:
             raise ValueError(
-                f"Relative to baseline buildstock, upgraded buildstock has {n_diff} more rows of difference than reported."
+                f"Relative to baseline buildstock, upgraded buildstock has {n_diff} more rows "
+                "of difference than reported."
             )
         elif n_diff < 0:
             logger.warning(
-                f"Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows of difference than reported. "
-                "This is okay, but indicates that some parameters are being upgraded to the same incumbent option "
-                "(e.g., LEDs to LEDs). Check that this is intentional."
+                f"Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows "
+                "of difference than reported. This is okay, but indicates that some parameters are "
+                "being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional."
             )
         else:
             logger.info(
