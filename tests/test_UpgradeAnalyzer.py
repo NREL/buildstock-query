@@ -231,6 +231,10 @@ class TestUpgradesAnalyzer:
             ua.buildstock_df
         )
 
+        with pytest.raises(ValueError):
+            ua.get_report(0)
+            ua.get_report(len(cfg["upgrades"]) + 2)
+
     def test_print_detailed_report(self, ua: UpgradesAnalyzer, capsys):
         with pytest.raises(ValueError):
             ua.get_detailed_report(0)  # upgrade 0 is invalid. It is 1-indexed
@@ -406,12 +410,9 @@ class TestUpgradesAnalyzer:
         )
 
     def test_get_upgraded_buildstock(self, ua: UpgradesAnalyzer):
-        # Note: the number of row diff between upgraded_buildstock and baseline_buildstock can be less than the
-        # number of applicable_to in ua.get_report() because some baseline parameters are being upgraded to the
-        # same incumbent options
         report_df = ua.get_report()
-        n_upg = report_df["upgrade"].unique()
-        for upg in n_upg:
+        upgrades = report_df["upgrade"].unique()
+        for upg in upgrades:
             report_df_upg = report_df.loc[report_df["upgrade"] == upg]
             n_applied = report_df_upg.loc[
                 report_df_upg["option"] == "All", "applicable_to"
@@ -419,14 +420,9 @@ class TestUpgradesAnalyzer:
             df_bsl = ua.buildstock_df_original.set_index("Building")
             df_upg = ua.get_upgraded_buildstock(upg).set_index("Building")
             df_diff = df_bsl.compare(df_upg)
+            n_diff = len(df_diff) - n_applied
 
-            n_diff = n_applied - len(df_diff)
-            assert n_diff >= 0, (
-                f"Impossible difference! Upgraded buildstock has {-1*n_diff} fewer "
-                f"applied dwelling units than reported for upgrade = {upg}"
-            )
-
-            if n_diff > 0:
+            if n_diff < 0:
                 # this means some baseline parameters are being upgraded to the same incumbent options,
                 # (e.g., LED upgraded to LED)
                 df_same = df_bsl[~df_bsl.index.isin(df_diff.index)]
@@ -444,7 +440,7 @@ class TestUpgradesAnalyzer:
                 dimensions = list(dimensions)
 
                 n_unchanged = len(df_same.query(query)[dimensions])
-
+                n_diff = abs(n_diff)
                 assert n_diff == n_unchanged, (
                     f"Only {n_unchanged} dwelling units were found to be unchanged, "
                     f"expecting {n_diff} per report"
