@@ -28,11 +28,13 @@ class UpgradesAnalyzer:
         """
         self.yaml_file = yaml_file
         if isinstance(buildstock, str):
-            self.buildstock_df = pd.read_csv(buildstock, dtype=str)
+            self.buildstock_df_original = pd.read_csv(buildstock, dtype=str)
+            self.buildstock_df = self.buildstock_df_original.copy()
             self.buildstock_df.columns = [c.lower() for c in self.buildstock_df.columns]
             self.buildstock_df.rename(columns={'building': 'building_id'}, inplace=True)
             self.buildstock_df.set_index('building_id', inplace=True)
         elif isinstance(buildstock, pd.DataFrame):
+            self.buildstock_df_original = buildstock.copy()
             self.buildstock_df = buildstock.reset_index().rename(columns=str.lower)
             self.buildstock_df.rename(columns={'building': 'building_id'}, inplace=True)
             if 'building_id' in self.buildstock_df.columns:
@@ -194,19 +196,18 @@ class UpgradesAnalyzer:
             self._logic_cache[cache_key] = logic_array.copy()
         return logic_array
 
-    def get_report(self) -> pd.DataFrame:
+    def get_report(self, upgrade_num: int | None = None) -> pd.DataFrame:
         """Analyses which how many buildings various options in all the upgrades is going to apply to and returns
         a report in DataFrame format.
+        Args:
+            upgrade_num: Numeric index of upgrade (1-indexed). If None, all upgrades are assessed
 
         Returns:
             pd.DataFrame: The upgrade and options report.
+
         """
-        cfg = self.get_cfg()
-        self._logic_cache = {}
-        if 'upgrades' not in cfg:
-            raise ValueError("The project yaml has no upgrades defined")
-        records = []
-        for indx, upgrade in enumerate(cfg['upgrades']):
+        def _get_records(indx, upgrade):
+            records = []
             logger.info(f"Analyzing upgrade {indx + 1}")
             all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
             package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
@@ -240,8 +241,53 @@ class UpgradesAnalyzer:
                       'applicable_buildings': set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
                       'applicable_percent': self._to_pct(count)}
             records.append(record)
+            return records
+
+        cfg = self.get_cfg()
+        self._logic_cache = {}
+        if 'upgrades' not in cfg:
+            raise ValueError("The project yaml has no upgrades defined")
+
+        max_upg = len(cfg['upgrades']) + 1
+        if upgrade_num is not None:
+            if upgrade_num <= 0 or upgrade_num > max_upg:
+                raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.")
+
+        records = []
+        for indx, upgrade in enumerate(cfg['upgrades']):
+            if upgrade_num is None or upgrade_num == indx + 1:
+                records += _get_records(indx, upgrade)
+            else:
+                continue
+
         report_df = pd.DataFrame.from_records(records)
         return report_df
+
+
+    def get_upgraded_buildstock(self, upgrade_num):
+        report_df = self.get_report(upgrade_num)
+        upgrade_name = report_df["upgrade_name"].unique()[0]
+        logger.info(f" * Upgraded buildstock for upgrade {upgrade_num} : {upgrade_name}")
+
+        df = self.buildstock_df_original.copy()
+        for idx, row in report_df.iterrows():
+            if row["option"] == "All":
+                continue
+            dimension, upgrade_option = row["option"].split("|")
+            apply_logic = df["Building"].isin(row["applicable_buildings"])
+            # apply upgrade
+            df[dimension] = np.where(apply_logic, upgrade_option, df[dimension])
+
+        # report
+        cond = report_df["option"]=="All"
+        n_total = len(self.buildstock_df_original)
+        n_applied = report_df.loc[cond, "applicable_to"].to_list()[0]
+        n_applied_pct = report_df.loc[cond, "applicable_percent"].to_list()[0]
+        logger.info(f"Upgrade package has {len(report_df)-1} options and "
+            f"was applied to {n_applied} / {n_total} dwelling units ( {n_applied_pct} % )")
+
+        return df
+
 
     @staticmethod
     def _normalize_lists(logic, parent=None):
