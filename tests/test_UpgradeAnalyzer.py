@@ -10,9 +10,7 @@ class TestUpgradesAnalyzer:
     def ua(self):
         folder_path = pathlib.Path(__file__).parent.resolve()
         yaml_path = folder_path / "reference_files" / "res_n250_15min_v19.yml"
-        buildstock_path = (
-            folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
-        )
+        buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
         ua = UpgradesAnalyzer(yaml_path, str(buildstock_path))
         return ua
 
@@ -25,9 +23,7 @@ class TestUpgradesAnalyzer:
     def test_custom_buildstock(self):
         folder_path = pathlib.Path(__file__).parent.resolve()
         yaml_path = folder_path / "reference_files" / "res_n250_15min_v19.yml"
-        buildstock_path = (
-            folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
-        )
+        buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
         bdf = pd.read_csv(buildstock_path)
         ua = UpgradesAnalyzer(yaml_path, bdf)
         ua.get_detailed_report(2)
@@ -63,21 +59,17 @@ class TestUpgradesAnalyzer:
             assert UpgradesAnalyzer.get_mentioned_parameters(logic) == []
 
         assert UpgradesAnalyzer.get_mentioned_parameters("Vintage|1980s") == ["vintage"]
-        assert UpgradesAnalyzer.get_mentioned_parameters(
-            "Windows|Single, Clear, Metal, Exterior Low-E Storm"
-        ) == ["windows"]
-        logic = {
-            "and": [{"or": ["Vintage|1980s", "Vintage|1960s"]}, "Location Region|CR09"]
-        }
+        assert UpgradesAnalyzer.get_mentioned_parameters("Windows|Single, Clear, Metal, Exterior Low-E Storm") == [
+            "windows"
+        ]
+        logic = {"and": [{"or": ["Vintage|1980s", "Vintage|1960s"]}, "Location Region|CR09"]}
         assert UpgradesAnalyzer.get_mentioned_parameters(logic) == [
             "vintage",
             "location region",
         ]
 
     def test_reduce_logic(self, ua):
-        logic = {
-            "and": [{"or": ["Vintage|1980s", "Vintage|1960s"]}, "Location Region|CR09"]
-        }
+        logic = {"and": [{"or": ["Vintage|1980s", "Vintage|1960s"]}, "Location Region|CR09"]}
         reduced_logic = ua._reduce_logic(logic)
         cond1 = ua.buildstock_df["location region"] == "CR09"
         cond2 = ua.buildstock_df["vintage"].isin(["1980s", "1960s"])
@@ -99,9 +91,7 @@ class TestUpgradesAnalyzer:
         assert (cond1 == reduced_logic).all()
 
         # A list, except for that inside an `or` block is always interpreted as `and` block
-        logic = {
-            "not": ["Vintage|1980s", "Vintage|1960s"]
-        }  # Since no buildings have both vintage, should select all
+        logic = {"not": ["Vintage|1980s", "Vintage|1960s"]}  # Since no buildings have both vintage, should select all
         reduced_logic = ua._reduce_logic(logic)
         cond1 = [True] * len(ua.buildstock_df)
         assert (cond1 == reduced_logic).all()
@@ -119,9 +109,7 @@ class TestUpgradesAnalyzer:
     def test_normalize_lists(self):
         logic = [["logic1", "logic2"], ["logic3", "logic4"]]
         flatened_logic = UpgradesAnalyzer._normalize_lists(logic)
-        expected_logic = {
-            "and": [{"and": ["logic1", "logic2"]}, {"and": ["logic3", "logic4"]}]
-        }
+        expected_logic = {"and": [{"and": ["logic1", "logic2"]}, {"and": ["logic3", "logic4"]}]}
         assert flatened_logic == expected_logic
 
         logic = {
@@ -180,33 +168,22 @@ class TestUpgradesAnalyzer:
         report_df = ua.get_report()
         assert (report_df["upgrade_name"] == "upgrade1").all()
         assert len(report_df) == 2
-        opt1_cond = (
-            report_df["option"]
-            == "Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing"
-        )
+        opt1_cond = report_df["option"] == "Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing"
         logic_cond1 = ua.buildstock_df["insulation wall"] == "Wood Stud, Uninsulated"
         logic_cond2 = ua.buildstock_df["vintage"] == "1980s"
-        assert report_df[opt1_cond].applicable_to.values[0] == sum(
-            logic_cond1 | logic_cond2
-        )
-        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == sum(
-            logic_cond1 | logic_cond2
-        )
+        assert report_df[opt1_cond].applicable_to.values[0] == sum(logic_cond1 | logic_cond2)
+        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == sum(logic_cond1 | logic_cond2)
 
         new_cfg["upgrades"] = [cfg["upgrades"][1]]  # keep only one upgrade
         report_df = ua.get_report()
         assert (report_df["upgrade_name"] == "upgrade2").all()
         assert len(report_df) == 4
-        opt1_cond = (
-            report_df["option"] == "Windows|Single, Clear, Metal, Exterior Low-E Storm"
-        )
+        opt1_cond = report_df["option"] == "Windows|Single, Clear, Metal, Exterior Low-E Storm"
         opt2_cond = report_df["option"] == "Vintage|1980s"
         opt3_cond = report_df["option"] == "Vintage|1970s"
         pkg_logic = ~ua.buildstock_df["vintage"].isin(["1990s", "2000s"])
         logic_cond1_1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
-        logic_cond1_2 = (
-            ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
-        )
+        logic_cond1_2 = ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
         opt1_logic = (logic_cond1_1 | logic_cond1_2) & pkg_logic
         logic_cond2_1 = ua.buildstock_df["vintage"] == "1960s"
         opt2_logic = logic_cond2_1 & pkg_logic
@@ -227,9 +204,7 @@ class TestUpgradesAnalyzer:
         assert len(report_df) == 2
         opt1_cond = report_df["option"] == "Vintage|1980s"
         assert report_df[opt1_cond].applicable_to.values[0] == len(ua.buildstock_df)
-        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == len(
-            ua.buildstock_df
-        )
+        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == len(ua.buildstock_df)
 
         with pytest.raises(ValueError):
             ua.get_report(0)
@@ -243,10 +218,7 @@ class TestUpgradesAnalyzer:
             ua.get_detailed_report(1, 0)  # option 0 is invalid. It is 1-indexed
 
         _, report_text = ua.get_detailed_report(1)
-        assert (
-            "Option1:'Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing'"
-            in report_text
-        )
+        assert "Option1:'Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing'" in report_text
         logic_cond1 = ua.buildstock_df["insulation wall"] == "Wood Stud, Uninsulated"
         cmp_str = f"Insulation Wall|Wood Stud, Uninsulated => {sum(logic_cond1)}"
         assert cmp_str in report_text
@@ -265,21 +237,14 @@ class TestUpgradesAnalyzer:
         assert opt2_text in report_text
         assert opt3_text in report_text
 
-        substr1 = report_text[
-            report_text.index(opt1_text) : report_text.index(opt2_text)
-        ]
+        substr1 = report_text[report_text.index(opt1_text) : report_text.index(opt2_text)]
         assert "Package Apply Logic Report" in substr1
         package_report = substr1[substr1.index("Package Apply Logic Report") :]
         main_report = substr1[: substr1.index("Package Apply Logic Report")]
         logic1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
         assert f"Windows|Single, Clear, Metal => {sum(logic1)}" in main_report
-        logic2 = (
-            ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
-        )
-        assert (
-            f"Single, Clear, Metal, Exterior Clear Storm => {sum(logic2)}"
-            in main_report
-        )
+        logic2 = ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
+        assert f"Single, Clear, Metal, Exterior Clear Storm => {sum(logic2)}" in main_report
         assert f"or => {sum(logic1 | logic2)}" in main_report
         assert f"and => {sum(logic1 | logic2)}" in main_report
 
@@ -317,9 +282,7 @@ class TestUpgradesAnalyzer:
         assert isinstance(logic_report, list)
         assert len(logic_report) == 2
         assert f"Vintage|1980s => {sum(logic_arr1)}" in logic_report[0]
-        assert (
-            f"=> {sum(logic_arr1 & logic_arr2)}" in logic_report[0]
-        )  # for overall sum
+        assert f"=> {sum(logic_arr1 & logic_arr2)}" in logic_report[0]  # for overall sum
         assert f"Vintage|1960s => {sum(logic_arr2)}" in logic_report[1]
 
         logic_cfg4 = {"and": {"or": ["Vintage|1980s", "Vintage|1960s"]}}
@@ -368,21 +331,12 @@ class TestUpgradesAnalyzer:
         assert f"Vintage|1960s => {sum(logic_arr2)}" in logic_report[3]
 
     def test_print_unique_characteristics(self, ua: UpgradesAnalyzer, capsys):
-        compare_bldg_list = ua.buildstock_df[
-            ua.buildstock_df["vintage"].isin(["2000s", "1990s"])
-        ].index
-        other_bldg_list = ua.buildstock_df[
-            ~ua.buildstock_df["vintage"].isin(["2000s", "1990s"])
-        ].index
+        compare_bldg_list = ua.buildstock_df[ua.buildstock_df["vintage"].isin(["2000s", "1990s"])].index
+        other_bldg_list = ua.buildstock_df[~ua.buildstock_df["vintage"].isin(["2000s", "1990s"])].index
         ua.print_unique_characteristic(1, "no-chng", other_bldg_list, compare_bldg_list)
         printed_text, err = capsys.readouterr()
-        assert (
-            "Only no-chng buildings have vintage in ['1990s', '2000s']" in printed_text
-        )
-        assert (
-            "Checking 2 column combinations out of ['insulation wall', 'vintage']"
-            in printed_text
-        )
+        assert "Only no-chng buildings have vintage in ['1990s', '2000s']" in printed_text
+        assert "Checking 2 column combinations out of ['insulation wall', 'vintage']" in printed_text
         assert "No 2-column unique chracteristics found."
 
         condition1 = ua.buildstock_df["vintage"].isin(["2000s", "1990s"])
@@ -391,19 +345,11 @@ class TestUpgradesAnalyzer:
         )
         condition3 = ua.buildstock_df["location region"].isin(["CR09"])
         compare_bldg_list = ua.buildstock_df[condition1 & condition2 & condition3].index
-        other_bldg_list = ua.buildstock_df[
-            ~(condition1 & condition2 & condition3)
-        ].index
+        other_bldg_list = ua.buildstock_df[~(condition1 & condition2 & condition3)].index
         ua.print_unique_characteristic(2, "no-chng", other_bldg_list, compare_bldg_list)
         printed_text, err = capsys.readouterr()
-        assert (
-            "Checking 2 column combinations out of ['windows', 'vintage', 'location region']"
-            in printed_text
-        )
-        assert (
-            "Checking 3 column combinations out of ['windows', 'vintage', 'location region']"
-            in printed_text
-        )
+        assert "Checking 2 column combinations out of ['windows', 'vintage', 'location region']" in printed_text
+        assert "Checking 3 column combinations out of ['windows', 'vintage', 'location region']" in printed_text
         assert (
             "Only no-chng buildings have ('windows', 'vintage', 'location region') in "
             "[('Single, Clear, Metal', '1990s', 'CR09')]" in printed_text
@@ -414,9 +360,7 @@ class TestUpgradesAnalyzer:
         upgrades = report_df["upgrade"].unique()
         for upg in upgrades:
             report_df_upg = report_df.loc[report_df["upgrade"] == upg]
-            n_applied = report_df_upg.loc[
-                report_df_upg["option"] == "All", "applicable_to"
-            ].iloc[0]
+            n_applied = report_df_upg.loc[report_df_upg["option"] == "All", "applicable_to"].iloc[0]
             df_bsl = ua.buildstock_df_original.set_index("Building")
             df_upg = ua.get_upgraded_buildstock(upg).set_index("Building")
             df_diff = df_bsl.compare(df_upg)
@@ -442,6 +386,5 @@ class TestUpgradesAnalyzer:
                 n_unchanged = len(df_same.query(query)[dimensions])
                 n_diff = abs(n_diff)
                 assert n_diff == n_unchanged, (
-                    f"Only {n_unchanged} dwelling units were found to be unchanged, "
-                    f"expecting {n_diff} per report"
+                    f"Only {n_unchanged} dwelling units were found to be unchanged, " f"expecting {n_diff} per report"
                 )

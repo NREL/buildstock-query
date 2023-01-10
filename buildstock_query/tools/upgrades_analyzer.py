@@ -12,9 +12,7 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_COMBINATION_REPORT_COUNT = (
-    5  # Don't print combination report; There would be 2^n - n - 1 rows
-)
+MAX_COMBINATION_REPORT_COUNT = 5  # Don't print combination report; There would be 2^n - n - 1 rows
 
 
 class UpgradesAnalyzer:
@@ -92,17 +90,13 @@ class UpgradesAnalyzer:
             all_params = []
             for el in logic:
                 all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
-            return list(
-                dict.fromkeys(all_params)
-            )  # remove duplicates while maintainig order
+            return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
         elif isinstance(logic, dict):
             return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
         else:
             raise ValueError("Invalid logic type")
 
-    def print_unique_characteristic(
-        self, upgrade_num: int, name: str, base_bldg_list: list, compare_bldg_list: list
-    ):
+    def print_unique_characteristic(self, upgrade_num: int, name: str, base_bldg_list: list, compare_bldg_list: list):
         """Finds and prints what's unique among a list of buildings compared to baseline buildings.
            Useful for debugging why a certain set of buildings' energy consumption went up for an upgrade, for example.
         Args:
@@ -118,36 +112,24 @@ class UpgradesAnalyzer:
         try:
             upgrade_cfg = cfg["upgrades"][upgrade_num - 1]
         except KeyError as e:
-            raise ValueError(
-                f"Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI."
-            ) from e
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.") from e
 
         parameter_list = []
         for option_cfg in upgrade_cfg["options"]:
-            parameter_list.append(
-                UpgradesAnalyzer._get_para_option(option_cfg["option"])[0]
-            )
-            parameter_list.extend(
-                UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get("apply_logic"))
-            )
+            parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg["option"])[0])
+            parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get("apply_logic")))
         res_df = self.buildstock_df
         # remove duplicates (dict.fromkeys) and remove parameters not existing in buildstock_df
-        parameter_list = [
-            param for param in dict.fromkeys(parameter_list) if param in res_df.columns
-        ]
+        parameter_list = [param for param in dict.fromkeys(parameter_list) if param in res_df.columns]
         compare_df = res_df.loc[compare_bldg_list]
         base_df = res_df.loc[base_bldg_list]
-        print(
-            f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings."
-        )
+        print(f"Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.")
         unique_vals_dict: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
         for col in res_df.columns:
             no_change_set = set(compare_df[col].fillna("").unique())
             other_set = set(base_df[col].fillna("").unique())
             if only_in_no_change := no_change_set - other_set:
-                print(
-                    f"Only {name} buildings have {col} in {sorted(only_in_no_change)}"
-                )
+                print(f"Only {name} buildings have {col} in {sorted(only_in_no_change)}")
                 unique_vals_dict[(col,)] = {(entry,) for entry in only_in_no_change}
 
         if not unique_vals_dict:
@@ -157,18 +139,8 @@ class UpgradesAnalyzer:
             print(f"Checking {combi_size} column combinations out of {parameter_list}")
             found_uniq_chars = 0
             for cols in combinations(parameter_list, combi_size):
-                compare_tups = (
-                    compare_df[list(cols)]
-                    .fillna("")
-                    .drop_duplicates()
-                    .itertuples(index=False, name=None)
-                )
-                other_tups = (
-                    base_df[list(cols)]
-                    .fillna("")
-                    .drop_duplicates()
-                    .itertuples(index=False, name=None)
-                )
+                compare_tups = compare_df[list(cols)].fillna("").drop_duplicates().itertuples(index=False, name=None)
+                other_tups = base_df[list(cols)].fillna("").drop_duplicates().itertuples(index=False, name=None)
                 only_in_compare = set(compare_tups) - set(other_tups)
 
                 # remove cases arisen out of uniqueness found earlier with smaller susbset of cols
@@ -177,17 +149,13 @@ class UpgradesAnalyzer:
                         if sub_cols in unique_vals_dict:
                             new_set = set()
                             for val in only_in_compare:
-                                relevant_val = tuple(
-                                    val[cols.index(sub_col)] for sub_col in sub_cols
-                                )
+                                relevant_val = tuple(val[cols.index(sub_col)] for sub_col in sub_cols)
                                 if relevant_val not in unique_vals_dict[sub_cols]:
                                     new_set.add(val)
                             only_in_compare = new_set
 
                 if only_in_compare:
-                    print(
-                        f"Only {name} buildings have {cols} in {sorted(only_in_compare)} \n"
-                    )
+                    print(f"Only {name} buildings have {cols} in {sorted(only_in_compare)} \n")
                     found_uniq_chars += 1
                     unique_vals_dict[cols] = only_in_compare
 
@@ -201,9 +169,7 @@ class UpgradesAnalyzer:
 
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, "and", "or", "not"]:
-            raise ValueError(
-                f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}."
-            )
+            raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
 
         if isinstance(logic, str):
             para, opt = UpgradesAnalyzer._get_para_option(logic)
@@ -231,9 +197,7 @@ class UpgradesAnalyzer:
 
         if parent == "not":
             return ~logic_array
-        if not (
-            isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)
-        ):
+        if not (isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)):
             # Don't cache small logics - computing them again won't be too bad
             self._logic_cache[cache_key] = logic_array.copy()
         return logic_array
@@ -255,19 +219,13 @@ class UpgradesAnalyzer:
             all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
             package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
             if "package_apply_logic" in upgrade:
-                package_flat_logic = UpgradesAnalyzer._normalize_lists(
-                    upgrade["package_apply_logic"]
-                )
-                package_applied_bldgs = self._reduce_logic(
-                    package_flat_logic, parent=None
-                )
+                package_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
+                package_applied_bldgs = self._reduce_logic(package_flat_logic, parent=None)
 
             for opt_index, option in enumerate(upgrade["options"]):
                 applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
                 if "apply_logic" in option:
-                    flat_logic = UpgradesAnalyzer._normalize_lists(
-                        option["apply_logic"]
-                    )
+                    flat_logic = UpgradesAnalyzer._normalize_lists(option["apply_logic"])
                     applied_bldgs &= self._reduce_logic(flat_logic, parent=None)
                 else:
                     applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
@@ -282,9 +240,7 @@ class UpgradesAnalyzer:
                     "option": option["option"],
                     "applicable_to": count,
                     "applicable_percent": self._to_pct(count),
-                    "applicable_buildings": set(
-                        self.buildstock_df.loc[applied_bldgs[0]].index
-                    ),
+                    "applicable_buildings": set(self.buildstock_df.loc[applied_bldgs[0]].index),
                 }
                 records.append(record)
 
@@ -295,9 +251,7 @@ class UpgradesAnalyzer:
                 "option_num": -1,
                 "option": "All",
                 "applicable_to": count,
-                "applicable_buildings": set(
-                    self.buildstock_df.loc[all_applied_bldgs[0]].index
-                ),
+                "applicable_buildings": set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
                 "applicable_percent": self._to_pct(count),
             }
             records.append(record)
@@ -311,9 +265,7 @@ class UpgradesAnalyzer:
         max_upg = len(cfg["upgrades"]) + 1
         if upgrade_num is not None:
             if upgrade_num <= 0 or upgrade_num > max_upg:
-                raise ValueError(
-                    f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}."
-                )
+                raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.")
 
         records = []
         for indx, upgrade in enumerate(cfg["upgrades"]):
@@ -328,9 +280,7 @@ class UpgradesAnalyzer:
     def get_upgraded_buildstock(self, upgrade_num):
         report_df = self.get_report(upgrade_num)
         upgrade_name = report_df["upgrade_name"].unique()[0]
-        logger.info(
-            f" * Upgraded buildstock for upgrade {upgrade_num} : {upgrade_name}"
-        )
+        logger.info(f" * Upgraded buildstock for upgrade {upgrade_num} : {upgrade_name}")
 
         df = self.buildstock_df_original.copy()
         for idx, row in report_df.iterrows():
@@ -365,9 +315,7 @@ class UpgradesAnalyzer:
                 "being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional."
             )
         else:
-            logger.info(
-                "No cases of parameter upgraded with incumbent option detected."
-            )
+            logger.info("No cases of parameter upgraded with incumbent option detected.")
 
         return df
 
@@ -390,10 +338,7 @@ class UpgradesAnalyzer:
             new_logic = [UpgradesAnalyzer._normalize_lists(el) for el in logic]
             return {"and": new_logic} if parent is None else new_logic
         elif isinstance(logic, dict):
-            new_dict = {
-                key: UpgradesAnalyzer._normalize_lists(value, parent=key)
-                for key, value in logic.items()
-            }
+            new_dict = {key: UpgradesAnalyzer._normalize_lists(value, parent=key) for key, value in logic.items()}
             return new_dict
         else:
             return logic
@@ -421,19 +366,12 @@ class UpgradesAnalyzer:
                         [logic_dict[opt_indx] for opt_indx in group],
                     )
                 count = combined_logic.sum()
-                text = f" {comb_type} ".join(
-                    [f"Option {opt_indx + 1}" for opt_indx in group]
-                )
-                report_str += (
-                    f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)"
-                    + "\n"
-                )
+                text = f" {comb_type} ".join([f"Option {opt_indx + 1}" for opt_indx in group])
+                report_str += f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)" + "\n"
         report_str += "-" * len(header) + "\n"
         return report_str
 
-    def get_detailed_report(
-        self, upgrade_num: int, option_num: int | None = None
-    ) -> tuple[np.ndarray, str]:
+    def get_detailed_report(self, upgrade_num: int, option_num: int | None = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
@@ -444,26 +382,20 @@ class UpgradesAnalyzer:
         """
         cfg = self.get_cfg()
         if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
-            raise ValueError(
-                f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed."
-            )
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
 
         if option_num is None:
             return self._get_detailed_report_all(upgrade_num)
 
         self._logic_cache = {}
         if upgrade_num == 0 or option_num == 0:
-            raise ValueError(
-                f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}"
-            )
+            raise ValueError(f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}")
         report_str = ""
         try:
             upgrade = cfg["upgrades"][upgrade_num - 1]
             opt = upgrade["options"][option_num - 1]
         except (KeyError, IndexError, TypeError) as e:
-            raise ValueError(
-                f"The yaml doesn't have {upgrade_num}/{option_num} upgrade/option"
-            ) from e
+            raise ValueError(f"The yaml doesn't have {upgrade_num}/{option_num} upgrade/option") from e
 
         ugrade_name = upgrade.get("upgrade_name")
         header = f"Option Apply Report for - Upgrade{upgrade_num}:'{ugrade_name}', Option{option_num}:'{opt['option']}'"
@@ -503,9 +435,7 @@ class UpgradesAnalyzer:
         or_array = np.zeros((1, self.total_samples), dtype=bool)
         and_array = np.ones((1, self.total_samples), dtype=bool)
         for option_indx in range(n_options):
-            logic_array, sub_report_str = self.get_detailed_report(
-                upgrade_num, option_indx + 1
-            )
+            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1)
             report_str += sub_report_str + "\n"
             if n_options <= MAX_COMBINATION_REPORT_COUNT:
                 conds_dict[option_indx] = logic_array
@@ -523,14 +453,8 @@ class UpgradesAnalyzer:
             )
             report_str += text + "\n"
             report_str += "-" * len(text) + "\n"
-        report_str += (
-            f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)"
-            + "\n"
-        )
-        report_str += (
-            f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)"
-            + "\n"
-        )
+        report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
+        report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -541,9 +465,7 @@ class UpgradesAnalyzer:
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         logic_str = [""]
         if parent not in [None, "and", "or", "not"]:
-            raise ValueError(
-                f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}."
-            )
+            raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
         if isinstance(logic, str):
             logic_condition = UpgradesAnalyzer._get_eq_str(logic)
             logic_array = self.buildstock_df.eval(logic_condition, engine="python")
@@ -558,18 +480,14 @@ class UpgradesAnalyzer:
                     ll2 = self._get_logic_report(l2)
                     return l1[0] | ll2[0], l1[1] + ll2[1]
 
-                logic_array, logic_str = reduce(
-                    reducer, logic, (np.zeros((1, self.total_samples), dtype=bool), [])
-                )
+                logic_array, logic_str = reduce(reducer, logic, (np.zeros((1, self.total_samples), dtype=bool), []))
             else:
 
                 def reducer(l1, l2):
                     ll2 = self._get_logic_report(l2)
                     return l1[0] & ll2[0], l1[1] + ll2[1]
 
-                logic_array, logic_str = reduce(
-                    reducer, logic, (np.ones((1, self.total_samples), dtype=bool), [])
-                )
+                logic_array, logic_str = reduce(reducer, logic, (np.ones((1, self.total_samples), dtype=bool), []))
         elif isinstance(logic, dict):
             if len(logic) > 1:
                 raise ValueError(f"Dicts cannot have more than one keys. {logic} has.")
