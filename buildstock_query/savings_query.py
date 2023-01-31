@@ -8,6 +8,7 @@ import buildstock_query.main as main
 class BuildStockSavings:
     """Class for doing savings query (both timeseries and annual).
     """
+
     def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
         self._bsq = buildstock_query
 
@@ -146,7 +147,16 @@ class BuildStockSavings:
             group_by_selection = bs_group_by + ts_group_by
         query_cols = []
         for col in enduse_cols:
-            savings_col = ts_b.c[col.name] - safunc.coalesce(ts_u.c[col.name], ts_b.c[col.name])  # noqa E711
+            if annual_only:
+                savings_col = (safunc.coalesce(ts_b.c[col.name], 0) -
+                               safunc.coalesce(sa.case((ts_u.c['completed_status'] == 'Success', ts_u.c[col.name]),
+                                               else_=ts_b.c[col.name]), 0)
+                               )
+            else:
+                savings_col = (safunc.coalesce(ts_b.c[col.name], 0) -
+                               safunc.coalesce(sa.case((ts_u.c['building_id'] == None, ts_b.c[col.name]),  # noqa E711
+                                               else_=ts_u.c[col.name]), 0)
+                               )
             query_cols.extend(
                 [
                     sa.func.sum(ts_b.c[col.name] *
