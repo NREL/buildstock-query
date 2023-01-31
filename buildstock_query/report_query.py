@@ -8,6 +8,7 @@ from buildstock_query.helpers import print_r, print_g
 from ast import literal_eval
 from functools import reduce
 import buildstock_query.main as main
+from typing import Optional, Union
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -309,7 +310,8 @@ class BuildStockReport:
             print_r("Integrity check failed. Please check the serious issues above.")
             return False
 
-    def get_success_report(self, trim_missing_bs: str | bool = 'auto', get_query_only: bool = False) -> pd.DataFrame:
+    def get_success_report(self, trim_missing_bs: Union[str, bool] = 'auto',
+                           get_query_only: bool = False) -> pd.DataFrame:
         """Returns a basic report showing number of success and failures for each upgrade along with percentage.
         Additional information regarding number of buildings to which the upgrade applied and whether the enduses
         changed is also returned.
@@ -423,7 +425,7 @@ class BuildStockReport:
             print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
-    def get_successful_simulation_count(self, restrict: list[tuple[str, list]] | None = None,
+    def get_successful_simulation_count(self, restrict: Optional[list[tuple[str, list]]] = None,
                                         get_query_only: bool = False):
         """
         Returns the count of successful simulation for the given restric condition in the baseline.
@@ -446,7 +448,7 @@ class BuildStockReport:
         return self._bsq.execute(query)
 
     def get_applied_options(self, upgrade: int, bldg_ids: list[int],
-                            include_base_opt: bool = False) -> list[dict | set]:
+                            include_base_opt: bool = False) -> list[Union[dict, set]]:
         """Returns the list of options applied to each buildings for a given upgrade.
 
         Args:
@@ -482,7 +484,7 @@ class BuildStockReport:
 
     def get_enduses_buildings_map_by_change(self, upgrade: int,
                                             change_type: str = 'changed',
-                                            bldg_list: list[int] | None = None) -> dict[str, pd.Index]:
+                                            bldg_list: Optional[list[int]] = None) -> dict[str, pd.Index]:
         """Finds the list of enduses and the buildings that had change in the enduses for a given change type.
         Args:
             upgrade (int): The upgrade to look at.

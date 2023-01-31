@@ -22,6 +22,7 @@ import types
 from buildstock_query.helpers import FutureDf, DataExistsException, CustomCompiler
 from buildstock_query.helpers import save_pickle, load_pickle
 from concurrent import futures
+from typing import Optional
 
 
 logging.basicConfig(level=logging.INFO)
@@ -36,13 +37,13 @@ class QueryException(Exception):
 class QueryCore:
     def __init__(self, workgroup: str,
                  db_name: str,
-                 buildstock_type: str | None,
-                 table_name: Union[str, Tuple[str, str]] | None,
+                 buildstock_type: Optional[str],
+                 table_name: Optional[Union[str, Tuple[str, str]]],
                  timestamp_column_name: str,
                  building_id_column_name: str,
                  sample_weight: str,
                  region_name: str,
-                 execution_history: str | None,
+                 execution_history: Optional[str],
                  ) -> None:
         """
         Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
@@ -93,7 +94,7 @@ class QueryCore:
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
 
-    def load_cache(self, path: str | None = None):
+    def load_cache(self, path: Optional[str] = None):
         """Read and update query cache from pickle file.
 
         Args:
@@ -110,7 +111,7 @@ class QueryCore:
         else:
             logger.info("Cache already upto date.")
 
-    def save_cache(self, path: str | None = None, trim_excess: bool = False):
+    def save_cache(self, path: Optional[str] = None, trim_excess: bool = False):
         """Saves queries cache to a pickle file. It is good idea to run this afer making queries so that on the next
         session these queries won't have to be run on Athena and can be directly loaded from the file.
 
@@ -153,7 +154,7 @@ class QueryCore:
         elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
 
-    def get_table(self, table_name: str | sa.schema.Table, missing_ok=False):
+    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok=False):
 
         if isinstance(table_name, sa.schema.Table):
             return table_name  # already a table
@@ -167,7 +168,7 @@ class QueryCore:
             else:
                 raise
 
-    def get_column(self, column_name: sa.Column | sa.sql.elements.Label | str, table_name=None):
+    def get_column(self, column_name: Union[sa.Column, sa.sql.elements.Label, str], table_name=None):
         if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
             return column_name  # already a col
         if table_name is not None:
@@ -183,7 +184,7 @@ class QueryCore:
                 f"Using {valid_tables[0].name}")
         return valid_tables[0].c[column_name]
 
-    def _get_tables(self, table_name: str | tuple):
+    def _get_tables(self, table_name: Union[str, tuple]):
         self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
