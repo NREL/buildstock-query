@@ -17,7 +17,7 @@ jobs:
         with:
          python-version: ${{ matrix.python-version}}
       - name: Install buildstock_query
-        run: pip install -e .
+        run: pip install -e .[dev]
       - name: Pytest
         run: pytest -vv
       - name: Lint
