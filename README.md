@@ -94,4 +94,7 @@ different upgrades.
 >>>upgrades_visualizer
 Welcome to upgrades visualizer
 ...
+
 ```
+More usage examples are available in jupyter notebooks at: https://github.com/NREL/buildstock-query/tree/main/example_usage
+
