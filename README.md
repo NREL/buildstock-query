@@ -1,15 +1,54 @@
 # BuildStockQuery (previously known as smart_query)
 - - - - - - - - -
-A library to run AWS Athena queries to get various data from a BuildStock run. The main class is called BuildStockQuery.
+A library to run AWS Athena queries to get various data from a BuildStock run. 
+
+# Installation Instruction
+
+## Install as a library to your existing project
+1. Make sure you have read access to the repo (which you should already have if you are reading this in github.com)
+2. On your activated python / conda environment (Currently requries python >= 3.10), run the following command:
+
+`pip install git+https://github.com/NREL/buildstock-query`
+
+If you want to install a particular branch (for example you want to test a branch under development), you can do
+
+`pip install git+https://github.com/NREL/buildstock-query@branch_name`
+
+## Development installation 
+If you want to contribute back to the repo, and maybe fix bugs / add functions as you work with buildstock_query, you can do this.
+1. Clone the repo to your computer: 
+
+`git clone https://github.com/NREL/buildstock-query`
+
+2. Checkout a new branch so you can modify/fix things
+
+`git checkout -b bill_query`
+
+3. Activate your project environment (your project env has to have python >= 3.10)
+
+`conda activate your_existing_project_env`
+
+4. Do dev install of the buildstock_query in editable mode to your env
+
+`pip install -e .[dev]`
+
+
+
+## Usage example
+The main class is called BuildStockQuery.
 An object of BuildStockQuery needs to be created to perform various queries. In addition to supporting various
 query member functions, the BuildStockQuery object contains 4 member objects that can be used to perform certain
 class of queries and analysis. These 4 member objects can be accessed as follows::
+
+```
+from buildstock_query import BuildStockQuery
 
 bsq = BuildStockQuery(...)  `BuildStockQuery` object  
 bsq.agg  `buildstock_query.aggregate_query.BuildStockAggregate`  
 bsq.report  `buildstock_query.report_query.BuildStockReport`  
 bsq.savings  `buildstock_query.savings_query.BuildStockSavings`  
-bsq.utility  `buildstock_query.utility_query.BuildStockUtility`  
+bsq.utility  `buildstock_query.utility_query.BuildStockUtility` 
+```
 
 ```
 # Some basic query can be done directly using the BuildStockQuery object. For example:
