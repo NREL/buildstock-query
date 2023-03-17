@@ -50,13 +50,13 @@ def generate_table_and_cache(table_name: str):
                                    annual_only=False, group_by=group_by, sort=True)
         mya1.savings.savings_shape(1, enduses=ts_enduses, annual_only=False,
                                    group_by=group_by, sort=True, collapse_ts=True)
-        mya1.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by, sort=True,
-                                   collapse_ts=True)
+        mya1.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by,
+                                   sort=True, collapse_ts=True)
         group_by = ["state", "geometry_building_type_recs"]
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         restrict = [('state', ['CO'])]
-        mya1.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by, sort=True,
-                                   restrict=restrict)
+        mya1.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by,
+                                   sort=True, restrict=restrict)
 
         save_ref_pkl(f"{table_name}_query_cache", mya1._query_cache)
         save_ref_pkl(mya1.bs_table.name, mya1.bs_table)
