@@ -1,4 +1,3 @@
-import contextlib
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 from typing import List, Tuple, Union
@@ -72,15 +71,12 @@ class BuildStockQuery(QueryCore):
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
-        with contextlib.suppress(FileNotFoundError):
-            self.load_cache()
-
         if not skip_reports:
             logger.info("Getting Success counts...")
             print(self.report.get_success_report())
             if self.ts_table is not None:
                 self.report.check_ts_bs_integrity()
-        self.save_cache()
+            self.save_cache()
 
     def get_buildstock_df(self) -> pd.DataFrame:
         """Returns the building characteristics data by quering Athena tables using the same format as that produced

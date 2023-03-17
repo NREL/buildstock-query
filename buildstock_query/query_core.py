@@ -23,7 +23,9 @@ from buildstock_query.helpers import FutureDf, DataExistsException, CustomCompil
 from buildstock_query.helpers import save_pickle, load_pickle
 from concurrent import futures
 from typing import Optional
-
+from botocore.config import Config
+import urllib3
+urllib3.disable_warnings()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,11 +72,12 @@ class QueryCore:
         self._aws_s3 = boto3.client('s3')
         self._aws_athena = boto3.client('athena', region_name=region_name)
         self._aws_glue = boto3.client('glue', region_name=region_name)
-
         self._conn = Connection(work_group=workgroup, region_name=region_name,
-                                cursor_class=PandasCursor, schema_name=db_name)
+                                cursor_class=PandasCursor, schema_name=db_name,
+                                config=Config(max_pool_connections=20))
         self._async_conn = Connection(work_group=workgroup, region_name=region_name,
-                                      cursor_class=AsyncPandasCursor, schema_name=db_name, )
+                                      cursor_class=AsyncPandasCursor, schema_name=db_name,
+                                      config=Config(max_pool_connections=20))
 
         self.db_name = db_name
         self.region_name = region_name
@@ -392,7 +395,10 @@ class QueryCore:
             if query in self._query_cache:
                 return "CACHED", FutureDf(self._query_cache[query].copy())
             # in case of asynchronous run, you get the execution id and futures object
-            exe_id, result_future = self._async_conn.cursor().execute(query, na_values=[''])
+            exe_id, result_future = self._async_conn.cursor().execute(query,
+                                                                      result_reuse_enable=True,
+                                                                      result_reuse_minutes=60 * 24 * 7,
+                                                                      na_values=[''])
 
             def get_pandas(future):
                 res = future.result()
@@ -408,7 +414,10 @@ class QueryCore:
             return exe_id, result_future
         else:
             if query not in self._query_cache:
-                self._query_cache[query] = self._conn.cursor().execute(query).as_pandas()
+                self._query_cache[query] = self._conn.cursor().execute(query,
+                                                                       result_reuse_enable=True,
+                                                                       result_reuse_minutes=60 * 24 * 7,
+                                                                       ).as_pandas()
             return self._query_cache[query].copy()
 
     def print_all_batch_query_status(self) -> None:
@@ -528,6 +537,8 @@ class QueryCore:
         Args:
             batch_id (int): The batch query id.
         """
+        sleep_time = 0.5  # start here and keep doubling until max_sleep_time
+        max_sleep_time = 20
         while True:
             last_time = time.time()
             last_report = None
@@ -538,7 +549,8 @@ class QueryCore:
                 last_time = time.time()
             if report['Pending'] == 0 and report['Running'] == 0:
                 break
-            time.sleep(20)
+            time.sleep(sleep_time)
+            sleep_time = min(sleep_time * 2, max_sleep_time)
 
     def get_batch_query_result(self, batch_id, combine=True, no_block=False):
         """

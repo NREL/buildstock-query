@@ -237,9 +237,9 @@ class TestUpgradesAnalyzer:
         assert opt2_text in report_text
         assert opt3_text in report_text
 
-        substr1 = report_text[report_text.index(opt1_text) : report_text.index(opt2_text)]
+        substr1 = report_text[report_text.index(opt1_text): report_text.index(opt2_text)]
         assert "Package Apply Logic Report" in substr1
-        package_report = substr1[substr1.index("Package Apply Logic Report") :]
+        package_report = substr1[substr1.index("Package Apply Logic Report"):]
         main_report = substr1[: substr1.index("Package Apply Logic Report")]
         logic1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
         assert f"Windows|Single, Clear, Metal => {sum(logic1)}" in main_report

@@ -181,14 +181,14 @@ class BuildStockAggregate:
                              enduses: Optional[list[str]] = None,
                              group_by: Optional[list[str]] = None,
                              upgrade_id: Optional[int] = None,
-                             sort: bool = False,
+                             sort: Optional[bool] = False,
                              join_list: Optional[list[tuple[str, str, str]]] = None,
                              weights: Optional[list[str]] = None,
                              restrict: Optional[list[tuple[str, list]]] = None,
-                             run_async: bool = False,
-                             split_enduses: bool = False,
-                             collapse_ts: bool = False,
-                             get_query_only: bool = False,
+                             run_async: Optional[bool] = False,
+                             split_enduses: Optional[bool] = False,
+                             collapse_ts: Optional[bool] = False,
+                             get_query_only: Optional[bool] = False,
                              limit: Optional[int] = None
                              ):
         """
