@@ -8,6 +8,7 @@ from typing import Union
 from InquirerPy import inquirer
 from InquirerPy.validator import PathValidator
 import os
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ class UpgradesAnalyzer:
             self._logic_cache[cache_key] = logic_array.copy()
         return logic_array
 
-    def get_report(self, upgrade_num: int | None = None) -> pd.DataFrame:
+    def get_report(self, upgrade_num: Optional[int] = None) -> pd.DataFrame:
         """Analyses which how many buildings various options in all the upgrades is going to apply to and returns
         a report in DataFrame format.
         Args:
@@ -371,7 +372,7 @@ class UpgradesAnalyzer:
         report_str += "-" * len(header) + "\n"
         return report_str
 
-    def get_detailed_report(self, upgrade_num: int, option_num: int | None = None) -> tuple[np.ndarray, str]:
+    def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.

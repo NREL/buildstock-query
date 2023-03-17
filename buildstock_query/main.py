@@ -11,6 +11,8 @@ from buildstock_query.aggregate_query import BuildStockAggregate
 from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
+from typing import Optional
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -20,14 +22,14 @@ class BuildStockQuery(QueryCore):
     def __init__(self,
                  workgroup: str,
                  db_name: str,
-                 table_name: str | tuple[str, str],
+                 table_name: Union[str, tuple[str, str]],
                  buildstock_type: str = 'resstock',
                  timestamp_column_name: str = 'time',
                  building_id_column_name: str = 'building_id',
                  sample_weight: str = "build_existing_model.sample_weight",
                  region_name: str = 'us-west-2',
-                 execution_history: str | None = None,
-                 skip_reports: bool | None = False,
+                 execution_history: Optional[str] = None,
+                 skip_reports: Optional[bool] = False,
                  ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -129,7 +131,7 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -> pd.Series:
+    def get_distinct_vals(self, column: str, table_name: Optional[str], get_query_only: bool = False) -> pd.Series:
         """
             Find distinct vals.
         Args:
@@ -149,7 +151,7 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r[column]
 
-    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
+    def get_distinct_count(self, column: str, table_name: Optional[str] = None, weight_column: Optional[str] = None,
                            get_query_only: bool = False) -> pd.DataFrame:
         """
             Find distinct counts.
@@ -172,7 +174,7 @@ class BuildStockQuery(QueryCore):
         return r
 
     def get_results_csv(self,
-                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                        restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
                         get_query_only: bool = False):
         """
         Returns the results_csv table for the BuildStock run
@@ -198,7 +200,7 @@ class BuildStockQuery(QueryCore):
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
     def get_upgrades_csv(self, upgrade=None,
-                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
+                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
                          get_query_only: bool = False, copy=True):
         """
         Returns the results_csv table for the BuildStock run
@@ -225,7 +227,7 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+    def get_building_ids(self, restrict: Optional[List[Tuple[str, List]]] = None, get_query_only: bool = False):
         """
         Returns the list of buildings based on the restrict list
         Args:

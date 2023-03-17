@@ -3,6 +3,7 @@ import sqlalchemy as sa
 from typing import List, Tuple
 from sqlalchemy.sql import functions as safunc
 import buildstock_query.main as main
+from typing import Optional
 
 
 class BuildStockSavings:
@@ -19,7 +20,7 @@ class BuildStockSavings:
         return partition_by
 
     def __get_timeseries_bs_up_table(self, enduses: list[str], upgrade_id: int, applied_only: bool,
-                                     restrict: list | None = None, ts_group_by: list[str] | None = None):
+                                     restrict: Optional[list] = None, ts_group_by: Optional[list[str]] = None):
         restrict = list(restrict) if restrict else []
         ts_group_by = list(ts_group_by) if ts_group_by else []
         ts = self._bsq.ts_table
@@ -68,19 +69,19 @@ class BuildStockSavings:
     def savings_shape(
         self,
         upgrade_id: int,
-        enduses: List[str] | None = None,
-        group_by: List[str] | None = None,
+        enduses: Optional[List[str]] = None,
+        group_by: Optional[List[str]] = None,
         annual_only: bool = True,
         sort: bool = True,
-        join_list: List[Tuple[str, str, str]] | None = None,
-        weights: List[Tuple] | None = None,
-        restrict: List[Tuple[str, List]] | None = None,
+        join_list: Optional[List[Tuple[str, str, str]]] = None,
+        weights: Optional[List[Tuple]] = None,
+        restrict: Optional[List[Tuple[str, List]]] = None,
         run_async: bool = False,
         applied_only: bool = False,
         get_quartiles: bool = False,
         get_query_only: bool = False,
         unload_to: str = '',
-        partition_by: List[str] | None = None,
+        partition_by: Optional[List[str]] = None,
         collapse_ts: bool = False,
     ) -> pd.DataFrame:
         """Calculate savings shape for an upgrade

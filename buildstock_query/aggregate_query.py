@@ -4,6 +4,7 @@ import datetime
 import numpy as np
 import logging
 import buildstock_query.main as main
+from typing import Optional, Union
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,13 +19,13 @@ class BuildStockAggregate:
         self._bsq = buildstock_query
 
     def aggregate_annual(self,
-                         enduses: list[str] | None = None,
-                         group_by: list[str] | None = None,
+                         enduses: Optional[list[str]] = None,
+                         group_by: Optional[list[str]] = None,
                          sort: bool = False,
-                         upgrade_id: str | int | None = None,
-                         join_list: list[tuple[str, str, str]] | None = None,
-                         weights: list[str | tuple] | None = None,
-                         restrict: list[tuple[str, list]] | None = None,
+                         upgrade_id: Optional[Union[str, int]] = None,
+                         join_list: Optional[list[tuple[str, str, str]]] = None,
+                         weights: Optional[list[Union[str, tuple]]] = None,
+                         restrict: Optional[list[tuple[str, list]]] = None,
                          get_quartiles: bool = False,
                          run_async: bool = False,
                          get_query_only: bool = False):
@@ -116,12 +117,12 @@ class BuildStockAggregate:
         return self._bsq.execute(query, run_async=run_async)
 
     def _aggregate_timeseries_light(self,
-                                    enduses: list[str] | None = None,
-                                    group_by: list[str] | None = None,
+                                    enduses: Optional[list[str]] = None,
+                                    group_by: Optional[list[str]] = None,
                                     sort: bool = False,
-                                    join_list: list[tuple[str, str, str]] | None = None,
-                                    weights: list[str] | None = None,
-                                    restrict: list[tuple[str, list]] | None = None,
+                                    join_list: Optional[list[tuple[str, str, str]]] = None,
+                                    weights: Optional[list[str]] = None,
+                                    restrict: Optional[list[tuple[str, list]]] = None,
                                     run_async: bool = False,
                                     get_query_only: bool = False,
                                     limit=None
@@ -177,18 +178,18 @@ class BuildStockAggregate:
         return joined_enduses_df.reset_index()
 
     def aggregate_timeseries(self,
-                             enduses: list[str] | None = None,
-                             group_by: list[str] | None = None,
-                             upgrade_id: int | None = None,
+                             enduses: Optional[list[str]] = None,
+                             group_by: Optional[list[str]] = None,
+                             upgrade_id: Optional[int] = None,
                              sort: bool = False,
-                             join_list: list[tuple[str, str, str]] | None = None,
-                             weights: list[str] | None = None,
-                             restrict: list[tuple[str, list]] | None = None,
+                             join_list: Optional[list[tuple[str, str, str]]] = None,
+                             weights: Optional[list[str]] = None,
+                             restrict: Optional[list[tuple[str, list]]] = None,
                              run_async: bool = False,
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              get_query_only: bool = False,
-                             limit: int | None = None
+                             limit: Optional[int] = None
                              ):
         """
         Aggregates the timeseries result on select enduses.
@@ -289,7 +290,7 @@ class BuildStockAggregate:
     def get_building_average_kws_at(self,
                                     at_hour: list[int],
                                     at_days: list[int],
-                                    enduses: list[str] | None = None,
+                                    enduses: Optional[list[str]] = None,
                                     get_query_only: bool = False):
         """
         Aggregates the timeseries result on select enduses, for the given days and hours.
