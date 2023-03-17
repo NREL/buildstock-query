@@ -38,10 +38,12 @@ class BuildStockUtility:
                              id_list: List[Any],
                              enduses: List[str],
                              group_by: Optional[List[str]] = None,
+                             restrict: Optional[list[tuple[str, list]]] = None,
                              get_query_only: bool = False,
                              query_group_size: int = 1,
                              split_endues: bool = False):
 
+        restrict = restrict or []
         group_by = [] if group_by is None else group_by
         new_table = map_table_name
         join_list = [(new_table, baseline_column, map_column)]
@@ -60,7 +62,7 @@ class BuildStockUtility:
                                                            join_list=join_list,
                                                            weights=['weight'],
                                                            sort=True,
-                                                           restrict=[(id_column, current_ids)],
+                                                           restrict=[(id_column, current_ids)] + restrict,
                                                            run_async=False,
                                                            get_query_only=get_query_only,
                                                            split_enduses=True)
@@ -71,7 +73,7 @@ class BuildStockUtility:
                                                        join_list=join_list,
                                                        weights=['weight'],
                                                        sort=True,
-                                                       restrict=[(id_column, current_ids)],
+                                                       restrict=[(id_column, current_ids)] + restrict,
                                                        run_async=True,
                                                        get_query_only=True,
                                                        split_enduses=False)
@@ -108,9 +110,10 @@ class BuildStockUtility:
 
         return map_table_name, map_baseline_column, map_eiaid_column
 
-    def aggregate_ts_by_eiaid(self, eiaid_list: List[str],
+    def aggregate_ts_by_eiaid(self, eiaid_list: List[int],
                               enduses: Optional[List[str]] = None,
                               group_by: Optional[List[str]] = None,
+                              restrict: Optional[list[tuple[str, list]]] = None,
                               get_query_only: bool = False,
                               query_group_size: Optional[int] = None,
                               split_endues: bool = False,
@@ -132,7 +135,6 @@ class BuildStockUtility:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_list = [str(e) for e in eiaid_list]
         if not enduses:
             raise ValueError("Need to provide enduses")
         id_column = 'eiaid'
@@ -141,7 +143,7 @@ class BuildStockUtility:
             query_group_size = min(100, len(eiaid_list))
 
         return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
-                                         eiaid_list, enduses, group_by, get_query_only,
+                                         eiaid_list, enduses, group_by, restrict, get_query_only,
                                          query_group_size, split_endues)
 
     def aggregate_unit_counts_by_eiaid(self, eiaid_list: Optional[List[str]] = None,
@@ -160,6 +162,7 @@ class BuildStockUtility:
         Returns:
             Pandas dataframe with the units counts
         """
+        logger.info("Aggregating unit counts by eiaid")
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
@@ -286,11 +289,11 @@ class BuildStockUtility:
 
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        self._bsq.get_table(eiaid_map_table_name)
-        query = sa.select([self._bsq.get_column(map_eiaid_column).distinct()])
+        eiaid_map_table = self._bsq.get_table(eiaid_map_table_name)
+        query = sa.select([eiaid_map_table.c[map_eiaid_column].distinct()])
         query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
-        query = query.where(self._bsq.get_column("weight") > 0)
+        query = query.where(eiaid_map_table.c["weight"] > 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
-        return res
+        return list(res[map_eiaid_column].values)
