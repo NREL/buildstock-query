@@ -5,3 +5,4 @@ _pycache__/
 *.py[cod]
 .sourcery.yaml
 poetry.lock
+.history/
