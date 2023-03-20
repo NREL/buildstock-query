@@ -41,7 +41,7 @@ setup(
 
     },
     entry_points={
-        'console_scripts': ['upgrades_analyzer=buildstock_query.tools.upgrades_analyzer:main'
+        'console_scripts': ['upgrades_analyzer=buildstock_query.tools.upgrades_analyzer:main',
                             'upgrades_visualizer=buildstock_query.tools.upgrades_visualizer:main']
     },
     
