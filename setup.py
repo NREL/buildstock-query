@@ -20,7 +20,7 @@ setup(
         "types-PyYAML >= 6.0.12.2"
     ],
 
-    extra_require={
+    extras_require={
         'dev': ["pytest >= 7.1.3",
                 "flake8 >= 5.0.4",
                 "pdoc3 >= 0.10.0",
