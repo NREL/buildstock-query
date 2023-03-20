@@ -11,7 +11,7 @@ setup(
     install_requires=[
         "pandas >= 1.5.0",
         "pyarrow >= 9.0.0",
-        "s3fs[boto3] >= 2022.8.2",
+        # "s3fs[boto3] >= 2022.8.2",
         "pyathena == 2.23.0",
         "SQLAlchemy == 1.4.46",
         "dask >= 2022.9.2",
@@ -44,5 +44,5 @@ setup(
         'console_scripts': ['upgrades_analyzer=buildstock_query.tools.upgrades_analyzer:main',
                             'upgrades_visualizer=buildstock_query.tools.upgrades_visualizer:main']
     },
-    
+
 )
