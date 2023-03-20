@@ -6,7 +6,7 @@ setup(
     description="Python library for querying and analyzing ResStock and ComStock",
     author="Rajendra Adhikari",
     author_email='Rajendra.Adhikari@nrel.gov',
-    packages=['buildstock_query'],
+    package_dir={"buildstock_query": "buildstock_query"},
     python_requires='>=3.9',
     install_requires=[
         "pandas >= 1.5.0",
