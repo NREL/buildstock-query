@@ -12,7 +12,7 @@ setup(
         "pandas >= 1.5.0",
         "pyarrow >= 9.0.0",
         "s3fs[boto3] >= 2022.8.2",
-        "pyathena == 2.13.0",
+        "pyathena == 2.23.0",
         "SQLAlchemy == 1.4.46",
         "dask >= 2022.9.2",
         "colorama >= 0.4.5",
