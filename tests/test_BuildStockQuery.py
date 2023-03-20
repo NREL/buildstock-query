@@ -161,10 +161,10 @@ def test_aggregate_annual(temp_history_file):
                                             get_query_only=True)
 
     valid_query_string = """
-        select "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
-        sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel_use_electricity_net_m_btu",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "end_use_electricity_cooling_m_btu" from "res_n250_hrly_v1_baseline" where "res_n250_hrly_v1_baseline"."completed_status" = 'Success'
+        select res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,
+        sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
         group by 1, 2
         order by 1, 2
         """  # noqa: E501
@@ -177,10 +177,10 @@ def test_aggregate_annual(temp_history_file):
                                               get_query_only=True)
 
     valid_query_string1_1 = """
-            select "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs"  as "geometry_building_type_recs",
-            sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count",
-            sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel_use_electricity_net_m_btu",
-            sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "end_use_electricity_cooling_m_btu" from "res_n250_hrly_v1_baseline" where "res_n250_hrly_v1_baseline"."completed_status" = 'Success'
+            select res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs"  as geometry_building_type_recs,
+            sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count,
+            sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as fuel_use_electricity_net_m_btu,
+            sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
             group by 1, 2
             order by 1, 2
             """  # noqa: E501
@@ -200,14 +200,14 @@ def test_aggregate_annual(temp_history_file):
                                             get_query_only=True)
 
     valid_query_string2 = """
-        select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.state"  as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
-        sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as "units_count",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
-        "eiaid_weights"."weight") as "fuel_use_electricity_net_m_btu",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
-        "eiaid_weights"."weight") as "end_use_electricity_cooling_m_btu"
-        from "res_n250_hrly_v1_baseline" join "eiaid_weights" on "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county"
-        where "res_n250_hrly_v1_baseline"."completed_status" = 'Success' and "eiaid_weights"."eiaid" in ('1167', '3249') and "res_n250_hrly_v1_baseline"."build_existing_model.state" in ('AL', 'VA', 'TX')
+        select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_baseline."build_existing_model.state"  as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,
+        sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as units_count,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
+        eiaid_weights.weight) as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
+        eiaid_weights.weight) as end_use_electricity_cooling_m_btu
+        from res_n250_hrly_v1_baseline join eiaid_weights on res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county
+        where res_n250_hrly_v1_baseline.completed_status = 'Success' and eiaid_weights.eiaid in ('1167', '3249') and res_n250_hrly_v1_baseline."build_existing_model.state" in ('AL', 'VA', 'TX')
         group by 1, 2, 3
         order by 1, 2, 3
         """  # noqa: E501
@@ -217,18 +217,18 @@ def test_aggregate_annual(temp_history_file):
                                             run_async=True,
                                             get_query_only=True)
     valid_query_string3 = """
-        select sum(1) AS "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") AS "units_count", sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel_use_electricity_net_m_btu",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "end_use_electricity_cooling_m_btu" from "res_n250_hrly_v1_baseline" where "res_n250_hrly_v1_baseline"."completed_status" = 'Success'
+        select sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
         """  # noqa: E501
     assert_query_equal(query3, valid_query_string3)
 
     valid_query_string4 = """
-        select sum(1) AS "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") AS "units_count", sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
-        "eiaid_weights"."weight") as "fuel_use_electricity_net_m_btu",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
-        "eiaid_weights"."weight") as "end_use_electricity_cooling_m_btu" from
-        "res_n250_hrly_v1_baseline" join "eiaid_weights" on "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county" where
-        "res_n250_hrly_v1_baseline"."completed_status" = 'Success' and "eiaid_weights"."eiaid" in ('1167', '3249') and "res_n250_hrly_v1_baseline"."build_existing_model.state" in ('AL', 'VA', 'TX')
+        select sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
+        eiaid_weights.weight) as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
+        eiaid_weights.weight) as end_use_electricity_cooling_m_btu from
+        res_n250_hrly_v1_baseline join eiaid_weights on res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where
+        res_n250_hrly_v1_baseline.completed_status = 'Success' and eiaid_weights.eiaid in ('1167', '3249') and res_n250_hrly_v1_baseline."build_existing_model.state" in ('AL', 'VA', 'TX')
         """  # noqa: E501
     query4 = my_athena.agg.aggregate_annual(enduses=enduses,
                                             join_list=[
@@ -258,9 +258,9 @@ def test_aggregate_annual(temp_history_file):
                                              get_query_only=True,
                                              )
     valid_query_string5 = """
-        select sum(1) AS "sample_count", sum(29.0) AS "units_count", sum("res_n250_hrly_v1_baseline"."report_simulation_output.fuel_use_electricity_net_m_btu" * 29.0) as "fuel_use_electricity_net_m_btu",
-        sum("res_n250_hrly_v1_baseline"."report_simulation_output.end_use_electricity_cooling_m_btu" * 29.0) as
-        "end_use_electricity_cooling_m_btu" from "res_n250_hrly_v1_baseline" where "res_n250_hrly_v1_baseline"."completed_status" = 'Success'
+        select sum(1) as sample_count, sum(29.0) as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * 29.0) as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * 29.0) as
+        end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
     """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
 
@@ -284,13 +284,13 @@ def test_aggregate_ts(temp_history_file):
                                                 run_async=True,
                                                 get_query_only=True)
     valid_query_string1 = """
-    select "res_n250_hrly_v1_timeseries"."time" as "time", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as
-    "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-    "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel use: electricity: total",
-    sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as
-    "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join "res_n250_hrly_v1_baseline" on
-    "res_n250_hrly_v1_baseline"."building_id" =
-    "res_n250_hrly_v1_timeseries"."building_id"  group by 1, 2, 3 order by 1, 2, 3
+    select res_n250_hrly_v1_timeseries.time as time, res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,  sum(1) as
+    sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+    res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as "fuel use: electricity: total",
+    sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as
+    "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+    res_n250_hrly_v1_baseline.building_id =
+    res_n250_hrly_v1_timeseries.building_id  group by 1, 2, 3 order by 1, 2, 3
     """  # noqa: E501
     assert_query_equal(query1, valid_query_string1)  # Test that proper query is formed for timeseries aggregation
 
@@ -300,14 +300,14 @@ def test_aggregate_ts(temp_history_file):
                                                   run_async=True,
                                                   get_query_only=True)
     valid_query_string1_1 = """
-        select "res_n250_hrly_v1_timeseries"."time" as "time", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state",
-        "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",  sum(1) as
-        "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-        "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel use: electricity: total",
-        sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight")
-        as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join "res_n250_hrly_v1_baseline" on
-        "res_n250_hrly_v1_baseline"."building_id" =
-        "res_n250_hrly_v1_timeseries"."building_id"  group by 1, 2, 3 order by 1, 2, 3
+        select res_n250_hrly_v1_timeseries.time as time, res_n250_hrly_v1_baseline."build_existing_model.state" as state,
+        res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,  sum(1) as
+        sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+        res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as "fuel use: electricity: total",
+        sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight")
+        as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+        res_n250_hrly_v1_baseline.building_id =
+        res_n250_hrly_v1_timeseries.building_id  group by 1, 2, 3 order by 1, 2, 3
         """  # noqa: E501
     assert_query_equal(query1_1, valid_query_string1_1)  # Using tuple group_by
 
@@ -326,14 +326,14 @@ def test_aggregate_ts(temp_history_file):
                                                 run_async=True,
                                                 get_query_only=True)
     valid_query_string2 = """
-            select "eiaid_weights"."eiaid" as "eiaid", "res_n250_hrly_v1_baseline"."build_existing_model.state" as "state", "res_n250_hrly_v1_baseline"."build_existing_model.geometry_building_type_recs" as "geometry_building_type_recs",
-            "res_n250_hrly_v1_timeseries"."time" as "time",  sum(1) as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as
-            "units_count", sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" *
-            "eiaid_weights"."weight") as "fuel use: electricity: total",
-            sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-            "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  join
-            "eiaid_weights" on "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county"
-            where "eiaid_weights"."eiaid" in ('1167', '3249') and "res_n250_hrly_v1_baseline"."build_existing_model.state" in ('AL', 'VA', 'TX')
+            select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,
+            res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as
+            units_count, sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
+            eiaid_weights.weight) as "fuel use: electricity: total",
+            sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+            res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  join
+            eiaid_weights on res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county
+            where eiaid_weights.eiaid in ('1167', '3249') and res_n250_hrly_v1_baseline."build_existing_model.state" in ('AL', 'VA', 'TX')
             group by 1, 2, 3, 4 order by 1, 2, 3, 4
             """  # noqa: E501
     assert_query_equal(query2, valid_query_string2)  # Test that proper query is formed for timeseries aggregation
@@ -346,10 +346,10 @@ def test_aggregate_ts(temp_history_file):
                                                 collapse_ts=True,
                                                 get_query_only=True)
     valid_query_string3 = """
-        select sum(1) / 35040 as "sample_count", sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" / 35040) as "units_count",
-        sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "fuel use: electricity: total",
-        sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-        "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"
+        select sum(1) / 35040 as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 35040) as units_count,
+        sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as "fuel use: electricity: total",
+        sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+        res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
         """  # noqa: E501
     assert_query_equal(query3, valid_query_string3)
 
@@ -366,14 +366,14 @@ def test_aggregate_ts(temp_history_file):
                                                 collapse_ts=True,
                                                 get_query_only=True)
     valid_query_string4 = """
-        select sum(1) / 35040 as "sample_count", sum(("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") / 35040) as
-         "units_count",
-        sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight") as "fuel use: electricity: total", sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" *
-        "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * "eiaid_weights"."weight")
-        as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join "res_n250_hrly_v1_baseline" on
-        "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  join "eiaid_weights" on
-        "res_n250_hrly_v1_baseline"."build_existing_model.county" = "eiaid_weights"."county" where "eiaid_weights"."eiaid" in
-        ('1167', '3249') and "res_n250_hrly_v1_baseline"."build_existing_model.state" in ('AL', 'VA', 'TX')
+        select sum(1) / 35040 as sample_count, sum((res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) / 35040) as
+         units_count,
+        sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" *
+        res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
+        as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+        res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  join eiaid_weights on
+        res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where eiaid_weights.eiaid in
+        ('1167', '3249') and res_n250_hrly_v1_baseline."build_existing_model.state" in ('AL', 'VA', 'TX')
         """  # noqa: E501
     assert_query_equal(query4, valid_query_string4)  # Test that proper query is formed for timeseries aggregation
 
@@ -394,11 +394,11 @@ def test_aggregate_ts(temp_history_file):
                                                  run_async=True,
                                                  get_query_only=True)
     valid_query_string5 = """
-            select sum(1) / 35040 as "sample_count", sum(29.0 / 35040) as "units_count",
-            sum("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" * 29.0) as
-            "fuel use: electricity: total", sum("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * 29.0)
-            as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join "res_n250_hrly_v1_baseline" on
-            "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"
+            select sum(1) / 35040 as sample_count, sum(29.0 / 35040) as units_count,
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
             """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
 
@@ -446,7 +446,7 @@ def test_get_results_csv(temp_history_file):
     )
     query1 = my_athena.get_results_csv(get_query_only=True)
     valid_query_string1 = """
-        select * from "res_n250_hrly_v1_baseline"
+        select * from res_n250_hrly_v1_baseline
         """
     assert_query_equal(query1, valid_query_string1)
 
@@ -454,8 +454,8 @@ def test_get_results_csv(temp_history_file):
                                                  ('build_existing_model.geometry_foundation_type', 'Heated Basement')],
                                        get_query_only=True)
     valid_query_string2 = """
-        select * from "res_n250_hrly_v1_baseline"  where "res_n250_hrly_v1_baseline"."building_id" in (549, 487, 759) and
-        "res_n250_hrly_v1_baseline"."build_existing_model.geometry_foundation_type" = 'Heated Basement'
+        select * from res_n250_hrly_v1_baseline  where res_n250_hrly_v1_baseline.building_id in (549, 487, 759) and
+        res_n250_hrly_v1_baseline."build_existing_model.geometry_foundation_type" = 'Heated Basement'
     """  # noqa: E501
     assert_query_equal(query2, valid_query_string2)
 
@@ -474,21 +474,21 @@ def test_get_building_average_kws_at(temp_history_file):
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
                                                                enduses=enduses, get_query_only=True)
     valid_query_string1 = """
-    select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
-    sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-    "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 6.0) as
-    "fuel use: electricity: total", avg("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 6.0) as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-    "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  where "res_n250_hrly_v1_timeseries"."time" in
+    select res_n250_hrly_v1_timeseries.building_id,  sum(1) as sample_count,
+    sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, avg(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+    res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 6.0) as
+    "fuel use: electricity: total", avg(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 6.0) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+    res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  where res_n250_hrly_v1_timeseries.time in
     (timestamp '2012-01-01 12:10:00', timestamp '2012-01-02 12:10:00', timestamp '2012-01-03 12:10:00',
     timestamp '2012-01-04 12:10:00') group by 1 order by 1
     """  # noqa: E501
 
     valid_query_string2 = """
-    select "res_n250_hrly_v1_timeseries"."building_id", sum(1) as "sample_count",
-    sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-    "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 6.0) as
-    "fuel use: electricity: total", avg("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 6.0) as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-    "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  where "res_n250_hrly_v1_timeseries"."time" in
+    select res_n250_hrly_v1_timeseries.building_id, sum(1) as sample_count,
+    sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, avg(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+    res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 6.0) as
+    "fuel use: electricity: total", avg(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 6.0) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+    res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  where res_n250_hrly_v1_timeseries.time in
     (timestamp '2012-01-01 12:20:00', timestamp '2012-01-02 12:20:00', timestamp '2012-01-03 12:20:00',
     timestamp '2012-01-04 12:20:00') group by 1 order by 1
     """  # noqa: E501
@@ -516,11 +516,11 @@ def test_get_building_average_kws_at(temp_history_file):
     query1, = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
                                                         enduses=enduses, get_query_only=True)
     valid_query_string1 = """
-    select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
-    sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-    "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as
-    "fuel use: electricity: total", avg("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-    "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  where "res_n250_hrly_v1_timeseries"."time" in
+    select res_n250_hrly_v1_timeseries.building_id,  sum(1) as sample_count,
+    sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, avg(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+    res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as
+    "fuel use: electricity: total", avg(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+    res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  where res_n250_hrly_v1_timeseries.time in
     (timestamp '2012-01-01 12:15:00', timestamp '2012-01-02 12:30:00', timestamp '2012-01-03 12:30:00',
     timestamp '2012-01-04 12:45:00') group by 1 order by 1
     """  # noqa: E501
@@ -535,21 +535,21 @@ def test_get_building_average_kws_at(temp_history_file):
                                                                                               12.75],
                                                                enduses=enduses, get_query_only=True)
     valid_lower_query = """
-        select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
-        sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-        "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as
-        "fuel use: electricity: total", avg("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-        "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  where "res_n250_hrly_v1_timeseries"."time" in
+        select res_n250_hrly_v1_timeseries.building_id,  sum(1) as sample_count,
+        sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, avg(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+        res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as
+        "fuel use: electricity: total", avg(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+        res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  where res_n250_hrly_v1_timeseries.time in
         (timestamp '2012-01-01 12:15:00', timestamp '2012-01-02 12:30:00', timestamp '2012-01-03 12:30:00',
         timestamp '2012-01-04 12:45:00') group by 1 order by 1
         """  # noqa: E501
 
     valid_upper_query = """
-        select "res_n250_hrly_v1_timeseries"."building_id",  sum(1) as "sample_count",
-        sum("res_n250_hrly_v1_baseline"."build_existing_model.sample_weight") as "units_count", avg("res_n250_hrly_v1_timeseries"."fuel use: electricity: total" *
-        "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as
-        "fuel use: electricity: total", avg("res_n250_hrly_v1_timeseries"."end use: electricity: cooling" * "res_n250_hrly_v1_baseline"."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from "res_n250_hrly_v1_timeseries" join
-        "res_n250_hrly_v1_baseline" on "res_n250_hrly_v1_baseline"."building_id" = "res_n250_hrly_v1_timeseries"."building_id"  where "res_n250_hrly_v1_timeseries"."time" in
+        select res_n250_hrly_v1_timeseries.building_id,  sum(1) as sample_count,
+        sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, avg(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
+        res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as
+        "fuel use: electricity: total", avg(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * 4.0) as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join
+        res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id  where res_n250_hrly_v1_timeseries.time in
         (timestamp '2012-01-01 12:15:00', timestamp '2012-01-02 12:30:00', timestamp '2012-01-03 12:45:00',
         timestamp '2012-01-04 12:45:00') group by 1 order by 1
         """  # noqa: E501

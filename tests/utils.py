@@ -27,8 +27,8 @@ def mock_get_tables(self, table_name):
 
 
 def assert_query_equal(query1, query2):
-    query1 = query1.lower().split()
-    query2 = query2.lower().split()
+    query1 = query1.strip().lower().split()
+    query2 = query2.strip().lower().split()
     wrong_matches = [(indx, word, query2[indx]) for indx, word in enumerate(query1)
                      if word != query2[indx]]
     assert not wrong_matches
