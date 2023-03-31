@@ -11,7 +11,7 @@ from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
