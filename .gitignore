@@ -6,3 +6,5 @@ _pycache__/
 .sourcery.yaml
 poetry.lock
 .history/
+build/
+*.egg-info

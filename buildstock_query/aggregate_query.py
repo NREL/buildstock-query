@@ -181,14 +181,15 @@ class BuildStockAggregate:
                              enduses: Optional[list[str]] = None,
                              group_by: Optional[list[str]] = None,
                              upgrade_id: Optional[int] = None,
-                             sort: Optional[bool] = False,
+                             sort: bool = False,
                              join_list: Optional[list[tuple[str, str, str]]] = None,
                              weights: Optional[list[str]] = None,
                              restrict: Optional[list[tuple[str, list]]] = None,
-                             run_async: Optional[bool] = False,
+                             run_async: bool = False,
                              split_enduses: Optional[bool] = False,
                              collapse_ts: Optional[bool] = False,
-                             get_query_only: Optional[bool] = False,
+                             timestamp_grouping_func: Optional[str] = None,
+                             get_query_only: bool = False,
                              limit: Optional[int] = None
                              ):
         """
@@ -220,6 +221,8 @@ class BuildStockAggregate:
                        blocks otherwise.
             split_enduses: Whether to query for each enduses in a separate query to reduce Athena load for query. Useful
                            when Athena runs into "Query exhausted resources ..." errors.
+            timestamp_grouping_func: One of 'hour', 'day' or 'month' or None. If provided, perform timeseries
+                                     aggregation of specified granularity.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
 
@@ -236,6 +239,8 @@ class BuildStockAggregate:
         weights = list(weights) if weights else []
         restrict = list(restrict) if restrict else []
         upgrade_id = self._bsq._validate_upgrade(upgrade_id)
+        if timestamp_grouping_func and timestamp_grouping_func not in ['hour', 'day', 'month']:
+            raise ValueError("timestamp_grouping_func must be one of ['hour', 'day', 'month']")
 
         if split_enduses:
             return self._aggregate_timeseries_light(enduses=enduses, group_by=group_by, sort=sort,
@@ -264,6 +269,27 @@ class BuildStockAggregate:
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
+
+        if (colname := self._bsq.timestamp_column_name) in group_by and timestamp_grouping_func:
+            # sample_count = count(distinct(building_id))
+            # units_count = count(distinct(buuilding_id)) * sum(total_weight) / sum(1)
+            grouping_metrics_selection = [safunc.count(safunc.distinct(self._bsq.ts_bldgid_column)).
+                                          label("sample_count"),
+                                          (safunc.count(safunc.distinct(self._bsq.ts_bldgid_column)) *
+                                           safunc.sum(total_weight) / safunc.sum(1)).label("units_count"),
+                                          (safunc.sum(1) / safunc.count(safunc.distinct(self._bsq.ts_bldgid_column))).
+                                          label("rows_per_sample"), ]
+            indx = group_by.index(colname)
+            _, _, start_offset = self._bsq._get_simulation_info()
+            if start_offset > 0:
+                # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
+                new_col = sa.func.date_trunc(timestamp_grouping_func,
+                                             sa.func.date_add('second',
+                                                              -start_offset, self._bsq.timestamp_column)).label(colname)
+            else:
+                new_col = sa.func.date_trunc(timestamp_grouping_func, self._bsq.timestamp_column).label(colname)
+            group_by[indx] = new_col
+
         group_by_selection = self._bsq._process_groupby_cols(group_by, annual_only=False)
 
         query = sa.select(group_by_selection + grouping_metrics_selection + enduse_selection)
@@ -333,7 +359,7 @@ class BuildStockAggregate:
         enduse_cols = self._bsq._get_enduse_cols(enduses, table='timeseries')
         total_weight = self._bsq._get_weight([])
 
-        sim_year, sim_interval_seconds = self._bsq._get_simulation_info()
+        sim_year, sim_interval_seconds, _ = self._bsq._get_simulation_info()
         kw_factor = 3600.0 / sim_interval_seconds
 
         enduse_selection = [safunc.avg(enduse * total_weight * kw_factor).label(self._bsq._simple_label(enduse.name))

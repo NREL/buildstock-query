@@ -388,7 +388,7 @@ def test_aggregate_ts(temp_history_file):
     )
     my_athena2.get_available_upgrades = lambda: [0]
     my_athena2._get_rows_per_building = lambda: 35040
-
+    
     query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=True,
                                                  run_async=True,
@@ -401,6 +401,50 @@ def test_aggregate_ts(temp_history_file):
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
             """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
+
+    # same as query 5 but adding grouping_func. Since collapse ts is true, it should have no impact
+    query6 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
+                                                 collapse_ts=True,
+                                                 timestamp_grouping_func='month',
+                                                 run_async=True,
+                                                 get_query_only=True)
+    assert_query_equal(query6, valid_query_string5)
+
+    valid_query_string7 = """
+            select date_trunc('month', date_add('second', -900, res_n250_hrly_v1_timeseries.time)) AS time,
+             count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
+             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.0)) / sum(1) AS units_count,
+             sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample,
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1
+            """  # noqa: E501
+    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 900)
+    query7 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
+                                                 collapse_ts=False,
+                                                 timestamp_grouping_func='month',
+                                                 run_async=True,
+                                                 get_query_only=True)
+    assert_query_equal(query7, valid_query_string7)
+
+    valid_query_string9 = """
+            select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
+             count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
+             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.0)) / sum(1) AS units_count,
+             sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample,
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1
+            """  # noqa: E501
+    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 0)
+    query9 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
+                                                 collapse_ts=False,
+                                                 timestamp_grouping_func='month',
+                                                 run_async=True,
+                                                 get_query_only=True)
+    assert_query_equal(query9, valid_query_string9)
 
 
 def test_batch_query(temp_history_file):
@@ -470,7 +514,7 @@ def test_get_building_average_kws_at(temp_history_file):
         skip_reports=True
     )
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
-    my_athena._get_simulation_info = lambda: (2012, 10 * 60)  # over-ride the function to return interval of 10 mins
+    my_athena._get_simulation_info = lambda: (2012, 10 * 60, 0)  # over-ride the function to return interval of 10 mins
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
                                                                enduses=enduses, get_query_only=True)
     valid_query_string1 = """
@@ -512,7 +556,7 @@ def test_get_building_average_kws_at(temp_history_file):
     pd.testing.assert_frame_equal(res, true_weighted_sum)
 
     # Test at_hour as a list of hours that exactly coincide with timestamps. Single query must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60)  # over-ride the function to return interval of 15 mins
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # over-ride the function to return interval of 15 mins
     query1, = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
                                                         enduses=enduses, get_query_only=True)
     valid_query_string1 = """
@@ -530,7 +574,7 @@ def test_get_building_average_kws_at(temp_history_file):
 
     # Test at_hour as a list of hours which have only a few hours that coincide with timestamps.
     # Two queries must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60)  # over-ride the function to return interval of 15 mins
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # over-ride the function to return interval of 15 mins
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625,
                                                                                               12.75],
                                                                enduses=enduses, get_query_only=True)

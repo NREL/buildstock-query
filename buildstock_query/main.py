@@ -11,6 +11,7 @@ from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
 from typing import Optional
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -258,8 +259,10 @@ class BuildStockQuery(QueryCore):
         time1 = two_times[self.timestamp_column_name].iloc[0]
         time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
+        reference_time = datetime(year=sim_year, month=1, day=1)
         sim_interval_seconds = (time2 - time1).total_seconds()
-        return sim_year, sim_interval_seconds
+        start_offset_seconds = int((time1 - reference_time).total_seconds())
+        return sim_year, sim_interval_seconds, start_offset_seconds
 
     def _get_gcol(self, column):  # gcol => group by col
         if isinstance(column, sa.Column):
