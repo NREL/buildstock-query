@@ -221,6 +221,8 @@ class BuildStockAggregate:
                        blocks otherwise.
             split_enduses: Whether to query for each enduses in a separate query to reduce Athena load for query. Useful
                            when Athena runs into "Query exhausted resources ..." errors.
+            timestamp_grouping_func: One of 'hour', 'day' or 'month' or None. If provided, perform timeseries
+                                     aggregation of specified granularity. 
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
 
