@@ -264,7 +264,6 @@ class QueryCore:
         """
         s3_location = s3_bucket + '/' + s3_prefix
         s3_data = self._aws_s3.list_objects(Bucket=s3_bucket, Prefix=f'{s3_prefix}/{table_name}')
-
         if 'Contents' in s3_data and override is False:
             raise DataExistsException("Table already exists", f's3://{s3_location}/{table_name}/{table_name}.csv')
         if 'Contents' in s3_data:
@@ -273,7 +272,9 @@ class QueryCore:
             print(f"Saving s3://{s3_location}/{table_name}/{table_name}.parquet)")
             self._aws_s3.delete_objects(Bucket=s3_bucket, Delete={"Objects": existing_objects})
         print(f"Saving factors to s3 in s3://{s3_location}/{table_name}/{table_name}.parquet")
-        table_df.to_parquet(f's3://{s3_location}/{table_name}/{table_name}.parquet', index=False)
+        # table_df.to_parquet(f's3://{s3_location}/{table_name}/{table_name}.parquet', index=False)
+        self._aws_s3.put_object(Body=table_df.to_parquet(index=False), Bucket=s3_bucket,
+                                Key=f"{s3_prefix}/{table_name}/{table_name}.parquet")
         print("Saving Done.")
 
         column_formats = []
@@ -282,6 +283,8 @@ class QueryCore:
                 col_type = "int"
             elif np.issubdtype(dtype, np.floating):
                 col_type = "double"
+            elif np.issubdtype(dtype, np.datetime64):
+                col_type = "timestamp"
             else:
                 col_type = "string"
             column_formats.append(f"`{column_name}` {col_type}")
@@ -295,7 +298,7 @@ class QueryCore:
         TBLPROPERTIES ('has_encrypted_data'='false');
         """
 
-        print("Running create table query.")
+        print(f"Running create table query.\n {table_create_query}")
         result, reason = self.execute_raw(table_create_query)
         if result.lower() == "failed" and 'alreadyexists' in reason.lower():
             if not override:
