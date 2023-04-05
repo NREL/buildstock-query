@@ -1,10 +1,13 @@
 import pandas as pd
 import sqlalchemy as sa
 from typing import List, Tuple
-from sqlalchemy.sql import functions as safunc
+from sqlalchemy.sql import func as safunc
 import buildstock_query.main as main
 from typing import Optional
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class BuildStockSavings:
     """Class for doing savings query (both timeseries and annual).
@@ -79,6 +82,7 @@ class BuildStockSavings:
         run_async: bool = False,
         applied_only: bool = False,
         get_quartiles: bool = False,
+        timestamp_grouping_func: Optional[str] = None,
         get_query_only: bool = False,
         unload_to: str = '',
         partition_by: Optional[List[str]] = None,
@@ -186,10 +190,76 @@ class BuildStockSavings:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
             query_cols = grouping_metrics_selection + query_cols
-            time_col = ts_b.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
-            query_cols.insert(0, time_col)
-            group_by_selection.append(time_col)
+            #time_col = ts_b.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
+            #query_cols.insert(0, time_col)
+            #group_by_selection.append(time_col)
 
+        if timestamp_grouping_func and timestamp_grouping_func not in ['hour', 'day', 'month']:
+            raise ValueError("timestamp_grouping_func must be one of ['hour', 'day', 'month']")
+        
+        enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
+                            for enduse in enduse_cols]
+
+        if self._bsq.timestamp_column_name not in group_by and collapse_ts:
+            logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
+            # The aggregation is done across time so we should correct sample_count and units_count
+            rows_per_building = self._bsq._get_rows_per_building()
+            grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
+                "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
+        elif self._bsq.timestamp_column_name not in group_by:
+            group_by.append(self._bsq.timestamp_column_name)
+            grouping_metrics_selection = [safunc.sum(1).label(
+                "sample_count"), safunc.sum(total_weight).label("units_count")]
+        elif collapse_ts:
+            raise ValueError("collapse_ts is true, but there is timestamp column in group_by.")
+        else:
+            grouping_metrics_selection = [safunc.sum(1).label(
+                "sample_count"), safunc.sum(total_weight).label("units_count")]
+
+        if (colname := self._bsq.timestamp_column_name) in group_by and timestamp_grouping_func:
+            # sample_count = count(distinct(building_id))
+            # units_count = count(distinct(buuilding_id)) * sum(total_weight) / sum(1)
+            grouping_metrics_selection = [safunc.count(safunc.distinct(self._bsq.ts_bldgid_column)).
+                                          label("sample_count"),
+                                          (safunc.count(safunc.distinct(self._bsq.ts_bldgid_column)) *
+                                           safunc.sum(total_weight) / safunc.sum(1)).label("units_count"),
+                                          (safunc.sum(1) / safunc.count(safunc.distinct(self._bsq.ts_bldgid_column))).
+                                          label("rows_per_sample"), ]
+            indx = group_by.index(colname)
+            _, _, start_offset = self._bsq._get_simulation_info()
+            if start_offset > 0:
+                # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
+                new_col = sa.func.date_trunc(timestamp_grouping_func,
+                                             sa.func.date_add('second',
+                                                              -start_offset, self._bsq.timestamp_column)).label(colname)
+            else:
+                new_col = sa.func.date_trunc(timestamp_grouping_func, self._bsq.timestamp_column).label(colname)
+            group_by[indx] = new_col
+
+        group_by_selection = self._bsq._process_groupby_cols(group_by, annual_only=False)
+
+        #query = sa.select(group_by_selection + grouping_metrics_selection + enduse_selection)
+        #query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column)
+        #if join_list:
+            #query = self._bsq._add_join(query, join_list)
+
+        #group_by_names = [g.name for g in group_by_selection]
+        #upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in restrict)
+        #if self._bsq.up_table is not None and not upgrade_in_restrict and 'upgrade' not in group_by_names:
+            #logger.info(f"Restricting query to Upgrade {upgrade_id}.")
+            #restrict.append((self._bsq.ts_table.c['upgrade'], [upgrade_id]))
+
+        #query = self._bsq._add_restrict(query, restrict)
+        #query = self._bsq._add_group_by(query, group_by_selection)
+        #query = self._bsq._add_order_by(query, group_by_selection if sort else [])
+
+        query_cols = group_by_selection + query_cols
+        query_cols = grouping_metrics_selection + query_cols
+        query_cols = enduse_selection + query_cols
+        time_col = ts_b.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
+        query_cols.insert(0, time_col)
+        group_by_selection.append(time_col)
+    
         query = sa.select(query_cols).select_from(tbljoin)
 
         query = self._bsq._add_join(query, join_list)
