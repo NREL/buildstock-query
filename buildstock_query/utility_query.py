@@ -113,7 +113,7 @@ class BuildStockUtility:
     def aggregate_ts_by_eiaid(self, eiaid_list: List[int],
                               enduses: Optional[List[str]] = None,
                               group_by: Optional[List[str]] = None,
-                              restrict: Optional[list[tuple[str, list]]] = None,
+                              restrict: Optional[list[tuple[str, int | str | list]]] = None,
                               get_query_only: bool = False,
                               query_group_size: Optional[int] = None,
                               split_endues: bool = False,
@@ -167,7 +167,7 @@ class BuildStockUtility:
         group_by = [] if group_by is None else group_by
         restrict = [('eiaid', eiaid_list)] if eiaid_list else None
         eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
-        result = self._agg.aggregate_annual([], group_by=[eiaid_col] + group_by,
+        result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                             sort=True,
                                             join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
                                             weights=['weight'],

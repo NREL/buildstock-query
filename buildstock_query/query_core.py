@@ -19,7 +19,7 @@ import datetime
 import numpy as np
 from collections import OrderedDict
 import types
-from buildstock_query.helpers import FutureDf, DataExistsException, CustomCompiler
+from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf, DataExistsException, CustomCompiler
 from buildstock_query.helpers import save_pickle, load_pickle
 from concurrent import futures
 from typing import Optional
@@ -396,7 +396,7 @@ class QueryCore:
         self._session_queries.add(query)
         if run_async:
             if query in self._query_cache:
-                return "CACHED", FutureDf(self._query_cache[query].copy())
+                return "CACHED", CachedFutureDf(self._query_cache[query].copy())
             # in case of asynchronous run, you get the execution id and futures object
             exe_id, result_future = self._async_conn.cursor().execute(query,
                                                                       result_reuse_enable=True,
@@ -414,7 +414,7 @@ class QueryCore:
             result_future.as_pandas = types.MethodType(get_pandas, result_future)
             result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
             self._save_execution_id(exe_id)
-            return exe_id, result_future
+            return exe_id, AthenaFutureDf(result_future)
         else:
             if query not in self._query_cache:
                 self._query_cache[query] = self._conn.cursor().execute(query,

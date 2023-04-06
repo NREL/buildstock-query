@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
-from buildstock_query.helpers import FutureDf
+from buildstock_query.helpers import CachedFutureDf
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery
 import pandas as pd
@@ -52,7 +52,7 @@ def fake_sync_executer(query, *args, run_async=False, **kwargs):
 
 
 def fake_async_executor(query, *args, run_async=False, **kwargs):
-    return str(uuid.uuid4()), FutureDf(fake_sync_executer(query))
+    return str(uuid.uuid4()), CachedFutureDf(fake_sync_executer(query))
 
 
 fake_async_cursor = MagicMock()
@@ -388,7 +388,7 @@ def test_aggregate_ts(temp_history_file):
     )
     my_athena2.get_available_upgrades = lambda: [0]
     my_athena2._get_rows_per_building = lambda: 35040
-    
+
     query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=True,
                                                  run_async=True,
