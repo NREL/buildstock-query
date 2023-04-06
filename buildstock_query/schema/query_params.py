@@ -7,7 +7,8 @@ from typing import Literal
 
 class AnnualQuery(BaseModel):
     enduses:  Optional[list[str]]
-    group_by: Optional[list[sa.sql.elements.Label | sa.Column | str | tuple[str, str]]] = Field(default_factory=list)
+    group_by: Optional[list[Union[sa.sql.elements.Label,
+                                  sa.Column, str, tuple[str, str]]]] = Field(default_factory=list)
     upgrade_id: Optional[int] = None
     sort: bool = False
     join_list: Optional[list[tuple[str, str, str]]] = Field(default_factory=list)
