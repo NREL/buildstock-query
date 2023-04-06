@@ -14,10 +14,10 @@ class BuildStockAggregate:
                          upgrade_id: Optional[Union[str, int]] = None,
                          join_list: Optional[list[tuple[str, str, str]]] = None,
                          weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                          get_quartiles: bool = False,
                          run_async: Literal[False] = False,
-                         get_query_only: Literal[False] | None = False) -> pd.DataFrame:
+                         get_query_only: Optional[Literal[False]]= False) -> pd.DataFrame:
         """
         Aggregates the baseline annual result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -67,7 +67,7 @@ class BuildStockAggregate:
                          upgrade_id: Optional[Union[str, int]] = None,
                          join_list: Optional[list[tuple[str, str, str]]] = None,
                          weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                          get_quartiles: bool = False,
                          run_async: bool = False,
                          ) -> str:
@@ -76,16 +76,16 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_annual(self,
                          run_async: Literal[True],
-                         get_query_only: Literal[False] | None = False,
+                         get_query_only: Optional[Literal[False]]= False,
                          enduses: Optional[list[str]] = None,
                          group_by: Optional[list[Union[sa.sql.elements.Label, sa.Column, str, tuple[str, str]]]] = None,
                          sort: bool = False,
                          upgrade_id: Optional[Union[str, int]] = None,
                          join_list: Optional[list[tuple[str, str, str]]] = None,
                          weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                          get_quartiles: bool = False,
-                         ) -> tuple[Literal["CACHED"], CachedFutureDf] | tuple[str, AthenaFutureDf]:
+                         ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
         ...
 
     @typing.overload
@@ -97,12 +97,12 @@ class BuildStockAggregate:
                              sort: bool = False,
                              join_list: Optional[list[tuple[str, str, str]]] = None,
                              weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                              split_enduses: Optional[bool] = False,
                              collapse_ts: Optional[bool] = False,
                              timestamp_grouping_func: Optional[str] = None,
                              run_async: Literal[False] = False,
-                             get_query_only: Literal[False] | None = False,
+                             get_query_only: Optional[Literal[False]]= False,
                              limit: Optional[int] = None
                              ) -> pd.DataFrame:
         """
@@ -158,7 +158,7 @@ class BuildStockAggregate:
                              sort: bool = False,
                              join_list: Optional[list[tuple[str, str, str]]] = None,
                              weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                              split_enduses: Optional[bool] = False,
                              collapse_ts: Optional[bool] = False,
                              timestamp_grouping_func: Optional[str] = None,
@@ -177,11 +177,11 @@ class BuildStockAggregate:
                              sort: bool = False,
                              join_list: Optional[list[tuple[str, str, str]]] = None,
                              weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, int | str | list]]] = None,
+                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
                              split_enduses: Optional[bool] = False,
                              collapse_ts: Optional[bool] = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             get_query_only: Literal[False] | None = False,
+                             get_query_only: Optional[Literal[False]]= False,
                              limit: Optional[int] = None
-                             ) -> tuple[Literal["CACHED"], CachedFutureDf] | tuple[str, AthenaFutureDf]:
+                             ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
         ...

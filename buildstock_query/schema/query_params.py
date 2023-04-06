@@ -12,7 +12,7 @@ class AnnualQuery(BaseModel):
     upgrade_id: Optional[int] = None
     sort: bool = False
     join_list: Optional[list[tuple[str, str, str]]] = Field(default_factory=list)
-    restrict: Optional[list[tuple[str, str | int | list]]] = Field(default_factory=list)
+    restrict: Optional[list[tuple[str, Union[str, int, list]]]] = Field(default_factory=list)
     weights: Optional[list[Union[str, tuple]]] = Field(default_factory=list)
     get_quartiles: bool = False
     run_async: bool = False
