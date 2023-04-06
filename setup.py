@@ -17,7 +17,8 @@ setup(
         "dask >= 2022.9.2",
         "colorama >= 0.4.5",
         "inquirerpy >= 0.3.4",
-        "types-PyYAML >= 6.0.12.2"
+        "types-PyYAML >= 6.0.12.2",
+        "pydantic"
     ],
 
     extras_require={
