@@ -9,7 +9,7 @@ import dask.dataframe as dd
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-from typing import Union, Optional, Literal, Any, Sequence
+from typing import Union, Optional, Literal, Sequence
 import typing
 import time
 import logging
@@ -22,13 +22,11 @@ from collections import OrderedDict
 import types
 from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf, DataExistsException, CustomCompiler
 from buildstock_query.helpers import save_pickle, load_pickle
-from concurrent import futures
 from typing import TypedDict
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
 from buildstock_query.schema.query_params import DBColType, AnyColType, AnyTableType
-from buildstock_query.schema.helpers import gather_params
 urllib3.disable_warnings()
 
 logging.basicConfig(level=logging.INFO)
@@ -88,7 +86,7 @@ class QueryCore:
         self.region_name = params.region_name
 
         self._tables: dict = OrderedDict()  # Internal record of tables
- 
+
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
 

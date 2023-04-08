@@ -2,6 +2,7 @@ from typing import Optional, Union
 from typing import Literal
 from pydantic import BaseModel
 
+
 class RunParams(BaseModel):
     workgroup: str
     db_name: str

@@ -11,11 +11,11 @@ from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
 
-from typing import Optional, Literal, Final
+from typing import Optional, Literal
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.query_params import DBColType, DBTableType
+from buildstock_query.schema.query_params import DBColType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class BuildStockQuery(QueryCore):
             sample_weight=sample_weight,
             region_name=region_name,
             execution_history=execution_history
-        ) 
+        )
         run_params = params.get_run_params()
         super().__init__(params=run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
@@ -276,7 +276,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def _get_simulation_info(self, get_query_only: Literal[True]) -> str:
         ...
-    
+
     def _get_simulation_info(self, get_query_only=False) -> Union[str, tuple[int, int, int]]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id

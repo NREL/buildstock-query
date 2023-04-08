@@ -8,7 +8,6 @@ from typing import Optional, Union, Sequence
 from buildstock_query.schema import UtilityTSQuery
 from buildstock_query.schema.helpers import gather_params
 from buildstock_query.schema.query_params import AnyColType
-import typing
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
