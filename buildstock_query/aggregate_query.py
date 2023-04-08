@@ -5,7 +5,8 @@ import numpy as np
 import logging
 import buildstock_query.main as main
 from typing import Optional
-from buildstock_query.schema import AnnualQuery, TSQuery, accept_query
+from buildstock_query.schema import AnnualQuery, TSQuery
+from buildstock_query.schema.helpers import gather_params
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -18,40 +19,42 @@ class BuildStockAggregate:
     def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
         self._bsq = buildstock_query
 
-    @accept_query(AnnualQuery)
+    @gather_params(AnnualQuery)
     def aggregate_annual(self, *,
-                         query_params: AnnualQuery):
-        join_list = list(query_params.join_list) if query_params.join_list else []
-        weights = list(query_params.weights) if query_params.weights else []
-        restrict = list(query_params.restrict) if query_params.restrict else []
+                         params: AnnualQuery):
+        join_list = list(params.join_list) if params.join_list else []
+        weights = list(params.weights) if params.weights else []
+        restrict = list(params.restrict) if params.restrict else []
 
         [self._bsq.get_table(jl[0]) for jl in join_list]  # ingress all tables in join list
-        if query_params.upgrade_id in {None, 0, '0'}:
-            enduse_cols = self._bsq._get_enduse_cols(query_params.enduses, table='baseline')
+        if params.upgrade_id in {None, 0, '0'}:
+            enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='baseline')
             upgrade_id = None
         else:
-            upgrade_id = self._bsq._validate_upgrade(query_params.upgrade_id)
-            enduse_cols = self._bsq._get_enduse_cols(query_params.enduses, table='upgrade')
+            upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
+            enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='upgrade')
 
         total_weight = self._bsq._get_weight(weights)
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
                             for enduse in enduse_cols]
-        if query_params.get_quartiles:
+        if params.get_quartiles:
             enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
                 f"{self._bsq._simple_label(enduse.name)}__quartiles") for enduse in enduse_cols]
 
         grouping_metrics_selction = [safunc.sum(1).label("sample_count"),
                                      safunc.sum(total_weight).label("units_count")]
 
-        if not query_params.group_by:
+        if not params.group_by:
             query = sa.select(grouping_metrics_selction + enduse_selection)
             group_by_selection = []
         else:
-            group_by_selection = self._bsq._process_groupby_cols(query_params.group_by, annual_only=True)
+            group_by_selection = self._bsq._process_groupby_cols(params.group_by, annual_only=True)
             query = sa.select(group_by_selection + grouping_metrics_selction + enduse_selection)
         # jj = self.bs_table.join(self.ts_table, self.ts_table.c['building_id']==self.bs_table.c['building_id'])
         # self._compile(query.select_from(jj))
         if upgrade_id not in [None, 0, '0']:
+            if self._bsq.up_table is None:
+                raise ValueError("The run doesn't contain upgrades")
             tbljoin = self._bsq.bs_table.join(
                 self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                             self._bsq.up_table.c[self._bsq.building_id_column_name],
@@ -63,21 +66,24 @@ class BuildStockAggregate:
         query = self._bsq._add_join(query, join_list)
         query = self._bsq._add_restrict(query, restrict)
         query = self._bsq._add_group_by(query, group_by_selection)
-        query = self._bsq._add_order_by(query, group_by_selection if query_params.sort else [])
+        query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
 
-        if query_params.get_query_only:
+        if params.get_query_only:
             return self._bsq._compile(query)
 
-        return self._bsq.execute(query, run_async=query_params.run_async)
+        if params.run_async:
+            return self._bsq.execute(query, run_async=True)
+
+        return self._bsq.execute(query)
 
     def _aggregate_timeseries_light(self,
-                                    query_params: TSQuery
+                                    params: TSQuery
                                     ):
         """
         Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
         Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
         """
-        qp = query_params
+        qp = params
         if qp.run_async:
             raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
                              "the result after the query finishes.")
@@ -112,9 +118,9 @@ class BuildStockAggregate:
         logger.info("Joining Completed.")
         return joined_enduses_df.reset_index()
 
-    @accept_query(TSQuery)
-    def aggregate_timeseries(self, query_params: TSQuery):
-        qp = query_params
+    @gather_params(TSQuery)
+    def aggregate_timeseries(self, params: TSQuery):
+        qp = params
         upgrade_id = self._bsq._validate_upgrade(qp.upgrade_id)
         if qp.timestamp_grouping_func and \
                 qp.timestamp_grouping_func not in ['hour', 'day', 'month']:

@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Sequence
 import logging
 import re
 from buildstock_query.tools import UpgradesAnalyzer
@@ -10,8 +10,12 @@ from buildstock_query.aggregate_query import BuildStockAggregate
 from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
-from typing import Optional
+
+from typing import Optional, Literal, Final
+import typing
 from datetime import datetime
+from buildstock_query.schema.run_params import BSQParams
+from buildstock_query.schema.query_params import DBColType, DBTableType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,28 +23,30 @@ FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord
 
 
 class BuildStockQuery(QueryCore):
+
     def __init__(self,
                  workgroup: str,
                  db_name: str,
-                 table_name: Union[str, tuple[str, str]],
-                 buildstock_type: str = 'resstock',
+                 table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
+                 buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
                  timestamp_column_name: str = 'time',
                  building_id_column_name: str = 'building_id',
-                 sample_weight: str = "build_existing_model.sample_weight",
+                 sample_weight: Union[str, int, float] = "build_existing_model.sample_weight",
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
-                 skip_reports: Optional[bool] = False,
+                 skip_reports: bool = False,
                  ) -> None:
+
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
         Args:
             workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
             db_name (str): The athena database name
             buildstock_type (str, optional): 'resstock' or 'comstock' runs. Defaults to 'resstock'
-            table_name (str or tuple[str, str]): If a single string is provided, say, 'mfm_run', then it must correspond
-                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
-                as a tuple, (such as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and
-                a timeseries table.
+            table_name (str or Union[str, tuple[str, Optional[str], Optional[str]]]): If a single string is provided,
+            say, 'mfm_run', then it must correspond to tables in athena named mfm_run_baseline and optionally
+            mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
+            for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
             timestamp_column_name (str, optional): The column name for the time column. Defaults to 'time'
             building_id_column_name (str, optional): The column name for building_id. Defaults to 'building_id'
             sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
@@ -51,8 +57,7 @@ class BuildStockQuery(QueryCore):
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
         """
-
-        super().__init__(
+        params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
@@ -62,7 +67,9 @@ class BuildStockQuery(QueryCore):
             sample_weight=sample_weight,
             region_name=region_name,
             execution_history=execution_history
-        )
+        ) 
+        run_params = params.get_run_params()
+        super().__init__(params=run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -128,7 +135,8 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    def get_distinct_vals(self, column: str, table_name: Optional[str], get_query_only: bool = False) -> pd.Series:
+    def get_distinct_vals(self, column: str, table_name: Optional[str],
+                          get_query_only: bool = False) -> Union[str, pd.Series]:
         """
             Find distinct vals.
         Args:
@@ -149,7 +157,7 @@ class BuildStockQuery(QueryCore):
         return r[column]
 
     def get_distinct_count(self, column: str, table_name: Optional[str] = None, weight_column: Optional[str] = None,
-                           get_query_only: bool = False) -> pd.DataFrame:
+                           get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
             Find distinct counts.
         Args:
@@ -170,9 +178,21 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r
 
+    @typing.overload
+    def get_results_csv(self, *, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+                        get_query_only: Literal[False] = False) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: Literal[True],
+                        restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+                        ) -> str:
+        ...
+
     def get_results_csv(self,
                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
-                        get_query_only: bool = False):
+                        get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run
         Args:
@@ -194,13 +214,14 @@ class BuildStockQuery(QueryCore):
         if compiled_query in self._query_cache:
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query ...")
-        return self.execute(query).set_index(self.bs_bldgid_column.name)
+        result = self.execute(query)
+        return result.set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade=None,
+    def get_upgrades_csv(self, upgrade: int = 0,
                          restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
-                         get_query_only: bool = False, copy=True):
+                         get_query_only: bool = False, copy=True) -> Union[pd.DataFrame, str]:
         """
-        Returns the results_csv table for the BuildStock run
+        Returns the results_csv table for the BuildStock run for an upgrade.
         Args:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
@@ -212,6 +233,8 @@ class BuildStockQuery(QueryCore):
         restrict = list(restrict) if restrict else []
         query = sa.select(['*']).select_from(self.up_table)
         if upgrade:
+            if self.up_table is None:
+                raise ValueError("This run has no upgrades")
             query = query.where(self.up_table.c['upgrade'] == str(upgrade))
 
         query = self._add_restrict(query, restrict, bs_only=True)
@@ -224,7 +247,8 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: Optional[List[Tuple[str, List]]] = None, get_query_only: bool = False):
+    def get_building_ids(self, restrict: Optional[List[Tuple[str, List]]] = None,
+                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the list of buildings based on the restrict list
         Args:
@@ -245,7 +269,15 @@ class BuildStockQuery(QueryCore):
         res = self.execute(query)
         return res
 
-    def _get_simulation_info(self, get_query_only=False):
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[False] = False) -> tuple[int, int, int]:
+        ...
+
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[True]) -> str:
+        ...
+    
+    def _get_simulation_info(self, get_query_only=False) -> Union[str, tuple[int, int, int]]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
         bldg_df = self.execute(query0)
@@ -264,11 +296,14 @@ class BuildStockQuery(QueryCore):
         start_offset_seconds = int((time1 - reference_time).total_seconds())
         return sim_year, sim_interval_seconds, start_offset_seconds
 
-    def _get_gcol(self, column):  # gcol => group by col
+    def _get_gcol(self, column) -> DBColType:  # gcol => group by col
+        """Get a DB column for the purpose of grouping. If the provided column doesn't exist as is,
+        tries to get the column by prepending build_existing_model."""
+
         if isinstance(column, sa.Column):
             return column.label(self._simple_label(column.name))  # already a col
 
-        if isinstance(column, sa.sql.elements.Label):
+        if isinstance(column, sa.sql.expression.Label):
             return column
 
         if isinstance(column, tuple):
@@ -288,7 +323,8 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError(f"Invalid column name type {column}: {type(column)}")
 
-    def _get_enduse_cols(self, enduses, table='baseline') -> list[sa.Column]:
+    def _get_enduse_cols(self, enduses: Sequence[str],
+                         table='baseline') -> Sequence[sa.Column]:
         tbls_dict = {'baseline': self.bs_table,
                      'upgrade': self.up_table,
                      'timeseries': self.ts_table}
@@ -312,7 +348,7 @@ class BuildStockQuery(QueryCore):
                 if y.startswith("build_existing_model.")}
         return list(cols)
 
-    def _validate_group_by(self, group_by):
+    def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
         valid_groupby_cols = self.get_groupby_cols()
         group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
         if not set(group_by_cols).issubset(valid_groupby_cols):
@@ -322,14 +358,14 @@ class BuildStockQuery(QueryCore):
         # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
         # performance
 
-    def get_available_upgrades(self) -> list:
+    def get_available_upgrades(self) -> Sequence[int]:
         """Get the available upgrade scenarios and their identifier numbers.
         Returns:
             list: List of upgrades
         """
         return list(self.report.get_success_report().query("Success>0").index)
 
-    def _validate_upgrade(self, upgrade_id):
+    def _validate_upgrade(self, upgrade_id: Union[int, str]) -> str:
         upgrade_id = 0 if upgrade_id in (None, '0') else upgrade_id
         available_upgrades = self.get_available_upgrades() or [0]
         if upgrade_id not in set(available_upgrades):
@@ -342,7 +378,7 @@ class BuildStockQuery(QueryCore):
         bs_restrict = []  # restrict to apply to baseline table
         ts_restrict = []  # restrict to apply to timeseries table
         for col, restrict_vals in restrict:
-            if col in self.ts_table.columns:  # prioritize ts table
+            if self.ts_table is not None and col in self.ts_table.columns:  # prioritize ts table
                 ts_restrict.append([self.ts_table.c[col], restrict_vals])
             else:
                 bs_restrict.append([self._get_gcol(col), restrict_vals])
@@ -353,7 +389,7 @@ class BuildStockQuery(QueryCore):
         ts_group_by = []  # restrict to apply to baseline table
         bs_group_by = []  # restrict to apply to timeseries table
         for g in processed_group_by:
-            if g.name in self.ts_table.columns:
+            if self.ts_table is not None and g.name in self.ts_table.columns:
                 ts_group_by.append(g)
             else:
                 bs_group_by.append(g)

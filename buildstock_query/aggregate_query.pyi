@@ -1,23 +1,25 @@
-from typing import Optional, Union, Literal, LiteralString
+from typing import Optional, Union, Literal, Sequence
 import pandas as pd
 import typing
 from buildstock_query.helpers import AthenaFutureDf, CachedFutureDf
 import sqlalchemy as sa
+from buildstock_query.schema import TSQuery, AnnualQuery
+
 
 class BuildStockAggregate:
 
     @typing.overload
     def aggregate_annual(self,
-                         enduses: Optional[list[str]] = None,
-                         group_by: Optional[list[Union[sa.sql.elements.Label, sa.Column, str, tuple[str, str]]]] = None,
+                         enduses: Sequence[str],
+                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                          sort: bool = False,
-                         upgrade_id: Optional[Union[str, int]] = None,
-                         join_list: Optional[list[tuple[str, str, str]]] = None,
-                         weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
+                         upgrade_id: Union[int, str] = 0,
+                         join_list: Sequence[tuple[str, str, str]] = [],
+                         weights: Sequence[Union[str, tuple]] = [],
+                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
                          get_quartiles: bool = False,
                          run_async: Literal[False] = False,
-                         get_query_only: Optional[Literal[False]]= False) -> pd.DataFrame:
+                         get_query_only: Literal[False] = False) -> pd.DataFrame:
         """
         Aggregates the baseline annual result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -60,14 +62,15 @@ class BuildStockAggregate:
         ...
 
     @typing.overload
-    def aggregate_annual(self, get_query_only: Literal[True],
-                         enduses: Optional[list[str]] = None,
-                         group_by: Optional[list[Union[sa.sql.elements.Label, sa.Column, str, tuple[str, str]]]] = None,
+    def aggregate_annual(self,
+                         enduses: Sequence[str],
+                         get_query_only: Literal[True],
+                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                          sort: bool = False,
-                         upgrade_id: Optional[Union[str, int]] = None,
-                         join_list: Optional[list[tuple[str, str, str]]] = None,
-                         weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
+                         upgrade_id: Union[int, str] = 0,
+                         join_list: Sequence[tuple[str, str, str]] = [],
+                         weights: Sequence[Union[str, tuple]] = [],
+                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
                          get_quartiles: bool = False,
                          run_async: bool = False,
                          ) -> str:
@@ -75,34 +78,42 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_annual(self,
+                         enduses: Sequence[str],
                          run_async: Literal[True],
-                         get_query_only: Optional[Literal[False]]= False,
-                         enduses: Optional[list[str]] = None,
-                         group_by: Optional[list[Union[sa.sql.elements.Label, sa.Column, str, tuple[str, str]]]] = None,
+                         get_query_only: Literal[False] = False,
+                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                          sort: bool = False,
-                         upgrade_id: Optional[Union[str, int]] = None,
-                         join_list: Optional[list[tuple[str, str, str]]] = None,
-                         weights: Optional[list[Union[str, tuple]]] = None,
-                         restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
+                         upgrade_id: Union[int, str] = 0,
+                         join_list: Sequence[tuple[str, str, str]] = [],
+                         weights: Sequence[Union[str, tuple]] = [],
+                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
                          get_quartiles: bool = False,
                          ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
         ...
 
     @typing.overload
+    def aggregate_annual(self,
+                         params: AnnualQuery
+                         ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
+                                    str,
+                                    pd.DataFrame
+                                    ]:
+        ...
+
+    @typing.overload
     def aggregate_timeseries(self,
-                             enduses: Optional[list[str]],
-                             group_by: Optional[list[Union[sa.sql.elements.Label,
-                                                           sa.Column, str, tuple[str, str]]]] = None,
-                             upgrade_id: Optional[int] = None,
+                             enduses: Sequence[str],
+                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             upgrade_id: Union[int, str] = 0,
                              sort: bool = False,
-                             join_list: Optional[list[tuple[str, str, str]]] = None,
-                             weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
-                             split_enduses: Optional[bool] = False,
-                             collapse_ts: Optional[bool] = False,
+                             join_list: Sequence[tuple[str, str, str]] = [],
+                             weights: Sequence[Union[str, tuple]] = [],
+                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             split_enduses: bool = False,
+                             collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
                              run_async: Literal[False] = False,
-                             get_query_only: Optional[Literal[False]]= False,
+                             get_query_only: Literal[False] = False,
                              limit: Optional[int] = None
                              ) -> pd.DataFrame:
         """
@@ -150,17 +161,16 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_timeseries(self,
-                             enduses: Optional[list[str]],
+                             enduses: Sequence[str],
                              get_query_only: Literal[True],
-                             group_by: Optional[list[Union[sa.sql.elements.Label,
-                                                           sa.Column, str, tuple[str, str]]]] = None,
-                             upgrade_id: Optional[int] = None,
+                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             upgrade_id: Union[int, str] = 0,
                              sort: bool = False,
-                             join_list: Optional[list[tuple[str, str, str]]] = None,
-                             weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
-                             split_enduses: Optional[bool] = False,
-                             collapse_ts: Optional[bool] = False,
+                             join_list: Sequence[tuple[str, str, str]] = [],
+                             weights: Sequence[Union[str, tuple]] = [],
+                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             split_enduses: bool = False,
+                             collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
                              run_async: Literal[False] = False,
                              limit: Optional[int] = None
@@ -170,18 +180,42 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_timeseries(self,
                              run_async: Literal[True],
-                             enduses: Optional[list[str]],
-                             group_by: Optional[list[Union[sa.sql.elements.Label,
-                                                           sa.Column, str, tuple[str, str]]]] = None,
-                             upgrade_id: Optional[int] = None,
+                             enduses: Sequence[str],
+                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             upgrade_id: Union[int, str] = 0,
                              sort: bool = False,
-                             join_list: Optional[list[tuple[str, str, str]]] = None,
-                             weights: Optional[list[str]] = None,
-                             restrict: Optional[list[tuple[str, Union[str, int, list]]]] = None,
-                             split_enduses: Optional[bool] = False,
-                             collapse_ts: Optional[bool] = False,
+                             join_list: Sequence[tuple[str, str, str]] = [],
+                             weights: Sequence[Union[str, tuple]] = [],
+                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             split_enduses: bool = False,
+                             collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             get_query_only: Optional[Literal[False]]= False,
+                             get_query_only: Literal[False] = False,
                              limit: Optional[int] = None
                              ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
+        ...
+
+    @typing.overload
+    def aggregate_timeseries(self,
+                             params: TSQuery,
+                             ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
+                                        str,
+                                        pd.DataFrame
+                                        ]:
+        ...
+
+    @typing.overload
+    def get_building_average_kws_at(self,
+                                    at_hour: Sequence[int],
+                                    at_days: Sequence[int],
+                                    enduses: Sequence[str],
+                                    get_query_only: Literal[False] = False) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_building_average_kws_at(self,
+                                    at_hour: Sequence[int],
+                                    at_days: Sequence[int],
+                                    enduses: Sequence[str],
+                                    get_query_only: Literal[True]) -> str:
         ...

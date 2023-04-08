@@ -1,19 +1,22 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Union
-from functools import wraps
+from typing import Optional, Union, Sequence
 import sqlalchemy as sa
-from typing import Literal
+from typing import Literal, TypeAlias, Any
+
+DBColType: TypeAlias = Union[sa.sql.expression.Label[Any],  sa.Column[Any]]
+DBTableType: TypeAlias = sa.Table
+AnyColType: TypeAlias = Union[DBColType, str]
+AnyTableType: TypeAlias = Union[DBTableType, str]
 
 
 class AnnualQuery(BaseModel):
-    enduses:  Optional[list[str]]
-    group_by: Optional[list[Union[sa.sql.elements.Label,
-                                  sa.Column, str, tuple[str, str]]]] = Field(default_factory=list)
-    upgrade_id: Optional[int] = None
-    sort: bool = False
-    join_list: Optional[list[tuple[str, str, str]]] = Field(default_factory=list)
-    restrict: Optional[list[tuple[str, Union[str, int, list]]]] = Field(default_factory=list)
-    weights: Optional[list[Union[str, tuple]]] = Field(default_factory=list)
+    enduses:  Sequence[str]
+    group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list)
+    upgrade_id: Union[int, str] = 0
+    sort: bool = True
+    join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list)
+    restrict: Sequence[tuple[str, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list)
+    weights: Sequence[Union[str, tuple]] = Field(default_factory=list)
     get_quartiles: bool = False
     run_async: bool = False
     get_query_only: bool = False
@@ -34,14 +37,9 @@ class SavingsQuery(TSQuery):
     annual_only: bool = True
     applied_only: bool = False
     unload_to: str = ''
-    partition_by: Optional[list[str]] = None
+    partition_by: Optional[Sequence[str]] = None
 
 
-def accept_query(querycls):
-    def _accept_query(func):
-        @wraps(func)
-        def inner(self, **kwargs):
-            query_obj = querycls.parse_obj(kwargs)
-            return func(self, query_params=query_obj)
-        return inner
-    return _accept_query
+class UtilityTSQuery(TSQuery):
+    query_group_size: int = 20
+    eiaid_list: Sequence[str]

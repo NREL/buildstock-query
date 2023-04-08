@@ -40,7 +40,7 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
     expected_query1 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county
@@ -50,7 +50,7 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
     expected_query2 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id  join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where
@@ -65,11 +65,12 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
                                                              'end use: electricity: heating'],
                                                     group_by=['time'],
                                                     get_query_only=True,
+                                                    sort=True
                                                     )
     expected_query3 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county

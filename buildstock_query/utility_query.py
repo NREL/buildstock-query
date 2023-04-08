@@ -4,7 +4,11 @@ from typing import List, Any, Tuple
 import pandas as pd
 import sqlalchemy as sa
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Union, Sequence
+from buildstock_query.schema import UtilityTSQuery
+from buildstock_query.schema.helpers import gather_params
+from buildstock_query.schema.query_params import AnyColType
+import typing
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -32,57 +36,34 @@ class BuildStockUtility:
 
     def _aggregate_ts_by_map(self,
                              map_table_name: str,
-                             baseline_column: str,
-                             map_column: str,
+                             baseline_column_name: str,
+                             map_column_name: str,
                              id_column: str,
-                             id_list: List[Any],
-                             enduses: List[str],
-                             group_by: Optional[List[str]] = None,
-                             restrict: Optional[list[tuple[str, list]]] = None,
-                             get_query_only: bool = False,
-                             query_group_size: int = 1,
-                             split_endues: bool = False):
-
-        restrict = restrict or []
-        group_by = [] if group_by is None else group_by
-        new_table = map_table_name
-        join_list = [(new_table, baseline_column, map_column)]
+                             id_list: Sequence[Any],
+                             params: UtilityTSQuery):
+        new_table = self._bsq.get_table(map_table_name)
+        new_column = self._bsq.get_column(map_column_name, table_name=map_table_name)
+        baseline_column = self._bsq.get_column(baseline_column_name, self._bsq.bs_table)
+        params.group_by = [id_column] + list(params.group_by)
+        params.weights = list(params.weights) + ['weight']
+        params.join_list = [(new_table, baseline_column, new_column)] + list(params.join_list)
         logger.info(f"Will submit request for {id_list}")
-        GS = query_group_size
-        id_list_batches = [id_list[i:i+GS] for i in range(0, len(id_list), GS)]
+        GS = params.query_group_size
+        id_list_batches = [id_list[i:i + GS] for i in range(0, len(id_list), GS)]
         results_array = []
         for current_ids in id_list_batches:
+            new_params = params.copy(deep=True)
             if len(current_ids) == 1:
                 current_ids = current_ids[0]
+            new_params.restrict = [(id_column, current_ids)] + list(new_params.restrict)
             logger.info(f"Submitting query for {current_ids}")
-            if split_endues:
-                logger.info("Splitting the query into separate queries for each enduse.")
-                result_df = self._agg.aggregate_timeseries(enduses=enduses,
-                                                           group_by=[id_column] + group_by,
-                                                           join_list=join_list,
-                                                           weights=['weight'],
-                                                           sort=True,
-                                                           restrict=[(id_column, current_ids)] + restrict,
-                                                           run_async=False,
-                                                           get_query_only=get_query_only,
-                                                           split_enduses=True)
-                results_array.append(result_df)
-            else:
-                query = self._agg.aggregate_timeseries(enduses=enduses,
-                                                       group_by=[id_column] + group_by,
-                                                       join_list=join_list,
-                                                       weights=['weight'],
-                                                       sort=True,
-                                                       restrict=[(id_column, current_ids)] + restrict,
-                                                       run_async=True,
-                                                       get_query_only=True,
-                                                       split_enduses=False)
-                results_array.append(query)
+            result = self._agg.aggregate_timeseries(params=new_params)
+            results_array.append(result)
 
-        if get_query_only:
+        if params.get_query_only:
             return results_array
 
-        if split_endues:
+        if params.split_enduses:
             # In this case, the resuls_array will contain the result dataframes
             logger.info("Concatenating the results from all IDs")
             all_dfs = pd.concat(results_array)
@@ -110,14 +91,8 @@ class BuildStockUtility:
 
         return map_table_name, map_baseline_column, map_eiaid_column
 
-    def aggregate_ts_by_eiaid(self, eiaid_list: List[int],
-                              enduses: Optional[List[str]] = None,
-                              group_by: Optional[List[str]] = None,
-                              restrict: Optional[list[tuple[str, int | str | list]]] = None,
-                              get_query_only: bool = False,
-                              query_group_size: Optional[int] = None,
-                              split_endues: bool = False,
-                              ):
+    @gather_params(UtilityTSQuery)
+    def aggregate_ts_by_eiaid(self, params: UtilityTSQuery):
         """
         Aggregates the timeseries result, grouping by utilities.
         Args:
@@ -135,19 +110,22 @@ class BuildStockUtility:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
         """
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        if not enduses:
+        if not params.enduses:
             raise ValueError("Need to provide enduses")
         id_column = 'eiaid'
 
-        if query_group_size is None:
-            query_group_size = min(100, len(eiaid_list))
+        if params.query_group_size is None:
+            params.query_group_size = min(100, len(params.eiaid_list))
 
-        return self._aggregate_ts_by_map(eiaid_map_table_name, map_baseline_column, map_eiaid_column, id_column,
-                                         eiaid_list, enduses, group_by, restrict, get_query_only,
-                                         query_group_size, split_endues)
+        return self._aggregate_ts_by_map(map_table_name=eiaid_map_table_name,
+                                         baseline_column_name=map_baseline_column,
+                                         map_column_name=map_eiaid_column,
+                                         id_column=id_column,
+                                         id_list=params.eiaid_list,
+                                         params=params)
 
-    def aggregate_unit_counts_by_eiaid(self, eiaid_list: Optional[List[str]] = None,
-                                       group_by: Optional[List[str]] = None,
+    def aggregate_unit_counts_by_eiaid(self, eiaid_list: list[str],
+                                       group_by: list[Union[AnyColType, tuple[str, str]]] = [],
                                        get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
@@ -163,9 +141,10 @@ class BuildStockUtility:
             Pandas dataframe with the units counts
         """
         logger.info("Aggregating unit counts by eiaid")
+        group_by = group_by or []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
-        restrict = [('eiaid', eiaid_list)] if eiaid_list else None
+        restrict = [('eiaid', eiaid_list)]
         eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                             sort=True,

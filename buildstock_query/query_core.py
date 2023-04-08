@@ -9,7 +9,8 @@ import dask.dataframe as dd
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-from typing import List, Tuple, Union
+from typing import Union, Optional, Literal, Any, Sequence
+import typing
 import time
 import logging
 from threading import Thread
@@ -22,9 +23,12 @@ import types
 from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf, DataExistsException, CustomCompiler
 from buildstock_query.helpers import save_pickle, load_pickle
 from concurrent import futures
-from typing import Optional
+from typing import TypedDict
 from botocore.config import Config
 import urllib3
+from buildstock_query.schema.run_params import RunParams
+from buildstock_query.schema.query_params import DBColType, AnyColType, AnyTableType
+from buildstock_query.schema.helpers import gather_params
 urllib3.disable_warnings()
 
 logging.basicConfig(level=logging.INFO)
@@ -36,16 +40,17 @@ class QueryException(Exception):
     pass
 
 
+class BatchQueryStatusMap(TypedDict):
+    to_submit_ids: list[int]
+    all_ids: list[int]
+    submitted_ids: list[int]
+    submitted_execution_ids: list[str]
+    submitted_queries: list[str]
+    queries_futures: list[Union[CachedFutureDf, AthenaFutureDf]]
+
+
 class QueryCore:
-    def __init__(self, workgroup: str,
-                 db_name: str,
-                 buildstock_type: Optional[str],
-                 table_name: Optional[Union[str, Tuple[str, str]]],
-                 timestamp_column_name: str,
-                 building_id_column_name: str,
-                 sample_weight: str,
-                 region_name: str,
-                 execution_history: Optional[str],
+    def __init__(self, *, params: RunParams
                  ) -> None:
         """
         Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
@@ -63,36 +68,36 @@ class QueryCore:
             execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
                     use .execution_history if not supplied.
         """
-        logger.info(f"Loading {table_name} ...")
-        self.workgroup = workgroup
-        self.buildstock_type = buildstock_type
+        logger.info(f"Loading {params.table_name} ...")
+        self.workgroup = params.workgroup
+        self.buildstock_type = params.buildstock_type
         self._query_cache: dict[str, pd.DataFrame] = {}  # {"query": query_result_df} to cache queries
         self._session_queries: set[str] = set()  # Set of all queries that is run in current session.
 
         self._aws_s3 = boto3.client('s3')
-        self._aws_athena = boto3.client('athena', region_name=region_name)
-        self._aws_glue = boto3.client('glue', region_name=region_name)
-        self._conn = Connection(work_group=workgroup, region_name=region_name,
-                                cursor_class=PandasCursor, schema_name=db_name,
+        self._aws_athena = boto3.client('athena', region_name=params.region_name)
+        self._aws_glue = boto3.client('glue', region_name=params.region_name)
+        self._conn = Connection(work_group=params.workgroup, region_name=params.region_name,
+                                cursor_class=PandasCursor, schema_name=params.db_name,
                                 config=Config(max_pool_connections=20))
-        self._async_conn = Connection(work_group=workgroup, region_name=region_name,
-                                      cursor_class=AsyncPandasCursor, schema_name=db_name,
+        self._async_conn = Connection(work_group=params.workgroup, region_name=params.region_name,
+                                      cursor_class=AsyncPandasCursor, schema_name=params.db_name,
                                       config=Config(max_pool_connections=20))
 
-        self.db_name = db_name
-        self.region_name = region_name
+        self.db_name = params.db_name
+        self.region_name = params.region_name
 
         self._tables: dict = OrderedDict()  # Internal record of tables
-
-        self._batch_query_status_map: dict = {}
+ 
+        self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
 
-        self.timestamp_column_name = timestamp_column_name
-        self.building_id_column_name = building_id_column_name
-        self.sample_weight = sample_weight
-        self.table_name = table_name
+        self.timestamp_column_name = params.timestamp_column_name
+        self.building_id_column_name = params.building_id_column_name
+        self.sample_weight = params.sample_weight
+        self.table_name = params.table_name
         self._initialize_tables()
-        self._initialize_book_keeping(execution_history)
+        self._initialize_book_keeping(params.execution_history)
 
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
@@ -157,7 +162,15 @@ class QueryCore:
         elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
 
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok=False):
+    @typing.overload
+    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[True]) -> Optional[sa.Table]:
+        ...
+
+    @typing.overload
+    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[False] = False) -> sa.Table:
+        ...
+
+    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: bool = False) -> Optional[sa.Table]:
 
         if isinstance(table_name, sa.schema.Table):
             return table_name  # already a table
@@ -171,8 +184,9 @@ class QueryCore:
             else:
                 raise
 
-    def get_column(self, column_name: Union[sa.Column, sa.sql.elements.Label, str], table_name=None):
-        if isinstance(column_name, (sa.Column, sa.sql.elements.Label)):
+    def get_column(self, column_name: AnyColType,
+                   table_name: Optional[AnyTableType] = None) -> DBColType:
+        if isinstance(column_name, (sa.Column, sa.sql.expression.Label)):
             return column_name  # already a col
         if table_name is not None:
             valid_tables = [self.get_table(table_name)]
@@ -187,7 +201,7 @@ class QueryCore:
                 f"Using {valid_tables[0].name}")
         return valid_tables[0].c[column_name]
 
-    def _get_tables(self, table_name: Union[str, tuple]):
+    def _get_tables(self, table_name: Union[str, tuple[str, Optional[str], Optional[str]]]):
         self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
@@ -195,14 +209,10 @@ class QueryCore:
             baseline_table = self.get_table(f'{table_name}_baseline')
             ts_table = self.get_table(f'{table_name}_timeseries', missing_ok=True)
             upgrade_table = self.get_table(f'{table_name}_upgrades', missing_ok=True)
-        elif isinstance(table_name, tuple):
-            baseline_table = self.get_table(f'{table_name[0]}')
-            ts_table = self.get_table(f'{table_name[1]}', missing_ok=True)
-            upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True)
         else:
-            baseline_table = None
-            ts_table = None
-            upgrade_table = None
+            baseline_table = self.get_table(f'{table_name[0]}')
+            ts_table = self.get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
+            upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
@@ -239,7 +249,7 @@ class QueryCore:
         )
         return engine
 
-    def delete_table(self, table_name):
+    def delete_table(self, table_name: str):
         """
         Function to delete athena table.
         :param table_name: Athena table name
@@ -252,7 +262,8 @@ class QueryCore:
         else:
             raise QueryException(f"Deleting it failed. Reason: {reason}")
 
-    def add_table(self, table_name, table_df, s3_bucket, s3_prefix, override=False):
+    def add_table(self, table_name: str, table_df: pd.DataFrame,
+                  s3_bucket: str, s3_prefix: str, override: bool = False):
         """
         Function to add a table in s3.
         :param table_name: The name of the table
@@ -277,7 +288,7 @@ class QueryCore:
                                 Key=f"{s3_prefix}/{table_name}/{table_name}.parquet")
         print("Saving Done.")
 
-        column_formats = []
+        format_list = []
         for column_name, dtype in table_df.dtypes.items():
             if np.issubdtype(dtype, np.integer):
                 col_type = "int"
@@ -287,9 +298,9 @@ class QueryCore:
                 col_type = "timestamp"
             else:
                 col_type = "string"
-            column_formats.append(f"`{column_name}` {col_type}")
+            format_list.append(f"`{column_name}` {col_type}")
 
-        column_formats = ",".join(column_formats)
+        column_formats = ",".join(format_list)
 
         table_create_query = f"""
         CREATE EXTERNAL TABLE {self.db_name}.{table_name} ({column_formats})
@@ -323,7 +334,7 @@ class QueryCore:
         else:
             raise QueryException(f"Failed to create the table. Reason: {reason}")
 
-    def execute_raw(self, query, db=None, run_async=False):
+    def execute_raw(self, query, db: Optional[str] = None, run_async: bool = False):
         """
         Directly executes the supplied query in Athena.
         :param query:
@@ -345,7 +356,6 @@ class QueryCore:
         if run_async:
             return query_execution_id
         start_time = time.time()
-        query_stat = ""
         while time.time() - start_time < 30*60:  # 30 minute timeout
             query_stat = self._aws_athena.get_query_execution(QueryExecutionId=query_execution_id)
             if query_stat['QueryExecution']['Status']['State'].lower() not in ['pending', 'running', 'queued']:
@@ -353,7 +363,7 @@ class QueryCore:
                 return query_stat['QueryExecution']['Status']['State'], reason
             time.sleep(1)
 
-        raise TimeoutError(f"Query failed to complete within 30 mins. Last status: {query_stat}")
+        raise TimeoutError("Query failed to complete within 30 mins.")
 
     def _save_execution_id(self, execution_id):
         with open(self._execution_history_file, 'a') as f:
@@ -378,7 +388,17 @@ class QueryCore:
         compiled_query = CustomCompiler(AthenaDialect(), query).process(query, literal_binds=True)
         return compiled_query
 
-    def execute(self, query, run_async=False):
+    @typing.overload
+    def execute(self, query, *, run_async: Literal[False] = False) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def execute(self, query, *,
+                run_async: Literal[True],
+                ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
+        ...
+
+    def execute(self, query, run_async: bool = False, get_query_only: bool = False):
         """
         Executes a query
         Args:
@@ -438,6 +458,8 @@ class QueryCore:
         Returns:
             None
         """
+        if batch_id not in self._batch_query_status_map:
+            raise ValueError("Batch id not found")
         self._batch_query_status_map[batch_id]['to_submit_ids'].clear()
         for exec_id in self._batch_query_status_map[batch_id]['submitted_execution_ids']:
             self.stop_query(exec_id)
@@ -464,20 +486,20 @@ class QueryCore:
             print(f"Query id: {exe_id}. \n Query string: {query}. Query Ended with: {self.get_query_status(exe_id)}"
                   f"\nError: {self.get_query_error(exe_id)}\n")
 
-    def get_ids_for_failed_queries(self, batch_id: int) -> list[str]:
+    def get_ids_for_failed_queries(self, batch_id: int) -> Sequence[str]:
         """Returns the list of execution ids for failed queries in batch query.
 
         Args:
             batch_id (int): batch query id
 
         Returns:
-            list[str]: List of failed execution ids.
+            Sequence[str]: List of failed execution ids.
         """
         failed_ids = []
         for i, exe_id in enumerate(self._batch_query_status_map[batch_id]['submitted_execution_ids']):
             completion_stat = self.get_query_status(exe_id)
             if completion_stat in ['FAILED', 'CANCELLED']:
-                failed_ids.append(self._batch_query_status_map[batch_id]['submitted_ids'][i])
+                failed_ids.append(exe_id)
         return failed_ids
 
     def get_batch_query_report(self, batch_id: int):
@@ -612,7 +634,7 @@ class QueryCore:
         # return res_df_array
         return pd.concat(res_df_array)
 
-    def submit_batch_query(self, queries: List[str]):
+    def submit_batch_query(self, queries: Sequence[str]):
         """
         Submit multiple related queries
         Args:
@@ -627,7 +649,7 @@ class QueryCore:
         submitted_ids: list[int] = []
         submitted_execution_ids: list[str] = []
         submitted_queries: list[str] = []
-        queries_futures: list[futures.Future] = []
+        queries_futures: list = []
         self._batch_query_id += 1
         batch_query_id = self._batch_query_id
         self._batch_query_status_map[batch_query_id] = {'to_submit_ids': to_submit_ids,
@@ -811,6 +833,9 @@ class QueryCore:
             A list of column names as a list of strings.
         """
         if table in ['timeseries', 'ts']:
+            if self.ts_table is None:
+                raise ValueError("Timeseries table does not exists")
+
             cols = self.ts_table.columns
             if fuel_type:
                 cols = [c for c in cols if c.name not in [self.ts_bldgid_column.name, self.timestamp_column.name]]
@@ -854,15 +879,16 @@ class QueryCore:
             return col[1]
         if isinstance(col, str):
             return col
-        if isinstance(col, (sa.Column, sa.sql.elements.Label)):
+        if isinstance(col, (sa.Column, sa.sql.expression.Label)):
             return col.name
         raise ValueError(f"Can't get name for {col} of type {type(col)}")
 
     def _add_join(self, query, join_list):
         for new_table_name, baseline_column_name, new_column_name in join_list:
             new_tbl = self.get_table(new_table_name)
-            query = query.join(new_tbl, self.bs_table.c[baseline_column_name]
-                               == new_tbl.c[new_column_name])
+            baseline_column = self.get_column(baseline_column_name, table_name=self.bs_table)
+            new_column = self.get_column(new_column_name, table_name=new_tbl)
+            query = query.join(new_tbl, baseline_column == new_column)
         return query
 
     def _add_group_by(self, query, group_by_selection):

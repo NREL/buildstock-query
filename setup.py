@@ -14,6 +14,7 @@ setup(
         # "s3fs[boto3] >= 2022.8.2",
         "pyathena == 2.23.0",
         "SQLAlchemy == 1.4.46",
+        "sqlalchemy2-stubs",
         "dask >= 2022.9.2",
         "colorama >= 0.4.5",
         "inquirerpy >= 0.3.4",
