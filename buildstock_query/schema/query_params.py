@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Union, Sequence
 import sqlalchemy as sa
-from typing import Literal, TypeAlias, Any
+from typing import Literal, Any
 
-DBColType: TypeAlias = Union[sa.sql.expression.Label[Any],  sa.Column[Any]]
-DBTableType: TypeAlias = sa.Table
-AnyColType: TypeAlias = Union[DBColType, str]
-AnyTableType: TypeAlias = Union[DBTableType, str]
+DBColType = Union[sa.sql.expression.Label[Any],  sa.Column[Any]]
+DBTableType = sa.Table
+AnyColType = Union[DBColType, str]
+AnyTableType = Union[DBTableType, str]
 
 
 class AnnualQuery(BaseModel):

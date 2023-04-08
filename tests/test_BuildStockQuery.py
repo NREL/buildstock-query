@@ -418,7 +418,7 @@ def test_aggregate_ts(temp_history_file):
             sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
             "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
-            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1
+            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
     my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 900)
     query7 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
@@ -436,7 +436,7 @@ def test_aggregate_ts(temp_history_file):
             sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
             "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
-            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1
+            res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
     my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 0)
     query9 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
