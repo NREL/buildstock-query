@@ -116,9 +116,17 @@ class BuildStockQuery(QueryCore):
         ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
         return ua
 
-    def _get_rows_per_building(self, get_query_only=False):
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[False] = False) -> int:
+        ...
+
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[True]) -> str:
+        ...
+
+    def _get_rows_per_building(self, get_query_only: bool = False) -> Union[int, str]:
         select_cols = []
-        if self.up_table is not None:
+        if self.ts_table is not None:
             select_cols.append(self.ts_table.c['upgrade'])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label("row_count")))
         ts_query = sa.select(select_cols)
@@ -358,16 +366,16 @@ class BuildStockQuery(QueryCore):
         # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
         # performance
 
-    def get_available_upgrades(self) -> Sequence[int]:
+    def get_available_upgrades(self) -> Sequence[str]:
         """Get the available upgrade scenarios and their identifier numbers.
         Returns:
             list: List of upgrades
         """
-        return list(self.report.get_success_report().query("Success>0").index)
+        return list([str(u) for u in self.report.get_success_report().query("Success>0").index])
 
     def _validate_upgrade(self, upgrade_id: Union[int, str]) -> str:
-        upgrade_id = 0 if upgrade_id in (None, '0') else upgrade_id
-        available_upgrades = self.get_available_upgrades() or [0]
+        upgrade_id = '0' if upgrade_id in (None, '0') else str(upgrade_id)
+        available_upgrades = self.get_available_upgrades() or ['0']
         if upgrade_id not in set(available_upgrades):
             raise ValueError(f"`upgrade_id` = {upgrade_id} is not a valid upgrade."
                              "It doesn't exist or have no successful run")

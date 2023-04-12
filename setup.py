@@ -15,6 +15,7 @@ setup(
         "pyathena == 2.23.0",
         "SQLAlchemy == 1.4.46",
         "sqlalchemy2-stubs",
+        "pandas-stubs",
         "dask >= 2022.9.2",
         "colorama >= 0.4.5",
         "inquirerpy >= 0.3.4",
@@ -39,7 +40,8 @@ setup(
                  "dash-mantine-components >= 0.10.2",
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
-                 "dash >= 2.6.2"]
+                 "dash >= 2.6.2",
+                 ]
 
     },
     entry_points={

@@ -55,7 +55,7 @@ class AthenaFutureDf:
         return self.future.result()
 
     def as_pandas(self) -> pd.DataFrame:
-        return self.future.as_pandas()
+        return self.future.as_pandas()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
 
 
 class COLOR:

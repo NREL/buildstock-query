@@ -26,7 +26,7 @@ from typing import TypedDict
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
-from buildstock_query.schema.query_params import DBColType, AnyColType, AnyTableType
+from buildstock_query.schema.query_params import DBColType, AnyColType, AnyTableType, SALabel
 urllib3.disable_warnings()
 
 logging.basicConfig(level=logging.INFO)
@@ -85,7 +85,7 @@ class QueryCore:
         self.db_name = params.db_name
         self.region_name = params.region_name
 
-        self._tables: dict = OrderedDict()  # Internal record of tables
+        self._tables: dict[str, sa.Table] = OrderedDict()  # Internal record of tables
 
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
@@ -159,6 +159,8 @@ class QueryCore:
                 return sa.literal(1)
         elif isinstance(sample_weight, (int, float)):
             return sa.literal(sample_weight)
+        else:
+            raise ValueError("Invalid value for sample_weight")
 
     @typing.overload
     def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[True]) -> Optional[sa.Table]:
@@ -175,7 +177,7 @@ class QueryCore:
 
         try:
             return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
-        except sa.exc.NoSuchTableError:
+        except sa.exc.NoSuchTableError:  # type: ignore
             if missing_ok:
                 logger.warning(f"No {table_name} table is present.")
                 return None
@@ -184,8 +186,10 @@ class QueryCore:
 
     def get_column(self, column_name: AnyColType,
                    table_name: Optional[AnyTableType] = None) -> DBColType:
-        if isinstance(column_name, (sa.Column, sa.sql.expression.Label)):
+        if isinstance(column_name, (sa.Column, SALabel)):
             return column_name  # already a col
+
+        assert isinstance(column_name, str)
         if table_name is not None:
             valid_tables = [self.get_table(table_name)]
         else:
@@ -419,7 +423,7 @@ class QueryCore:
             exe_id, result_future = self._async_conn.cursor().execute(query,
                                                                       result_reuse_enable=True,
                                                                       result_reuse_minutes=60 * 24 * 7,
-                                                                      na_values=[''])
+                                                                      na_values=[''])  # type: ignore
 
             def get_pandas(future):
                 res = future.result()
@@ -575,7 +579,17 @@ class QueryCore:
             time.sleep(sleep_time)
             sleep_time = min(sleep_time * 2, max_sleep_time)
 
-    def get_batch_query_result(self, batch_id, combine=True, no_block=False):
+    @typing.overload
+    def get_batch_query_result(self, batch_id: int, *, no_block: bool = False,
+                               combine: Literal[True] = True) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_batch_query_result(self, batch_id: int, *, no_block: bool = False,
+                               combine: Literal[False]) -> list[pd.DataFrame]:
+        ...
+
+    def get_batch_query_result(self, batch_id: int, *, combine: bool = True, no_block: bool = False):
         """
         Concatenates and returns the results of all the queries of a batchquery
         Args:
@@ -616,7 +630,7 @@ class QueryCore:
 
         if len(query_exe_ids) == 0:
             raise ValueError("No query was submitted successfully")
-        res_df_array = []
+        res_df_array: list[pd.DataFrame] = []
         for index, exe_id in enumerate(query_exe_ids):
             df = query_futures[index].as_pandas()
             if combine:
@@ -734,7 +748,7 @@ class QueryCore:
         query_status = self.get_query_status(query_execution_id)
         if query_status == 'SUCCEEDED':
             path = self.get_query_output_location(query_execution_id)
-            df = dd.read_csv(path).compute()
+            df = dd.read_csv(path).compute()  # type: ignore
             return df
         # If failed, return error message
         elif query_status == 'FAILED':
@@ -877,7 +891,7 @@ class QueryCore:
             return col[1]
         if isinstance(col, str):
             return col
-        if isinstance(col, (sa.Column, sa.sql.expression.Label)):
+        if isinstance(col, (sa.Column, SALabel)):
             return col.name
         raise ValueError(f"Can't get name for {col} of type {type(col)}")
 
@@ -936,7 +950,7 @@ class QueryCore:
             self._aws_glue.batch_delete_table(DatabaseName=self.db_name, TablesToDelete=tables_to_delete)
             print("Deleted the table from athena, now will delete the data in s3")
             s3 = boto3.resource('s3')
-            bucket = s3.Bucket(self.pth.parts[1])
+            bucket = s3.Bucket(self.pth.parts[1])  # type: ignore
             prefix = str(pathlib.Path(*self.pth.parts[2:]))
             total_files = [file.key for file in bucket.objects.filter(Prefix=prefix)]
             print(f"There are {len(total_files)} files to be deleted. Deleting them now")

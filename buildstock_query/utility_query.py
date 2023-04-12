@@ -1,10 +1,9 @@
 import buildstock_query.main as main
 import logging
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Optional, Union, Sequence
 import pandas as pd
 import sqlalchemy as sa
 from collections import defaultdict
-from typing import Optional, Union, Sequence
 from buildstock_query.schema import UtilityTSQuery
 from buildstock_query.schema.helpers import gather_params
 from buildstock_query.schema.query_params import AnyColType
@@ -169,8 +168,9 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
+        group_by_cols = [self._bsq.get_column(col, self._bsq.bs_table) for col in group_by]
         eiaid_col = self._bsq.get_column("eiaid", eiaid_map_table_name)
-        result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by,
+        result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by_cols,
                                             join_list=join_list,
                                             weights=['weight'],
                                             sort=True,

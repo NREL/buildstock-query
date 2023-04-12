@@ -4,12 +4,15 @@ from unittest.mock import MagicMock
 import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
-from buildstock_query.helpers import CachedFutureDf
+from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery
 import pandas as pd
 import uuid
 import time
+from typing_extensions import assert_type
+from typing import Union, Literal
+
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
 query_core.Connection = MagicMock()  # type: ignore # NOQA
@@ -123,7 +126,7 @@ def test_query_execution_pass_through(temp_history_file):
     # Mock the list_query_executions function to return the queryID.
     # It needs be mocked because athena API library is mocked.
     my_athena._aws_athena.list_query_executions = lambda WorkGroup: {'QueryExecutionIds': ['id1', 'id2', qid]}
-    my_athena.get_query_status = lambda _: 'RUNNING'
+    my_athena.get_query_status = lambda query_id: 'RUNNING'
     my_athena.stop_all_queries()
     assert_mock_func_call(my_athena._aws_athena, 'stop_query_execution', QueryExecutionId=str(qid))
 
@@ -274,7 +277,7 @@ def test_aggregate_ts(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True
     )
-    my_athena.get_available_upgrades = lambda: [0]
+    my_athena.get_available_upgrades = lambda: ['0']
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
     state_str = "build_existing_model.state"
     bldg_type = "build_existing_model.geometry_building_type_recs"
@@ -386,7 +389,7 @@ def test_aggregate_ts(temp_history_file):
         sample_weight=29.0,
         skip_reports=True
     )
-    my_athena2.get_available_upgrades = lambda: [0]
+    my_athena2.get_available_upgrades = lambda: ['0']
     my_athena2._get_rows_per_building = lambda: 35040
 
     query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
@@ -420,7 +423,7 @@ def test_aggregate_ts(temp_history_file):
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
-    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 900)
+    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 900)  # type: ignore
     query7 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=False,
                                                  timestamp_grouping_func='month',
@@ -438,7 +441,7 @@ def test_aggregate_ts(temp_history_file):
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
-    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 0)
+    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
     query9 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=False,
                                                  timestamp_grouping_func='month',
@@ -466,8 +469,6 @@ def test_batch_query(temp_history_file):
     assert report['Submitted'] == 2
     assert len(execution_ids) == 2
     my_athena.did_batch_query_complete = lambda _: True
-    my_athena.get_batch_query_report = lambda _: {'Submitted': 2, 'Completed': 2, 'Running': 0, 'Pending': 0,
-                                                  'Failed': 0}
     batch_result = my_athena.get_batch_query_result(batch_id)
     df1, df2 = DEFAULT_DF.copy(), DEFAULT_DF.copy()
     df1['val'], df2['val'] = 12.1, 13.2
@@ -514,8 +515,8 @@ def test_get_building_average_kws_at(temp_history_file):
         skip_reports=True
     )
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
-    my_athena._get_simulation_info = lambda: (2012, 10 * 60, 0)  # over-ride the function to return interval of 10 mins
-    query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
+    my_athena._get_simulation_info = lambda: (2012, 10 * 60, 0)  # type: ignore
+    query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.3],
                                                                enduses=enduses, get_query_only=True)
     valid_query_string1 = """
     select res_n250_hrly_v1_timeseries.building_id,  sum(1) as sample_count,
@@ -615,3 +616,142 @@ def test_get_building_average_kws_at(temp_history_file):
     res = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625, 12.75],
                                                     enduses=enduses)
     pd.testing.assert_frame_equal(res, true_weighted_sum)
+
+
+def static_test_aggregate_annual_inferred_types(temp_history_file):
+    my_athena = BuildStockQuery(
+        workgroup='eulp',
+        db_name='buildstock_testing',
+        buildstock_type='resstock',
+        table_name='res_n250_hrly_v1',
+        execution_history=temp_history_file,
+        skip_reports=True
+    )
+    enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
+
+    my_bool = 3 < 5
+    # get_query_only is missing and run_async is missing
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses),
+                pd.DataFrame)
+    # get_query_only is True
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, get_query_only=True),
+                str)
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
+                                               get_query_only=True),
+                str)
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
+                                               get_query_only=True),
+                str)
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                               get_query_only=True),
+                str)
+    # get_query_only is False
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses,
+                                               get_query_only=False),
+                pd.DataFrame)
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
+                                               get_query_only=False),
+                Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
+                                               get_query_only=False),
+                pd.DataFrame)
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                               get_query_only=False),
+                Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                      tuple[str, AthenaFutureDf]])
+    # get_query_only is a bool
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses,
+                                               get_query_only=my_bool),
+                Union[str, pd.DataFrame])
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
+                                               get_query_only=my_bool),
+                Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
+                                               get_query_only=my_bool),
+                Union[str, pd.DataFrame])
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                               get_query_only=my_bool),
+                Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                      tuple[str, AthenaFutureDf]])
+
+
+def static_test_aggregate_ts_inferred_types(temp_history_file):
+    my_athena = BuildStockQuery(
+        workgroup='eulp',
+        db_name='buildstock_testing',
+        buildstock_type='resstock',
+        table_name='res_n250_hrly_v1',
+        execution_history=temp_history_file,
+        skip_reports=True
+    )
+    my_athena.get_available_upgrades = lambda: ['0']
+    enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
+
+    my_bool = 3 < 5
+    # get_query_only is missing and run_async is missing
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses),
+                pd.DataFrame)
+    # get_query_only is True
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, get_query_only=True),
+                str)
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
+                                                   get_query_only=True),
+                str)
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
+                                                   get_query_only=True),
+                str)
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                   get_query_only=True),
+                str)
+    # get_query_only is False
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses,
+                                                   get_query_only=False),
+                pd.DataFrame)
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
+                                                   get_query_only=False),
+                Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
+                                                   get_query_only=False),
+                pd.DataFrame)
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                   get_query_only=False),
+                Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                      tuple[str, AthenaFutureDf]])
+    # get_query_only is a bool
+    # run_async is missing
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses,
+                                                   get_query_only=my_bool),
+                Union[str, pd.DataFrame])
+    # run_async is True
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
+                                                   get_query_only=my_bool),
+                Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+    # run_async is False
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
+                                                   get_query_only=my_bool),
+                Union[str, pd.DataFrame])
+    # run_async is a bool
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                   get_query_only=my_bool),
+                Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                      tuple[str, AthenaFutureDf]])

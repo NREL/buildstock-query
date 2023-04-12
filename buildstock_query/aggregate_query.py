@@ -4,7 +4,6 @@ import datetime
 import numpy as np
 import logging
 import buildstock_query.main as main
-from typing import Optional
 from buildstock_query.schema import AnnualQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +12,7 @@ FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord
 
 
 class BuildStockAggregate:
-    """A class to perform various aggregation queries for both timeseries and annual results.
+    """A class to do aggregation queries for both timeseries and annual results.
     """
 
     def __init__(self, buildstock_query: 'main.BuildStockQuery') -> None:
@@ -83,20 +82,20 @@ class BuildStockAggregate:
         Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
         Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
         """
-        qp = params
-        if qp.run_async:
+        if params.run_async:
             raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
                              "the result after the query finishes.")
 
-        enduse_cols = self._bsq._get_enduse_cols(qp.enduses, table='timeseries')
+        enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='timeseries')
         batch_queries_to_submit = []
         for enduse in enduse_cols:
-            new_query = qp.copy()
+            new_query = params.copy()
             new_query.enduses = [enduse.name]
-            query = self.aggregate_timeseries(new_query)
+            new_query.split_enduses = False
+            query = self.aggregate_timeseries(params=new_query)
             batch_queries_to_submit.append(query)
 
-        if qp.get_query_only:
+        if params.get_query_only:
             logger.warning("Not recommended to use get_query_only and split_enduses used together."
                            " The results from the queries cannot be directly combined to get the desired result."
                            " There are further processing done in the function. The queries should be used for"
@@ -107,52 +106,54 @@ class BuildStockAggregate:
 
         result_dfs = self._bsq.get_batch_query_result(batch_id=batch_query_id, combine=False)
         logger.info("Joining the individual enduses result into a single DataFrame")
-        group_by = self._bsq._clean_group_by(qp.group_by)
+        group_by = self._bsq._clean_group_by(params.group_by)
         for res in result_dfs:
             res.set_index(group_by, inplace=True)
         self.result_dfs = result_dfs
         joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
-        for enduse, res in list(zip(qp.enduses, result_dfs))[1:]:
-            joined_enduses_df = joined_enduses_df.join(res[[enduse.name]])
+        for enduse, res in list(zip(params.enduses, result_dfs))[1:]:
+            joined_enduses_df = joined_enduses_df.join(res[[enduse]])
 
         logger.info("Joining Completed.")
         return joined_enduses_df.reset_index()
 
     @gather_params(TSQuery)
     def aggregate_timeseries(self, params: TSQuery):
-        qp = params
-        upgrade_id = self._bsq._validate_upgrade(qp.upgrade_id)
-        if qp.timestamp_grouping_func and \
-                qp.timestamp_grouping_func not in ['hour', 'day', 'month']:
+        if self._bsq.ts_table is None:
+            raise ValueError("Not timeseries table available")
+
+        upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
+        if params.timestamp_grouping_func and \
+                params.timestamp_grouping_func not in ['hour', 'day', 'month']:
             raise ValueError("timestamp_grouping_func must be one of ['hour', 'day', 'month']")
 
-        if qp.split_enduses:
-            return self._aggregate_timeseries_light(qp)
-        [self._bsq.get_table(jl[0]) for jl in qp.join_list]  # ingress all tables in join list
-        enduses_cols = self._bsq._get_enduse_cols(qp.enduses, table='timeseries')
-        total_weight = self._bsq._get_weight(qp.weights)
+        if params.split_enduses:
+            return self._aggregate_timeseries_light(params)
+        [self._bsq.get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
+        enduses_cols = self._bsq._get_enduse_cols(params.enduses, table='timeseries')
+        total_weight = self._bsq._get_weight(params.weights)
 
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
                             for enduse in enduses_cols]
-
-        if self._bsq.timestamp_column_name not in qp.group_by and qp.collapse_ts:
+        group_by = list(params.group_by)
+        if self._bsq.timestamp_column_name not in group_by and params.collapse_ts:
             logger.info("Aggregation done accross timestamps. Result no longer a timeseries.")
             # The aggregation is done across time so we should correct sample_count and units_count
             rows_per_building = self._bsq._get_rows_per_building()
             grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
                 "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
-        elif self._bsq.timestamp_column_name not in qp.group_by:
-            qp.group_by.append(self._bsq.timestamp_column_name)
+        elif self._bsq.timestamp_column_name not in group_by:
+            group_by.append(self._bsq.timestamp_column_name)
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
-        elif qp.collapse_ts:
+        elif params.collapse_ts:
             raise ValueError("collapse_ts is true, but there is timestamp column in group_by.")
         else:
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(total_weight).label("units_count")]
 
-        if (colname := self._bsq.timestamp_column_name) in qp.group_by and \
-                qp.timestamp_grouping_func:
+        if (colname := self._bsq.timestamp_column_name) in group_by and \
+                params.timestamp_grouping_func:
             # sample_count = count(distinct(building_id))
             # units_count = count(distinct(buuilding_id)) * sum(total_weight) / sum(1)
             grouping_metrics_selection = [safunc.count(safunc.distinct(self._bsq.ts_bldgid_column)).
@@ -161,44 +162,47 @@ class BuildStockAggregate:
                                            safunc.sum(total_weight) / safunc.sum(1)).label("units_count"),
                                           (safunc.sum(1) / safunc.count(safunc.distinct(self._bsq.ts_bldgid_column))).
                                           label("rows_per_sample"), ]
-            indx = qp.group_by.index(colname)
+            indx = group_by.index(colname)
             _, _, start_offset = self._bsq._get_simulation_info()
             if start_offset > 0:
                 # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
-                new_col = sa.func.date_trunc(qp.timestamp_grouping_func,
+                new_col = sa.func.date_trunc(params.timestamp_grouping_func,
                                              sa.func.date_add('second',
                                                               -start_offset, self._bsq.timestamp_column)).label(colname)
             else:
-                new_col = sa.func.date_trunc(qp.timestamp_grouping_func, self._bsq.timestamp_column).label(colname)
-            qp.group_by[indx] = new_col
+                new_col = sa.func.date_trunc(params.timestamp_grouping_func, self._bsq.timestamp_column).label(colname)
+            group_by[indx] = new_col
 
-        group_by_selection = self._bsq._process_groupby_cols(qp.group_by, annual_only=False)
+        group_by_selection = self._bsq._process_groupby_cols(group_by, annual_only=False)
 
         query = sa.select(group_by_selection + grouping_metrics_selection + enduse_selection)
         query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column)
-        if qp.join_list:
-            query = self._bsq._add_join(query, qp.join_list)
+        if params.join_list:
+            query = self._bsq._add_join(query, params.join_list)
 
         group_by_names = [g.name for g in group_by_selection]
-        upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in qp.restrict)
+        upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in params.restrict)
         if self._bsq.up_table is not None and not upgrade_in_restrict and 'upgrade' not in group_by_names:
             logger.info(f"Restricting query to Upgrade {upgrade_id}.")
-            qp.restrict.append((self._bsq.ts_table.c['upgrade'], [upgrade_id]))
+            params.restrict = list(params.restrict) + [(self._bsq.ts_table.c['upgrade'], [upgrade_id])]
 
-        query = self._bsq._add_restrict(query, qp.restrict)
+        query = self._bsq._add_restrict(query, params.restrict)
         query = self._bsq._add_group_by(query, group_by_selection)
-        query = self._bsq._add_order_by(query, group_by_selection if qp.sort else [])
-        query = query.limit(qp.limit) if qp.limit else query
+        query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
+        query = query.limit(params.limit) if params.limit else query
 
-        if qp.get_query_only:
+        if params.get_query_only:
             return self._bsq._compile(query)
 
-        return self._bsq.execute(query, run_async=qp.run_async)
+        if params.run_async:
+            return self._bsq.execute(query, run_async=True)
 
-    def get_building_average_kws_at(self,
-                                    at_hour: list[int],
-                                    at_days: list[int],
-                                    enduses: Optional[list[str]] = None,
+        return self._bsq.execute(query)
+
+    def get_building_average_kws_at(self, *,
+                                    at_hour: list[float],
+                                    at_days: list[float],
+                                    enduses: list[str],
                                     get_query_only: bool = False):
         """
         Aggregates the timeseries result on select enduses, for the given days and hours.
@@ -291,10 +295,11 @@ class BuildStockAggregate:
         else:
             queries = [lower_val_query, upper_val_query]
 
+        query_strs = [self._bsq._compile(q) for q in queries]
         if get_query_only:
-            return [self._bsq._compile(q) for q in queries]
+            return query_strs
 
-        batch_id = self._bsq.submit_batch_query(queries)
+        batch_id = self._bsq.submit_batch_query(query_strs)
         if exact_times:
             vals, = self._bsq.get_batch_query_result(batch_id, combine=False)
             return vals

@@ -7,6 +7,10 @@ import buildstock_query.query_core as query_core
 from buildstock_query.helpers import KWH2MBTU
 import re
 import tempfile
+import pandas as pd
+from buildstock_query.helpers import AthenaFutureDf, CachedFutureDf
+from typing import Union, Literal
+from typing_extensions import assert_type
 
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
@@ -39,13 +43,13 @@ class TestResStockSavings:
 
     def test_get_available_upgrades(self, my_athena):
         available_upgrade = my_athena.get_available_upgrades()
-        assert available_upgrade == [0, 1, 2, 3, 6, 8]
+        assert available_upgrade == ['0', '1', '2', '3', '6', '8']
 
     def test_savings_shape(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
         success_report = my_athena.report.get_success_report()
-        annual_savings_full = my_athena.savings.savings_shape(1, enduses=enduses)
-        annual_savings_applied = my_athena.savings.savings_shape(1, enduses=enduses, applied_only=True)
+        annual_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses)
+        annual_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, applied_only=True)
         annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses)
         annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses)
         assert len(annual_savings_full) == len(annual_savings_applied) == 1
@@ -62,9 +66,9 @@ class TestResStockSavings:
         diff = annual_savings_applied[f"{enduses[0]}__baseline"] - annual_up_consumption[f"{enduses[0]}"]
         assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False)
+        ts_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False)
         ts_savings_applied = my_athena.savings.savings_shape(
-            1, enduses=ts_enduses, applied_only=True, annual_only=False)
+            upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040
         assert ts_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
         assert ts_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
@@ -90,8 +94,9 @@ class TestResStockSavings:
         mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
         # group_by = [my_athena.bs_bldgid_column]
         success_report = my_athena.report.get_success_report()
-        annual_savings_full = my_athena.savings.savings_shape(1, enduses=enduses, group_by=group_by, sort=True)
-        annual_savings_applied = my_athena.savings.savings_shape(1, enduses=enduses, group_by=group_by,
+        annual_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, group_by=group_by,
+                                                              sort=True)
+        annual_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, group_by=group_by,
                                                                  applied_only=True, sort=True)
         annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses, group_by=group_by, sort=True)
         annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses, group_by=group_by,
@@ -100,7 +105,7 @@ class TestResStockSavings:
         assert annual_savings_full['sample_count'].sum() == success_report.loc[0].Success
         assert annual_savings_applied['sample_count'].sum() == success_report.loc[1].Success
         assert annual_up_consumption['sample_count'].sum() == success_report.loc[1].Success
-        applied_units = annual_savings_applied['units_count']
+        applied_units = annual_savings_applied['units_count'].iloc[0]
         assert np.isclose(annual_savings_full[f"{enduses[0]}__baseline"],
                           annual_bs_consumtion[f"{enduses[0]}"],
                           rtol=rtol, atol=mbtu_atol * applied_units).all()
@@ -113,8 +118,9 @@ class TestResStockSavings:
         assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"],
                           rtol=rtol, atol=mbtu_atol * applied_units).all()
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False, group_by=group_by)
-        ts_savings_applied = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+        ts_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False,
+                                                          group_by=group_by)
+        ts_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
                                                              annual_only=False, group_by=group_by)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040 * n_groups
         assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[0].Success
@@ -140,30 +146,32 @@ class TestResStockSavings:
         rtol = 2e-3  # 0.2% relative tolerance for matching annual values to timeseries values
         mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
         ts_enduses = ["fuel_use__electricity__total__kwh"]
-        ts_savings_full = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False, sort=True,
-                                                          group_by=group_by)
-        ts_savings_applied = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+        ts_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False,
+                                                          sort=True, group_by=group_by)
+        ts_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
                                                              annual_only=False, group_by=group_by, sort=True)
-        ts_savings_full_collapsed = my_athena.savings.savings_shape(1, enduses=ts_enduses, annual_only=False,
+        ts_savings_full_collapsed = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses,
+                                                                    annual_only=False,
                                                                     group_by=group_by, sort=True, collapse_ts=True)
-        ts_savings_applied_collapsed = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+        ts_savings_applied_collapsed = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses,
+                                                                       applied_only=True,
                                                                        annual_only=False, group_by=group_by, sort=True,
                                                                        collapse_ts=True)
 
         assert len(ts_savings_applied_collapsed) == n_groups
         assert len(ts_savings_full_collapsed) == n_groups
         assert (ts_savings_full_collapsed['sample_count'].values ==
-                ts_savings_full.groupby(group_by)['sample_count'].mean().values).all()
+                ts_savings_full.groupby(group_by)['sample_count'].mean().values).all()  # type: ignore
         assert (ts_savings_applied_collapsed['sample_count'].values ==
-                ts_savings_applied.groupby(group_by)['sample_count'].mean().values).all()
-        applied_units = ts_savings_applied_collapsed['units_count']
+                ts_savings_applied.groupby(group_by)['sample_count'].mean().values).all()  # type: ignore
+        applied_units = ts_savings_applied_collapsed['units_count'].iloc[0]
         value_cols = [f"{ts_enduses[0]}__baseline", f"{ts_enduses[0]}__savings"]
         for value_col in value_cols:
-            assert np.isclose(ts_savings_full_collapsed[value_col].values,
-                              ts_savings_full.groupby(group_by)[value_col].sum().values,
+            assert np.isclose(ts_savings_full_collapsed[value_col],
+                              ts_savings_full.groupby(group_by)[value_col].sum(),
                               rtol=rtol, atol=mbtu_atol * applied_units).all()
-            assert np.isclose(ts_savings_applied_collapsed[value_col].values,
-                              ts_savings_applied.groupby(group_by)[value_col].sum().values,
+            assert np.isclose(ts_savings_applied_collapsed[value_col],
+                              ts_savings_applied.groupby(group_by)[value_col].sum(),
                               rtol=rtol, atol=mbtu_atol * applied_units).all()
 
     def test_restrict(self, my_athena: BuildStockQuery):
@@ -171,7 +179,8 @@ class TestResStockSavings:
         n_groups = 1  # There is only one building type in CO in the test dataset
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         restrict = [('state', ['CO'])]
-        ts_savings = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
+        ts_savings = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
+                                                     annual_only=False,
                                                      group_by=group_by, sort=True,
                                                      restrict=restrict)
         assert len(ts_savings) == n_groups * 35040
@@ -183,7 +192,8 @@ class TestResStockSavings:
         restrict = [('state', ['CO'])]
         part_by = ["geometry_building_type_recs"]
         unload_loc = "buildstock-testing/unload_test/test1/state=CO"
-        ts_savings_unload_query = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True,
+        ts_savings_unload_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses,
+                                                                  applied_only=True,
                                                                   annual_only=False,
                                                                   group_by=group_by, sort=True,
                                                                   unload_to=unload_loc,
@@ -193,8 +203,69 @@ class TestResStockSavings:
         pattern = r"UNLOAD\s+\((.*)\)\s+TO 's3://" + unload_loc + r".* partitioned_by = ARRAY\['" + part_by[0] + r"'\]"
         match = re.match(pattern, ts_savings_unload_query, re.DOTALL)
         assert match
-        ts_savings_query = my_athena.savings.savings_shape(1, enduses=ts_enduses, applied_only=True, annual_only=False,
+        ts_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
+                                                           annual_only=False,
                                                            group_by=group_by, sort=True,
                                                            restrict=restrict,
                                                            get_query_only=True)
         assert_query_equal(ts_savings_query, match.groups()[0])
+
+    def static_test_savings_shape_return_type(self, my_athena: BuildStockQuery):
+        enduses = ['fuel_use_electricity_total_m_btu']
+
+        my_bool = 3 < 5
+        # get_query_only is missing and run_async is missing
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses),
+                    pd.DataFrame)
+        # get_query_only is True
+        # run_async is missing
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=True),
+                    str)
+        # run_async is True
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
+                                                    get_query_only=True),
+                    str)
+        # run_async is False
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
+                                                    get_query_only=True),
+                    str)
+        # run_async is a bool
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                    get_query_only=True),
+                    str)
+        # get_query_only is False
+        # run_async is missing
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses,
+                                                    get_query_only=False),
+                    pd.DataFrame)
+        # run_async is True
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
+                                                    get_query_only=False),
+                    Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+        # run_async is False
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
+                                                    get_query_only=False),
+                    pd.DataFrame)
+        # run_async is a bool
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                    get_query_only=False),
+                    Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                          tuple[str, AthenaFutureDf]])
+        # get_query_only is a bool
+        # run_async is missing
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses,
+                                                    get_query_only=my_bool),
+                    Union[str, pd.DataFrame])
+        # run_async is True
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
+                                                    get_query_only=my_bool),
+                    Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
+        # run_async is False
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
+                                                    get_query_only=my_bool),
+                    Union[str, pd.DataFrame])
+        # run_async is a bool
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
+                                                    get_query_only=my_bool),
+                    Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                          tuple[str, AthenaFutureDf]])
