@@ -79,9 +79,6 @@ class BuildStockAggregate:
         Lighter version of aggregate_timeseries where each enduse is submitted as a separate query to be light on
         Athena. For information on the input parameters, check the documentation on aggregate_timeseries.
         """
-        if params.run_async:
-            raise ValueError("Async run is not available for aggregate_timeseries_light since it needs to combine"
-                             "the result after the query finishes.")
 
         enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='timeseries')
         batch_queries_to_submit = []
