@@ -351,7 +351,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def get_building_average_kws_at(self,
-                                    at_hour: Sequence[float],
+                                    at_hour: Union[Sequence[float], float],
                                     at_days: Sequence[float],
                                     enduses: Sequence[str],
                                     get_query_only: Literal[False] = False) -> pd.DataFrame:
@@ -359,7 +359,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def get_building_average_kws_at(self,
-                                    at_hour: Sequence[float],
+                                    at_hour: Union[Sequence[float], float],
                                     at_days: Sequence[float],
                                     enduses: Sequence[str],
                                     get_query_only: Literal[True]) -> str:
