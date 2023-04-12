@@ -20,7 +20,6 @@ class AnnualQuery(BaseModel):
     restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list)
     weights: Sequence[Union[str, tuple]] = Field(default_factory=list)
     get_quartiles: bool = False
-    run_async: bool = False
     get_query_only: bool = False
     limit: Optional[int] = None
 

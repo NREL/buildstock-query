@@ -632,61 +632,17 @@ def static_test_aggregate_annual_inferred_types(temp_history_file):
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
 
     my_bool = 3 < 5
-    # get_query_only is missing and run_async is missing
     assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses),
                 pd.DataFrame)
-    # get_query_only is True
-    # run_async is missing
+
     assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, get_query_only=True),
                 str)
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
-                                               get_query_only=True),
-                str)
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
-                                               get_query_only=True),
-                str)
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                               get_query_only=True),
-                str)
-    # get_query_only is False
-    # run_async is missing
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses,
-                                               get_query_only=False),
+
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, get_query_only=False),
                 pd.DataFrame)
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
-                                               get_query_only=False),
-                Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
-                                               get_query_only=False),
-                pd.DataFrame)
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                               get_query_only=False),
-                Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                      tuple[str, AthenaFutureDf]])
-    # get_query_only is a bool
-    # run_async is missing
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses,
-                                               get_query_only=my_bool),
+
+    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
                 Union[str, pd.DataFrame])
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=True,
-                                               get_query_only=my_bool),
-                Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=False,
-                                               get_query_only=my_bool),
-                Union[str, pd.DataFrame])
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                               get_query_only=my_bool),
-                Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                      tuple[str, AthenaFutureDf]])
 
 
 def static_test_aggregate_ts_inferred_types(temp_history_file):
@@ -700,60 +656,12 @@ def static_test_aggregate_ts_inferred_types(temp_history_file):
     )
     my_athena.get_available_upgrades = lambda: ['0']
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
-
     my_bool = 3 < 5
-    # get_query_only is missing and run_async is missing
     assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses),
                 pd.DataFrame)
-    # get_query_only is True
-    # run_async is missing
     assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, get_query_only=True),
                 str)
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
-                                                   get_query_only=True),
-                str)
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
-                                                   get_query_only=True),
-                str)
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                   get_query_only=True),
-                str)
-    # get_query_only is False
-    # run_async is missing
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses,
-                                                   get_query_only=False),
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, get_query_only=False),
                 pd.DataFrame)
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
-                                                   get_query_only=False),
-                Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
-                                                   get_query_only=False),
-                pd.DataFrame)
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                   get_query_only=False),
-                Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                      tuple[str, AthenaFutureDf]])
-    # get_query_only is a bool
-    # run_async is missing
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses,
-                                                   get_query_only=my_bool),
+    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
                 Union[str, pd.DataFrame])
-    # run_async is True
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=True,
-                                                   get_query_only=my_bool),
-                Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-    # run_async is False
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=False,
-                                                   get_query_only=my_bool),
-                Union[str, pd.DataFrame])
-    # run_async is a bool
-    assert_type(my_athena.agg.aggregate_timeseries(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                   get_query_only=my_bool),
-                Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                      tuple[str, AthenaFutureDf]])

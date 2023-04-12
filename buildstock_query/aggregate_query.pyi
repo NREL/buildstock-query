@@ -23,29 +23,12 @@ class BuildStockAggregate:
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
                          get_quartiles: bool = False,
-                         run_async: bool = False,
                          ) -> str:
         ...
 
     @typing.overload
     def aggregate_annual(self, *,
                          enduses: Sequence[str],
-                         run_async: Literal[True],
-                         get_query_only: Literal[False] = False,
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                         sort: bool = False,
-                         upgrade_id: Union[int, str] = 0,
-                         join_list: Sequence[tuple[str, str, str]] = [],
-                         weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                         get_quartiles: bool = False,
-                         ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
-        ...
-    
-    @typing.overload
-    def aggregate_annual(self, *,
-                         enduses: Sequence[str],
-                         run_async: Literal[False] = False,
                          get_query_only: Literal[False] = False,
                          group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                          sort: bool = False,
@@ -60,24 +43,7 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_annual(self, *,
                          enduses: Sequence[str],
-                         run_async: bool,
-                         get_query_only: Literal[False] = False,
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                         sort: bool = False,
-                         upgrade_id: Union[int, str] = 0,
-                         join_list: Sequence[tuple[str, str, str]] = [],
-                         weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                         get_quartiles: bool = False,
-                         ) -> Union[pd.DataFrame,
-                                    Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]]:
-        ...
-    
-    @typing.overload
-    def aggregate_annual(self, *,
-                         enduses: Sequence[str],
                          get_query_only: bool,
-                         run_async: Literal[True],
                          group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                          sort: bool = False,
                          upgrade_id: Union[int, str] = 0,
@@ -85,41 +51,7 @@ class BuildStockAggregate:
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
                          get_quartiles: bool = False,
-                         ) -> Union[str,
-                                    Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]]:
-        ...
-
-    @typing.overload
-    def aggregate_annual(self, *,
-                         enduses: Sequence[str],
-                         get_query_only: bool,
-                         run_async: Literal[False] = False,
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                         sort: bool = False,
-                         upgrade_id: Union[int, str] = 0,
-                         join_list: Sequence[tuple[str, str, str]] = [],
-                         weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                         get_quartiles: bool = False,
-                         ) -> Union[pd.DataFrame,
-                                    str]:
-        ...
-
-    @typing.overload
-    def aggregate_annual(self, *,
-                         enduses: Sequence[str],
-                         get_query_only: bool,
-                         run_async: bool, 
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                         sort: bool = False,
-                         upgrade_id: Union[int, str] = 0,
-                         join_list: Sequence[tuple[str, str, str]] = [],
-                         weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                         get_quartiles: bool = False,
-                         ) -> Union[pd.DataFrame,
-                                    Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]], 
-                                    str]:
+                         ) -> Union[pd.DataFrame, str]:
         """
         Aggregates the baseline annual result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -148,26 +80,19 @@ class BuildStockAggregate:
             get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
                         [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
                         is the maximum.
-            run_async: Whether to run the query in the background. Returns immediately if running in background,
-                    blocks otherwise.
+
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
 
         Returns:
-                if get_query_only is True, returns the query_string, otherwise,
-                    if run_async is True, it returns a query_execution_id.
-                    if run_async is False, it returns the result_dataframe
-
+                if get_query_only is True, returns the query_string, otherwise returns the dataframe
         """
         ...
 
     @typing.overload
     def aggregate_annual(self, *,
                          params: AnnualQuery
-                         ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
-                                    str,
-                                    pd.DataFrame
-                                    ]:
+                         ) -> Union[str, pd.DataFrame]:
         ...
 
     @typing.overload
@@ -183,14 +108,12 @@ class BuildStockAggregate:
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             run_async: bool = False,
                              limit: Optional[int] = None
                              ) -> str:
         ...
 
     @typing.overload
     def aggregate_timeseries(self, *,
-                             run_async: Literal[True],
                              enduses: Sequence[str],
                              group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = 0,
@@ -201,24 +124,6 @@ class BuildStockAggregate:
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             get_query_only: Literal[False] = False,
-                             limit: Optional[int] = None
-                             ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
-        ...
-
-    @typing.overload
-    def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                             upgrade_id: Union[int, str] = 0,
-                             sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
-                             weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                             split_enduses: bool = False,
-                             collapse_ts: bool = False,
-                             timestamp_grouping_func: Optional[str] = None,
-                             run_async: Literal[False] = False,
                              get_query_only: Literal[False] = False,
                              limit: Optional[int] = None
                              ) -> pd.DataFrame:
@@ -227,27 +132,7 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_timeseries(self, *,
                              enduses: Sequence[str],
-                             run_async: bool,
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                             upgrade_id: Union[int, str] = 0,
-                             sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
-                             weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                             split_enduses: bool = False,
-                             collapse_ts: bool = False,
-                             timestamp_grouping_func: Optional[str] = None,
-                             
-                             get_query_only: Literal[False] = False,
-                             limit: Optional[int] = None
-                             ) -> Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
-        ...
-
-    @typing.overload
-    def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
                              get_query_only: bool,
-                             run_async: Literal[False] = False,
                              group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = 0,
                              sort: bool = False,
@@ -260,43 +145,6 @@ class BuildStockAggregate:
                              limit: Optional[int] = None
                              ) -> Union[str, pd.DataFrame]:
         ...
-
-    @typing.overload
-    def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
-                             get_query_only: bool,
-                             run_async: Literal[True],
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                             upgrade_id: Union[int, str] = 0,
-                             sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
-                             weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                             split_enduses: bool = False,
-                             collapse_ts: bool = False,
-                             timestamp_grouping_func: Optional[str] = None,
-                             limit: Optional[int] = None
-                             ) -> Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
-        ...
-
-    @typing.overload
-    def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
-                             run_async: bool,
-                             get_query_only: bool,
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
-                             upgrade_id: Union[int, str] = 0,
-                             sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
-                             weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
-                             split_enduses: bool = False,
-                             collapse_ts: bool = False,
-                             timestamp_grouping_func: Optional[str] = None,
-                             limit: Optional[int] = None
-                             ) -> Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                                        tuple[str, AthenaFutureDf]
-                                        ]:
         """
         Aggregates the timeseries result on select enduses.
         Check the argument description below to learn about additional features and options.
@@ -322,8 +170,6 @@ class BuildStockAggregate:
                 Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
         limit: The maximum number of rows to query
 
-        run_async: Whether to run the query in the background. Returns immediately if running in background,
-                blocks otherwise.
         split_enduses: Whether to query for each enduses in a separate query to reduce Athena load for query. Useful
                         when Athena runs into "Query exhausted resources ..." errors.
         timestamp_grouping_func: One of 'hour', 'day' or 'month' or None. If provided, perform timeseries
@@ -333,9 +179,7 @@ class BuildStockAggregate:
 
 
         Returns:
-                if get_query_only is True, returns the query_string, otherwise,
-                if run_async is True, it returns a query_execution_id and futuredf.
-                if run_async is False, it returns the result_dataframe
+                if get_query_only is True, returns the query_string, otherwise, returns the DataFrame
 
         """
         ...
@@ -343,10 +187,7 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_timeseries(self, *,
                              params: TSQuery,
-                             ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
-                                        str,
-                                        pd.DataFrame
-                                        ]:
+                             ) -> Union[str, pd.DataFrame]:
         ...
 
     @typing.overload

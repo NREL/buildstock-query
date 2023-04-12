@@ -1,12 +1,12 @@
 import pandas as pd
 from typing import Sequence, Union
-from buildstock_query.schema.query_params import AnyColType, AnyTableType
+from buildstock_query.schema.query_params import AnyColType, AnyTableType, SavingsQuery
 import buildstock_query.main as main
 from typing import Optional
 from pydantic import Field
 from typing import Literal
-from buildstock_query.helpers import AthenaFutureDf, CachedFutureDf
 import typing
+
 
 class BuildStockSavings:
     """Class for doing savings query (both timeseries and annual).
@@ -25,7 +25,7 @@ class BuildStockSavings:
                                      restrict:
                                      Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
                                               ] = Field(default_factory=list),
-                                     ts_group_by: Sequence[Union[AnyColType,tuple[str, str]]
+                                     ts_group_by: Sequence[Union[AnyColType, tuple[str, str]]
                                                            ] = Field(default_factory=list)):
         ...
 
@@ -36,7 +36,6 @@ class BuildStockSavings:
     def savings_shape(
         self, *,
         get_query_only: Literal[True],
-        run_async: bool = False,
         upgrade_id: str,
         enduses:  Sequence[str],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
@@ -45,7 +44,7 @@ class BuildStockSavings:
         join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
         weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
+                           ] = Field(default_factory=list),
         applied_only: bool = False,
         get_quartiles: bool = False,
         unload_to: str = '',
@@ -58,7 +57,6 @@ class BuildStockSavings:
     def savings_shape(
         self, *,
         upgrade_id: str,
-        run_async: Literal[False] = False,
         get_query_only: Literal[False] = False,
         enduses:  Sequence[str],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
@@ -67,7 +65,7 @@ class BuildStockSavings:
         join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
         weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
+                           ] = Field(default_factory=list),
         applied_only: bool = False,
         get_quartiles: bool = False,
         unload_to: str = '',
@@ -79,101 +77,6 @@ class BuildStockSavings:
     @typing.overload
     def savings_shape(
         self, *,
-        run_async: Literal[True],
-        get_query_only: Literal[False] = False,
-        upgrade_id: str,
-        enduses:  Sequence[str],
-        group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
-        annual_only: bool = True,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        unload_to: str = '',
-        partition_by: Optional[Sequence[str]] = None,
-        collapse_ts: bool = False,
-    ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
-        ...
-
-    @typing.overload
-    def savings_shape(
-        self, *,
-        run_async: bool,
-        get_query_only: Literal[False] = False,
-        upgrade_id: str,
-        enduses:  Sequence[str],
-        group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
-        annual_only: bool = True,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        unload_to: str = '',
-        partition_by: Optional[Sequence[str]] = None,
-        collapse_ts: bool = False,
-    ) -> Union[pd.DataFrame,
-               Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]
-               ]:
-        ...
-    
-    @typing.overload
-    def savings_shape(
-        self, *,
-        run_async: Literal[True],
-        get_query_only: bool,
-        upgrade_id: str,
-        enduses:  Sequence[str],
-        group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
-        annual_only: bool = True,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        unload_to: str = '',
-        partition_by: Optional[Sequence[str]] = None,
-        collapse_ts: bool = False,
-    ) -> Union[str,
-               Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]
-               ]:
-        ...
-
-    @typing.overload
-    def savings_shape(
-        self, *,
-        run_async: Literal[False] = False,
-        get_query_only: bool,
-        upgrade_id: str,
-        enduses:  Sequence[str],
-        group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
-        annual_only: bool = True,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
-                            ] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        unload_to: str = '',
-        partition_by: Optional[Sequence[str]] = None,
-        collapse_ts: bool = False,
-    ) -> Union[str,
-               pd.DataFrame
-               ]:
-        ...
-
-    @typing.overload
-    def savings_shape(
-        self, *,
-        run_async: bool,
         get_query_only: bool,
         upgrade_id: str,
         enduses:  Sequence[str],
@@ -189,34 +92,7 @@ class BuildStockSavings:
         unload_to: str = '',
         partition_by: Optional[Sequence[str]] = None,
         collapse_ts: bool = False,
-    ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
-               str,
-               pd.DataFrame
-               ]:
-        ...
-
-    @typing.overload
-    def savings_shape(
-        self, *,
-        run_async: bool,
-        get_query_only: bool,
-        upgrade_id: str,
-        enduses:  Sequence[str],
-        group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
-        annual_only: bool = True,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        unload_to: str = '',
-        partition_by: Optional[Sequence[str]] = None,
-        collapse_ts: bool = False,
-    ) -> Union[Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]],
-               str,
-               pd.DataFrame
-               ]:
+    ) -> Union[str, pd.DataFrame]:
         """Calculate savings shape for an upgrade
         Args:
             upgrade_id: id of the upgrade scenario from the ResStock analysis
@@ -238,8 +114,6 @@ class BuildStockSavings:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
 
-            run_async: Whether to run the query in the background. Returns immediately if running in background,
-                       blocks otherwise.
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
             get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
@@ -251,8 +125,10 @@ class BuildStockSavings:
             collapse_ts: Only used when annual_only=False. When collapse_ts=True, the timeseries values are summed into
                          a single annual value. Useful for quality checking and comparing with annual values.
          Returns:
-                if get_query_only is True, returns the query_string, otherwise,
-                    if run_async is True, it returns a (query_execution_id, future_object).
-                    if run_async is False, it returns the result_dataframe
+                if get_query_only is True, returns the query_string, otherwise returns a pandas dataframe
         """
+        ...
+
+    @typing.overload
+    def savings_shape(self, *, params: SavingsQuery) -> Union[str, pd.DataFrame]:
         ...

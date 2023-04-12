@@ -214,58 +214,11 @@ class TestResStockSavings:
         enduses = ['fuel_use_electricity_total_m_btu']
 
         my_bool = 3 < 5
-        # get_query_only is missing and run_async is missing
         assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses),
                     pd.DataFrame)
-        # get_query_only is True
-        # run_async is missing
         assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=True),
                     str)
-        # run_async is True
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
-                                                    get_query_only=True),
-                    str)
-        # run_async is False
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
-                                                    get_query_only=True),
-                    str)
-        # run_async is a bool
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                    get_query_only=True),
-                    str)
-        # get_query_only is False
-        # run_async is missing
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses,
-                                                    get_query_only=False),
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=False),
                     pd.DataFrame)
-        # run_async is True
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
-                                                    get_query_only=False),
-                    Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-        # run_async is False
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
-                                                    get_query_only=False),
-                    pd.DataFrame)
-        # run_async is a bool
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                    get_query_only=False),
-                    Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                          tuple[str, AthenaFutureDf]])
-        # get_query_only is a bool
-        # run_async is missing
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses,
-                                                    get_query_only=my_bool),
+        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
                     Union[str, pd.DataFrame])
-        # run_async is True
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=True,
-                                                    get_query_only=my_bool),
-                    Union[str, tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]])
-        # run_async is False
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=False,
-                                                    get_query_only=my_bool),
-                    Union[str, pd.DataFrame])
-        # run_async is a bool
-        assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, run_async=my_bool,
-                                                    get_query_only=my_bool),
-                    Union[str, pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
-                          tuple[str, AthenaFutureDf]])
