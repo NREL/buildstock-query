@@ -8,7 +8,9 @@ from buildstock_query.helpers import print_r, print_g
 from ast import literal_eval
 from functools import reduce
 import buildstock_query.main as main
-from typing import Optional, Union
+import typing
+from typing import Optional, Union, Literal, Hashable
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -21,6 +23,18 @@ class BuildStockReport:
     def __init__(self, bsq: 'main.BuildStockQuery') -> None:
         self._bsq = bsq
 
+    @typing.overload
+    def _get_bs_success_report(self, get_query_only: Literal[False] = False) -> DataFrame:
+        ...
+
+    @typing.overload
+    def _get_bs_success_report(self, get_query_only: Literal[True]) -> str:
+        ...
+
+    @typing.overload
+    def _get_bs_success_report(self, get_query_only: bool) -> Union[DataFrame, str]:
+        ...
+
     def _get_bs_success_report(self, get_query_only: bool = False):
         bs_query = sa.select([self._bsq.bs_table.c['completed_status'], safunc.count().label("count")])
         bs_query = bs_query.group_by(sa.text('1'))
@@ -30,13 +44,28 @@ class BuildStockReport:
         df.insert(0, 'upgrade', 0)
         return self._process_report(df)
 
+    @typing.overload
+    def _get_change_report(self, get_query_only: Literal[False] = False) -> DataFrame:
+        ...
+
+    @typing.overload
+    def _get_change_report(self, get_query_only: Literal[True]) -> list[str]:
+        ...
+
+    @typing.overload
+    def _get_change_report(self, get_query_only: bool) -> Union[DataFrame, list[str]]:
+        ...
+
     def _get_change_report(self, get_query_only: bool = False):
         """Returns counts of buildings to which upgrade didn't do any changes on energy consumption
 
         Args:
             get_query_only (bool, optional): _description_. Defaults to False.
         """
-        queries = []
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
+
+        queries: list[str] = []
         chng_types = ["no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng", "null", "any"]
         for ch_type in chng_types:
             up_query = sa.select([self._bsq.up_table.c['upgrade'], safunc.count().label("change")])
@@ -44,28 +73,45 @@ class BuildStockReport:
             conditions = self._get_change_conditions(change_type=ch_type)
             up_query = up_query.where(sa.and_(self._bsq.bs_table.c['completed_status'] == 'Success',
                                               self._bsq.up_table.c['completed_status'] == 'Success',
-                                              conditions))
+                                              conditions))  # type: ignore
             up_query = up_query.group_by(sa.text('1'))
             up_query = up_query.order_by(sa.text('1'))
             queries.append(self._bsq._compile(up_query))
         if get_query_only:
             return queries
-        change_df: DataFrame = None
+        change_df: DataFrame = pd.DataFrame()
         for chng_type, query in zip(chng_types, queries):
             df = self._bsq.execute(query)
             df.rename(columns={"change": chng_type}, inplace=True)
             df['upgrade'] = df['upgrade'].map(int)
             df = df.set_index('upgrade').sort_index()
-            change_df = change_df.join(df, how='outer') if change_df is not None else df
+            change_df = change_df.join(df, how='outer') if len(change_df) > 0 else df
         return change_df.fillna(0)
 
     def print_change_details(self, upgrade: int, yml_file: str, change_type: str = 'no-chng'):
         ua = self._bsq.get_upgrades_analyzer(yml_file)
-        bad_bids = self.get_buildings_by_change(upgrade, change_type=change_type)
-        good_bids = self.get_buildings_by_change(upgrade, change_type='ok-chng')
+        bad_bids = self.get_buildings_by_change(upgrade=upgrade, change_type=change_type)
+        good_bids = self.get_buildings_by_change(upgrade=upgrade, change_type='ok-chng')
         ua.print_unique_characteristic(upgrade, change_type, good_bids, bad_bids)
 
-    def _get_upgrade_buildings(self, upgrade: int, trim_missing_bs: bool = True, get_query_only: bool = False):
+    @typing.overload
+    def _get_upgrade_buildings(self, *, upgrade: int, trim_missing_bs: bool = True,
+                               get_query_only: Literal[False] = False) -> list[int]:
+        ...
+
+    @typing.overload
+    def _get_upgrade_buildings(self, *, upgrade: int, get_query_only: Literal[True],
+                               trim_missing_bs: bool = True) -> str:
+        ...
+
+    @typing.overload
+    def _get_upgrade_buildings(self, *, upgrade: int, get_query_only: bool,
+                               trim_missing_bs: bool = True) -> Union[list[int], str]:
+        ...
+
+    def _get_upgrade_buildings(self, *, upgrade: int, trim_missing_bs: bool = True, get_query_only: bool = False):
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
         up_query = sa.select([self._bsq.up_bldgid_column])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
@@ -79,9 +125,12 @@ class BuildStockReport:
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
-        return df[self._bsq.bs_bldgid_column.name].values
+        return df[self._bsq.bs_bldgid_column.name].to_numpy(dtype='int32').tolist()
 
     def _get_change_conditions(self, change_type: str):
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
+
         threshold = 1e-3
         fuel_cols = [col.name for col in self._bsq.up_table.columns if col.name.startswith('report_simulation_output')
                      and col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
@@ -121,7 +170,26 @@ class BuildStockReport:
             raise ValueError(f"Invalid {change_type=}")
         return conditions
 
-    def get_buildings_by_change(self, upgrade: int, change_type: str = 'no-chng', get_query_only: bool = False):
+    @typing.overload
+    def get_buildings_by_change(self, *, upgrade: int, get_query_only: Literal[True],
+                                change_type: str = 'no-chng') -> str:
+        ...
+
+    @typing.overload
+    def get_buildings_by_change(self, *,  upgrade: int, get_query_only: Literal[False] = False,
+                                change_type: str = 'no-chng') -> list[int]:
+        ...
+
+    @typing.overload
+    def get_buildings_by_change(self, *, upgrade: int, get_query_only: bool,
+                                change_type: str = 'no-chng') -> Union[list[int], str]:
+        ...
+
+    def get_buildings_by_change(self, *, upgrade: int, change_type: str = 'no-chng',
+                                get_query_only: bool = False):
+
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
         up_query = sa.select([self._bsq.bs_bldgid_column, self._bsq.bs_table.c['completed_status'],
                               self._bsq.up_table.c['completed_status']])
         up_query = up_query.join(self._bsq.up_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
@@ -130,13 +198,28 @@ class BuildStockReport:
         up_query = up_query.where(sa.and_(self._bsq.bs_table.c['completed_status'] == 'Success',
                                           self._bsq.up_table.c['completed_status'] == 'Success',
                                           self._bsq.up_table.c['upgrade'] == str(upgrade),
-                                          conditions))
+                                          conditions))  # type: ignore
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
-        return df[self._bsq.bs_bldgid_column.name].values
+        return df[self._bsq.bs_bldgid_column.name].to_numpy(dtype='int32').tolist()
 
-    def _get_up_success_report(self, trim_missing_bs: bool = True, get_query_only: bool = False):
+    @typing.overload
+    def _get_up_success_report(self, *, get_query_only: Literal[True],
+                               trim_missing_bs: bool = True) -> str:
+        ...
+
+    @typing.overload
+    def _get_up_success_report(self, *, get_query_only: Literal[False] = False,
+                               trim_missing_bs: bool = True) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def _get_up_success_report(self, *, get_query_only: bool,
+                               trim_missing_bs: bool = True) -> Union[pd.DataFrame, str]:
+        ...
+
+    def _get_up_success_report(self, *, trim_missing_bs: bool = True, get_query_only: bool = False):
         """Get success report for upgrades
 
         Args:
@@ -147,6 +230,8 @@ class BuildStockReport:
         Returns:
             Union[str, pd.DataFrame]: If get_query_only then returns the query string. Otherwise returns the dataframe.
         """
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
         up_query = sa.select([self._bsq.up_table.c['upgrade'], self._bsq.up_table.c['completed_status'],
                               safunc.count().label("count")])
         if trim_missing_bs:
@@ -170,7 +255,22 @@ class BuildStockReport:
                 pf.insert(1, col, 0)
         return pf
 
+    @typing.overload
+    def _get_full_options_report(self, *, trim_missing_bs: bool, get_query_only: Literal[True]) -> str:
+        ...
+
+    @typing.overload
+    def _get_full_options_report(self, *, trim_missing_bs: bool,
+                                 get_query_only: Literal[False] = False) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def _get_full_options_report(self, *, trim_missing_bs: bool, get_query_only: bool) -> Union[pd.DataFrame, str]:
+        ...
+
     def _get_full_options_report(self, trim_missing_bs: bool = True, get_query_only: bool = False):
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
         opt_name_cols = [c for c in self._bsq.up_table.columns if c.name.startswith("upgrade_costs.option_")
                          and c.name.endswith("name")]
         query = sa.select([self._bsq.up_table.c['upgrade']] + opt_name_cols + [safunc.count().label("Success")]
@@ -200,6 +300,9 @@ class BuildStockReport:
         Returns:
             pd.DataFrame: The list of options the corresponding set of building ids the option applied to.
         """
+        if self._bsq.up_table is None:
+            raise ValueError("No upgrade table is available .")
+
         full_report = self._get_full_options_report(trim_missing_bs=trim_missing_bs)
         option_cols = [c for c in full_report.columns if c.startswith("option")]
         total_counts: Counter = Counter()
@@ -310,8 +413,24 @@ class BuildStockReport:
             print_r("Integrity check failed. Please check the serious issues above.")
             return False
 
+    @typing.overload
+    def get_success_report(self, *, get_query_only: Literal[True],
+                           trim_missing_bs: Union[str, bool] = 'auto') -> tuple[str, str, list[str]]:
+        ...
+
+    @typing.overload
+    def get_success_report(self, *, get_query_only: Literal[False] = False,
+                           trim_missing_bs: Union[str, bool] = 'auto') -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_success_report(self, *, get_query_only: bool,
+                           trim_missing_bs: Union[str, bool] = 'auto') -> Union[pd.DataFrame,
+                                                                                tuple[str, str, list[str]]]:
+        ...
+
     def get_success_report(self, trim_missing_bs: Union[str, bool] = 'auto',
-                           get_query_only: bool = False) -> pd.DataFrame:
+                           get_query_only: bool = False):
         """Returns a basic report showing number of success and failures for each upgrade along with percentage.
         Additional information regarding number of buildings to which the upgrade applied and whether the enduses
         changed is also returned.
@@ -350,7 +469,7 @@ class BuildStockReport:
                 **x-chng %**: The percentage form of the change calculated by using success count as the base.  
         """  # noqa: W291
 
-        baseline_result = self._get_bs_success_report(get_query_only)
+        baseline_result = self._get_bs_success_report()
 
         if self._bsq.up_table is None:
             return baseline_result
@@ -366,8 +485,15 @@ class BuildStockReport:
             trim = trim_missing_bs
         else:
             raise ValueError("trim_missing_bs must be either True/False or 'auto'.")
-        upgrade_result = self._get_up_success_report(trim, get_query_only).fillna(0)
-        change_result = self._get_change_report(get_query_only).fillna(0)
+
+        if get_query_only:
+            baseline_query = self._get_bs_success_report(get_query_only=True)
+            upgrade_query = self._get_up_success_report(trim_missing_bs=trim, get_query_only=True)
+            change_query = self._get_change_report(get_query_only=True)
+            return baseline_query, upgrade_query, change_query
+
+        upgrade_result = self._get_up_success_report(trim_missing_bs=trim).fillna(0)
+        change_result = self._get_change_report().fillna(0)
         if get_query_only:
             return baseline_result, upgrade_result, change_result
         if 'Success' in upgrade_result.columns:
@@ -385,7 +511,22 @@ class BuildStockReport:
         pf['true-bad-chng %'] = round(100 * pf['true-bad-chng'] / pf['Success'], 1)
         return pf
 
+    @typing.overload
+    def _get_ts_report(self, get_query_only: Literal[False] = False) -> DataFrame:
+        ...
+
+    @typing.overload
+    def _get_ts_report(self, get_query_only: Literal[True]) -> str:
+        ...
+
+    @typing.overload
+    def _get_ts_report(self, get_query_only: bool) -> Union[DataFrame, str]:
+        ...
+
     def _get_ts_report(self, get_query_only: bool = False):
+        if self._bsq.ts_table is None:
+            raise ValueError("No upgrade table is available .")
+
         ts_query = sa.select([self._bsq.ts_table.c['upgrade'],
                               safunc.count(self._bsq.ts_bldgid_column.distinct()).label("count")])
         ts_query = ts_query.group_by(sa.text('1'))
@@ -447,8 +588,23 @@ class BuildStockReport:
 
         return self._bsq.execute(query)
 
+    @typing.overload
+    def get_applied_options(self, *, upgrade: int, bldg_ids: list[int],
+                            include_base_opt: Literal[True]) -> list[dict[str, str]]:
+        ...
+
+    @typing.overload
+    def get_applied_options(self, *, upgrade: int, bldg_ids: list[int],
+                            include_base_opt: Literal[False] = False) -> list[set[str]]:
+        ...
+
+    @typing.overload
+    def get_applied_options(self, *, upgrade: int, bldg_ids: list[int],
+                            include_base_opt: bool) -> list[Union[dict[str, str], set[str]]]:
+        ...
+
     def get_applied_options(self, upgrade: int, bldg_ids: list[int],
-                            include_base_opt: bool = False) -> list[Union[dict, set]]:
+                            include_base_opt: bool = False):
         """Returns the list of options applied to each buildings for a given upgrade.
 
         Args:
@@ -459,28 +615,32 @@ class BuildStockReport:
         Returns:
             list[set|dict]: List of options (along with baseline chars, if include_base_opt is true)
         """
-        up_csv = self._bsq.get_upgrades_csv(upgrade)
-        base_csv = self._bsq.get_results_csv() if include_base_opt else None
+        up_csv = self._bsq.get_upgrades_csv(upgrade=upgrade)
         rel_up_csv = up_csv.loc[bldg_ids]
-        rel_base_csv = base_csv.loc[bldg_ids]
-        rel_base_csv = rel_base_csv.rename(columns=lambda c: c.split('.')[1] if '.' in c else c)
         upgrade_cols = [key for key in up_csv.columns
                         if key.startswith("upgrade_costs.option_") and key.endswith("_name")]
 
         if include_base_opt:
+            base_csv = self._bsq.get_results_csv()
+            rel_base_csv = base_csv.loc[bldg_ids]
+            rel_base_csv = rel_base_csv.rename(columns=lambda c: c.split('.')[1] if '.' in c else c)
             char_df = rel_up_csv[upgrade_cols].fillna('').agg(
                 lambda x: {'_'.join(v.split('|')[0].lower().split()) for v in x if v}, axis=1)
             all_chars = [c for c in reduce(set.union, char_df.values) if c in set(rel_base_csv.columns)]
-            char_dict = rel_base_csv[all_chars].to_dict(orient='index')
+            char_dict: dict[Hashable, dict[str, str]] = rel_base_csv[all_chars].to_dict(orient='index')
 
-            def add_base_chars(options):
-                bldg_id = options[0]  # Last entry is building_id
+            def add_base_chars(options: list):
+                bldg_id = options[0]  # first entry is building_id
                 return {opt: char_dict[bldg_id].get('_'.join(opt.split('|')[0].lower().split()), '')
                         for opt in options[1:]}
-            opt_df = rel_up_csv[upgrade_cols].fillna('').reset_index().agg(lambda x: [v for v in x if v], axis=1)
-            return opt_df.map(add_base_chars).values
+            opt_df: pd.Series = rel_up_csv[upgrade_cols].fillna('').reset_index().agg(lambda x: [v for v in x if v],
+                                                                                      axis=1)
+            return_val = opt_df.map(add_base_chars).to_list()
         else:
-            return rel_up_csv[upgrade_cols].fillna('').agg(lambda x: {v for v in x if v}, axis=1).values
+            return_val = rel_up_csv[upgrade_cols].fillna('').agg(lambda x: {v for v in x if v},
+                                                                 axis=1).to_list()
+
+        return return_val
 
     def get_enduses_buildings_map_by_change(self, upgrade: int,
                                             change_type: str = 'changed',
@@ -496,13 +656,13 @@ class BuildStockReport:
         Returns:
             dict[str, pd.Index]: Dict mapping enduses that had a given change and building ids showing that change.
         """
-        up_csv = self._bsq.get_upgrades_csv(upgrade)
+        up_csv = self._bsq.get_upgrades_csv(upgrade=upgrade)
         bs_csv = self._bsq.get_results_csv()
         if bldg_list:
             up_csv = up_csv.loc[bldg_list]
             bs_csv = bs_csv.loc[bldg_list]
 
-        def clean_column(col):
+        def clean_column(col: str):
             col = col.removeprefix("report_simulation_output.end_use_")
             col = col.removeprefix("report_simulation_output.fuel_use_")
             return col
@@ -536,7 +696,7 @@ class BuildStockReport:
         elif change_type == 'increased':
             enduses_df = enduses_df > 1e-12
         else:
-            enduses_df = abs(enduses_df) > 1e-12
+            enduses_df = enduses_df.abs() > 1e-12
         change_dict = enduses_df.apply(lambda x: enduses_df.columns[x], axis=1).to_dict()
         clean_dict = {key: value for key, value in change_dict.items() if len(value) > 0}
         return clean_dict

@@ -1,7 +1,6 @@
 from typing import Optional, Union, Literal, Sequence
 import pandas as pd
 import typing
-from buildstock_query.helpers import AthenaFutureDf, CachedFutureDf
 import sqlalchemy as sa
 from buildstock_query.schema import TSQuery, AnnualQuery
 import buildstock_query.main as main

@@ -15,7 +15,7 @@ from typing import Optional, Literal
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.query_params import DBColType
+from buildstock_query.schema.query_params import DBColType, SALabel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -225,9 +225,25 @@ class BuildStockQuery(QueryCore):
         result = self.execute(query)
         return result.set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade: int = 0,
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade: int = 0,
+                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade: int = 0,
+                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> str:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: bool, upgrade: int = 0,
+                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> Union[pd.DataFrame,
+                                                                                                       str]:
+        ...
+
+    def get_upgrades_csv(self, *, upgrade: int = 0,
                          restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
-                         get_query_only: bool = False, copy=True) -> Union[pd.DataFrame, str]:
+                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run for an upgrade.
         Args:
@@ -311,7 +327,7 @@ class BuildStockQuery(QueryCore):
         if isinstance(column, sa.Column):
             return column.label(self._simple_label(column.name))  # already a col
 
-        if isinstance(column, sa.sql.expression.Label):
+        if isinstance(column, SALabel):
             return column
 
         if isinstance(column, tuple):
