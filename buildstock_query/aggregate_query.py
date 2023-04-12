@@ -70,9 +70,6 @@ class BuildStockAggregate:
         if params.get_query_only:
             return self._bsq._compile(query)
 
-        if params.run_async:
-            return self._bsq.execute(query, run_async=True)
-
         return self._bsq.execute(query)
 
     def _aggregate_timeseries_light(self,
@@ -193,9 +190,6 @@ class BuildStockAggregate:
 
         if params.get_query_only:
             return self._bsq._compile(query)
-
-        if params.run_async:
-            return self._bsq.execute(query, run_async=True)
 
         return self._bsq.execute(query)
 

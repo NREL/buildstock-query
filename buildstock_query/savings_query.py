@@ -84,7 +84,7 @@ class BuildStockSavings:
     def savings_shape(
         self, *,
         params: SavingsQuery,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, str]:
         [self._bsq.get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
 
         upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
@@ -167,8 +167,5 @@ class BuildStockSavings:
 
         if params.get_query_only:
             return compiled_query
-
-        if params.run_async:
-            return self._bsq.execute(compiled_query, run_async=True)
 
         return self._bsq.execute(compiled_query)

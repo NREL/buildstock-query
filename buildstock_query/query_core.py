@@ -400,7 +400,7 @@ class QueryCore:
                 ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
         ...
 
-    def execute(self, query, run_async: bool = False, get_query_only: bool = False):
+    def execute(self, query, run_async: bool = False):
         """
         Executes a query
         Args:
