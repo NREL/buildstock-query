@@ -143,7 +143,6 @@ class BuildStockAggregate:
                              timestamp_grouping_func: Optional[str] = None,
                              limit: Optional[int] = None
                              ) -> Union[str, pd.DataFrame]:
-        ...
         """
         Aggregates the timeseries result on select enduses.
         Check the argument description below to learn about additional features and options.
