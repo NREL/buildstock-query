@@ -451,11 +451,11 @@ def test_batch_query(temp_history_file):
     time.sleep(0.1)  # Wait for the threads to run those queries
     report = my_athena.get_batch_query_report(batch_id)
     execution_ids = my_athena._batch_query_status_map[batch_id]['submitted_execution_ids']
-    assert report['Submitted'] == 2
+    assert report['submitted'] == 2
     assert len(execution_ids) == 2
     my_athena.did_batch_query_complete = lambda _: True  # type: ignore
-    my_athena.get_batch_query_report = lambda _: {'Submitted': 2, 'Completed': 2, 'Running': 0, 'Pending': 0,
-                                                  'Failed': 0}  # type: ignore
+    my_athena.get_batch_query_report = lambda _: {'submitted': 2, 'completed': 2, 'running': 0, 'pending': 0,
+                                                  'failed': 0}  # type: ignore
     batch_result = my_athena.get_batch_query_result(batch_id)
     df1, df2 = DEFAULT_DF.copy(), DEFAULT_DF.copy()
     df1['val'], df2['val'] = 12.1, 13.2
