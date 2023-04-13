@@ -1,9 +1,9 @@
 from typing import Optional, Union, Literal, Sequence
 import pandas as pd
 import typing
-import sqlalchemy as sa
 from buildstock_query.schema import TSQuery, AnnualQuery
 import buildstock_query.main as main
+from buildstock_query.schema.query_params import AnyColType, AnyTableType
 
 
 class BuildStockAggregate:
@@ -15,12 +15,12 @@ class BuildStockAggregate:
     def aggregate_annual(self, *,
                          enduses: Sequence[str],
                          get_query_only: Literal[True],
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
                          upgrade_id: Union[int, str] = '0',
-                         join_list: Sequence[tuple[str, str, str]] = [],
+                         join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          ) -> str:
         ...
@@ -29,12 +29,12 @@ class BuildStockAggregate:
     def aggregate_annual(self, *,
                          enduses: Sequence[str],
                          get_query_only: Literal[False] = False,
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
                          upgrade_id: Union[int, str] = '0',
-                         join_list: Sequence[tuple[str, str, str]] = [],
+                         join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          ) -> pd.DataFrame:
         ...
@@ -43,12 +43,12 @@ class BuildStockAggregate:
     def aggregate_annual(self, *,
                          enduses: Sequence[str],
                          get_query_only: bool,
-                         group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
                          upgrade_id: Union[int, str] = '0',
-                         join_list: Sequence[tuple[str, str, str]] = [],
+                         join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
-                         restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          ) -> Union[pd.DataFrame, str]:
         """
@@ -98,12 +98,12 @@ class BuildStockAggregate:
     def aggregate_timeseries(self, *,
                              enduses: Sequence[str],
                              get_query_only: Literal[True],
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',
                              sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
+                             join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
@@ -114,12 +114,12 @@ class BuildStockAggregate:
     @typing.overload
     def aggregate_timeseries(self, *,
                              enduses: Sequence[str],
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',
                              sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
+                             join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
@@ -132,12 +132,12 @@ class BuildStockAggregate:
     def aggregate_timeseries(self, *,
                              enduses: Sequence[str],
                              get_query_only: bool,
-                             group_by: Sequence[Union[sa.sql.expression.label, sa.Column, str, tuple[str, str]]] = [],
+                             group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',
                              sort: bool = False,
-                             join_list: Sequence[tuple[str, str, str]] = [],
+                             join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
-                             restrict: Sequence[tuple[str, Union[str, int, Sequence[int], Sequence[str]]]] = [],
+                             restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
