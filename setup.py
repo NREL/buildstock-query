@@ -12,12 +12,15 @@ setup(
         "pandas >= 1.5.0",
         "pyarrow >= 9.0.0",
         # "s3fs[boto3] >= 2022.8.2",
-        "pyathena == 2.23.0",
+        "pyathena == 2.24.0",
         "SQLAlchemy == 1.4.46",
+        "sqlalchemy2-stubs",
+        "pandas-stubs",
         "dask >= 2022.9.2",
         "colorama >= 0.4.5",
         "inquirerpy >= 0.3.4",
-        "types-PyYAML >= 6.0.12.2"
+        "types-PyYAML >= 6.0.12.2",
+        "pydantic"
     ],
 
     extras_require={
@@ -37,7 +40,8 @@ setup(
                  "dash-mantine-components >= 0.10.2",
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
-                 "dash >= 2.6.2"]
+                 "dash >= 2.6.2",
+                 ]
 
     },
     entry_points={

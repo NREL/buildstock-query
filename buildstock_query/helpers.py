@@ -1,35 +1,61 @@
 
 from concurrent.futures import Future
 from pyathena.sqlalchemy_athena import AthenaDialect
+from pyathena.pandas.result_set import AthenaPandasResultSet
 import datetime
 import pickle
 import os
+import pandas as pd
+from typing import Literal
 
 
 KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
 
 
-class FutureDf(Future):
-    def __init__(self, df, *args, **kwargs) -> None:
+class CachedFutureDf(Future):
+    def __init__(self, df: pd.DataFrame, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.df = df
         self.set_result(self.df)
 
-    def running(self):
+    def running(self) -> Literal[False]:
         return False
 
-    def done(self):
+    def done(self) -> Literal[True]:
         return True
 
-    def cancelled(self):
+    def cancelled(self) -> Literal[False]:
         return False
 
-    def result(self, timeout=None):
+    def result(self, timeout=None) -> pd.DataFrame:
         return self.df
 
-    def as_pandas(self):
+    def as_pandas(self) -> pd.DataFrame:
         return self.df
+
+
+class AthenaFutureDf:
+    def __init__(self, db_future: Future) -> None:
+        self.future = db_future
+
+    def cancel(self) -> bool:
+        return self.future.cancel()
+
+    def running(self) -> bool:
+        return self.future.running()
+
+    def done(self) -> bool:
+        return self.future.done()
+
+    def cancelled(self) -> bool:
+        return self.future.cancelled()
+
+    def result(self, timeout=None) -> AthenaPandasResultSet:
+        return self.future.result()
+
+    def as_pandas(self) -> pd.DataFrame:
+        return self.future.as_pandas()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
 
 
 class COLOR:

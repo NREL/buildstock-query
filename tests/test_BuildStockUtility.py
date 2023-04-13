@@ -3,8 +3,8 @@ import tempfile
 import pytest
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery
+import pandas as pd
 from tests.utils import assert_query_equal, load_tbl_from_pkl
-
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
 query_core.Connection = MagicMock()  # type: ignore # NOQA
@@ -40,7 +40,7 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
     expected_query1 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county
@@ -50,7 +50,7 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
     expected_query2 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id  join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where
@@ -65,11 +65,12 @@ def test_aggregated_ts_by_eiaid(temp_history_file: str):
                                                              'end use: electricity: heating'],
                                                     group_by=['time'],
                                                     get_query_only=True,
+                                                    sort=True
                                                     )
     expected_query3 = """
     select eiaid_weights.eiaid as eiaid, res_n250_hrly_v1_timeseries.time as time,  sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight)
     as units_count, sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" * eiaid_weights.weight) as "end use: electricity: cooling", sum(res_n250_hrly_v1_timeseries."end use: electricity: heating" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight" *
-    eiaid_weights.weight) as "end use: electricity: heating" from res_n250_hrly_v1_timeseries join
+    eiaid_weights.weight) as "end use: electricity: heating" from eiaid_weights, res_n250_hrly_v1_timeseries join
     res_n250_hrly_v1_baseline on res_n250_hrly_v1_baseline.building_id =
     res_n250_hrly_v1_timeseries.building_id join eiaid_weights on
     res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county
@@ -208,3 +209,66 @@ def test_get_buildings_by_county(temp_history_file: str):
     order by 1
     """  # noqa: E501
     assert_query_equal(query, expected_query)
+
+
+def static_test_utility_inferred_types(temp_history_file):
+    # Test that the utility methods return types are inferred as the correct type
+    # This is a static test, not a unit test. Any errors will be caught by static type checking and will
+    # be shown as red squiggles in the IDE.
+    my_athena = BuildStockQuery(
+        workgroup='eulp',
+        db_name='buildstock_testing',
+        buildstock_type='resstock',
+        table_name='res_n250_hrly_v1',
+        execution_history=temp_history_file,
+        skip_reports=True
+    )
+    enduses = ['report_simulation_output.end_use_electricity_cooling_m_btu',
+               'report_simulation_output.end_use_electricity_heating_m_btu']
+    # make sure return types are strings.
+    # Change the query: str to query: int to verify squiggles appear when return type is wrong
+    query: str = "Starting query"
+    query = my_athena.get_buildings_by_locations(location_col="build_existing_model.county",
+                                                 locations=['loc1', 'loc2'], get_query_only=True)
+    query = my_athena.utility.get_locations_by_eiaids(eiaids=['4110', '1167', '3249'],
+                                                      get_query_only=True)
+    query = my_athena.utility.get_filtered_results_csv_by_eiaid(['4110', '1167', '3249'],
+                                                                get_query_only=True)
+    query = my_athena.utility.get_buildings_by_eiaids(eiaids=['1123', '1234'],
+                                                      get_query_only=True)
+    query = my_athena.utility.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                    enduses=['end use: electricity: cooling',
+                                                             'end use: electricity: heating'],
+                                                    group_by=['time'],
+                                                    get_query_only=True,
+                                                    query_group_size=1)
+    query = my_athena.utility.aggregate_unit_counts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                             group_by=[
+                                                                 'build_existing_model.geometry_building_type_recs'],
+                                                             get_query_only=True)
+    query = my_athena.utility.aggregate_annual_by_eiaid(enduses=enduses,
+                                                        group_by=['build_existing_model.geometry_building_type_recs'],
+                                                        get_query_only=True)
+    print(query)
+    df: pd.DataFrame = pd.DataFrame()  # make sure return types are dataframes
+    df = my_athena.get_buildings_by_locations(location_col="build_existing_model.county",
+                                              locations=['loc1', 'loc2'])
+    df = my_athena.utility.get_locations_by_eiaids(eiaids=['4110', '1167', '3249'],
+                                                   )
+    df = my_athena.utility.get_filtered_results_csv_by_eiaid(['4110', '1167', '3249'],
+                                                             )
+    df = my_athena.utility.get_buildings_by_eiaids(eiaids=['1123', '1234'],
+                                                   )
+    df = my_athena.utility.aggregate_ts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                 enduses=['end use: electricity: cooling',
+                                                          'end use: electricity: heating'],
+                                                 group_by=['time'],
+                                                 query_group_size=1)
+    df = my_athena.utility.aggregate_unit_counts_by_eiaid(eiaid_list=['1121', '1123'],
+                                                          group_by=[
+        'build_existing_model.geometry_building_type_recs'],
+    )
+    df = my_athena.utility.aggregate_annual_by_eiaid(enduses=enduses,
+                                                     group_by=['build_existing_model.geometry_building_type_recs'],
+                                                     )
+    print(df)
