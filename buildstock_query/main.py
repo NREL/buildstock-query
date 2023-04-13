@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
-from typing import List, Tuple, Union, Sequence
+from typing import List, Union, Sequence
 import logging
 import re
 from buildstock_query.tools import UpgradesAnalyzer
@@ -15,7 +15,7 @@ from typing import Optional, Literal
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.query_params import DBColType, SALabel, AnyColType, AnyTableType
+from buildstock_query.schema.query_params import DBColType, SALabel, AnyColType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
