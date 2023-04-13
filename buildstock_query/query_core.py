@@ -22,7 +22,7 @@ from collections import OrderedDict
 import types
 from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf, DataExistsException, CustomCompiler
 from buildstock_query.helpers import save_pickle, load_pickle
-from typing import TypedDict
+from typing import TypedDict, NewType
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
@@ -39,11 +39,14 @@ class QueryException(Exception):
     pass
 
 
+ExeId = NewType('ExeId', str)
+
+
 class BatchQueryStatusMap(TypedDict):
     to_submit_ids: list[int]
     all_ids: list[int]
     submitted_ids: list[int]
-    submitted_execution_ids: list[str]
+    submitted_execution_ids: list[ExeId]
     submitted_queries: list[str]
     queries_futures: list[Union[CachedFutureDf, AthenaFutureDf]]
 
@@ -249,12 +252,12 @@ class QueryCore:
 
     @property
     def execution_ids_history(self):
-        exe_ids = []
+        exe_ids: list[ExeId] = []
         if os.path.exists(self._execution_history_file):
             with open(self._execution_history_file, 'r') as f:
                 for line in f:
                     _, exe_id = line.split(',')
-                    exe_ids.append(exe_id.strip())
+                    exe_ids.append(ExeId(exe_id.strip()))
         return exe_ids
 
     def _create_athena_engine(self, region_name: str, database: str, workgroup: str) -> sa.engine.Engine:
@@ -369,7 +372,7 @@ class QueryCore:
                 'Database': db
             },
             WorkGroup=self.workgroup)
-        query_execution_id = response['QueryExecutionId']
+        query_execution_id = ExeId(response['QueryExecutionId'])
 
         if run_async:
             return query_execution_id
@@ -413,11 +416,12 @@ class QueryCore:
     @typing.overload
     def execute(self, query, *,
                 run_async: Literal[True],
-                ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[str, AthenaFutureDf]]:
+                ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
         ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def execute(self, query, run_async: bool = False):
+    def execute(self, query, run_async: bool = False) -> Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf],
+                                                               tuple[ExeId, AthenaFutureDf]]:
         """
         Executes a query
         Args:
@@ -441,6 +445,7 @@ class QueryCore:
                                                                       result_reuse_enable=True,
                                                                       result_reuse_minutes=60 * 24 * 7,
                                                                       na_values=[''])  # type: ignore
+            exe_id = ExeId(exe_id)
 
             def get_pandas(future):
                 res = future.result()
@@ -485,7 +490,7 @@ class QueryCore:
             self.stop_query(exec_id)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_failed_queries(self, batch_id: int) -> tuple[Sequence[str], Sequence[str]]:
+    def get_failed_queries(self, batch_id: int) -> tuple[Sequence[ExeId], Sequence[str]]:
         """_summary_
 
         Args:
@@ -495,7 +500,8 @@ class QueryCore:
             _type_: tuple of list of failed query execution ids and list of failed queries
         """
         stats = self._batch_query_status_map.get(batch_id, None)
-        failed_query_ids, failed_queries = [], []
+        failed_query_ids: list[ExeId] = []
+        failed_queries: list[str] = []
         if stats:
             for i, exe_id in enumerate(stats['submitted_execution_ids']):
                 completion_stat = self.get_query_status(exe_id)
@@ -693,7 +699,7 @@ class QueryCore:
         to_submit_ids = list(range(len(queries)))
         id_list = list(to_submit_ids)  # make a copy
         submitted_ids: list[int] = []
-        submitted_execution_ids: list[str] = []
+        submitted_execution_ids: list[ExeId] = []
         submitted_queries: list[str] = []
         queries_futures: list = []
         self._batch_query_id += 1
@@ -716,7 +722,7 @@ class QueryCore:
                     to_submit_ids.pop(0)  # if query queued successfully, remove it from the list
                     queries.pop(0)
                     submitted_ids.append(current_id)
-                    submitted_execution_ids.append(execution_id)
+                    submitted_execution_ids.append(ExeId(execution_id))
                     submitted_queries.append(current_query)
                     queries_futures.append(future)
                 except ClientError as e:
@@ -739,7 +745,7 @@ class QueryCore:
         return self.get_athena_query_result(execution_id=query_id)
 
     @validate_arguments
-    def get_athena_query_result(self, execution_id: str, timeout_minutes: int = 30) -> pd.DataFrame:
+    def get_athena_query_result(self, execution_id: ExeId, timeout_minutes: int = 30) -> pd.DataFrame:
         """Returns the query result
 
         Args:
@@ -769,7 +775,7 @@ class QueryCore:
         raise QueryException(f'Query timed-out. {self.get_query_status(execution_id)}')
 
     @validate_arguments
-    def get_result_from_s3(self, query_execution_id: str) -> pd.DataFrame:
+    def get_result_from_s3(self, query_execution_id: ExeId) -> pd.DataFrame:
         """Returns query result from s3 location.
 
         Args:
@@ -795,7 +801,7 @@ class QueryCore:
             raise QueryException(f"Query has unkown status {query_status}")
 
     @validate_arguments
-    def get_query_output_location(self, query_id: str) -> str:
+    def get_query_output_location(self, query_id: ExeId) -> str:
         """Get query output location in s3.
 
         Args:
@@ -809,7 +815,7 @@ class QueryCore:
         return output_path
 
     @validate_arguments
-    def get_query_status(self, query_id: str) -> str:
+    def get_query_status(self, query_id: ExeId) -> str:
         """Get status of the query
 
         Args:
@@ -822,7 +828,7 @@ class QueryCore:
         return stat['QueryExecution']['Status']['State']
 
     @validate_arguments
-    def get_query_error(self, query_id: str) -> str:
+    def get_query_error(self, query_id: ExeId) -> str:
         """Returns the error message if query has failed.
 
         Args:
@@ -834,7 +840,7 @@ class QueryCore:
         stat = self._aws_athena.get_query_execution(QueryExecutionId=query_id)
         return stat['QueryExecution']['Status']['StateChangeReason']
 
-    def get_all_running_queries(self):
+    def get_all_running_queries(self) -> list[ExeId]:
         """
         Gives the list of all running queries (for this instance)
 
@@ -842,13 +848,13 @@ class QueryCore:
             List of query execution ids of all the queries that are currently running in Athena.
         """
         exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
-        exe_ids = list(exe_ids)
+        exe_ids = [ExeId(i) for i in exe_ids]
 
         running_ids = [i for i in exe_ids if i in self.execution_ids_history and
                        self.get_query_status(i) == "RUNNING"]
         return running_ids
 
-    def stop_all_queries(self):
+    def stop_all_queries(self) -> None:
         """
         Stops all queries that are running in Athena for this instance.
         Returns:
@@ -865,7 +871,7 @@ class QueryCore:
         logger.info(f"Stopped {len(running_ids)} queries")
 
     @validate_arguments
-    def stop_query(self, execution_id: str):
+    def stop_query(self, execution_id: ExeId) -> str:
         """
         Stops a running query.
         Args:
