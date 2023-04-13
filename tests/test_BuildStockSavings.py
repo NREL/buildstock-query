@@ -8,8 +8,7 @@ from buildstock_query.helpers import KWH2MBTU
 import re
 import tempfile
 import pandas as pd
-from buildstock_query.helpers import AthenaFutureDf, CachedFutureDf
-from typing import Union, Literal
+from typing import Union
 from typing_extensions import assert_type
 
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading

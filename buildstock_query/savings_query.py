@@ -21,7 +21,7 @@ class BuildStockSavings:
         [self._bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def __get_timeseries_bs_up_table(self,
                                      enduses: Sequence[AnyColType],
                                      upgrade_id: str,
@@ -59,6 +59,7 @@ class BuildStockSavings:
             )
         return ts_b, ts_u, tbljoin
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def __get_annual_bs_up_table(self, upgrade_id: str, applied_only: bool):
         if self._bsq.up_table is None:
             raise ValueError("No upgrades table found in database.")

@@ -4,14 +4,14 @@ from unittest.mock import MagicMock
 import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
-from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf
+from buildstock_query.helpers import CachedFutureDf
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery
 import pandas as pd
 import uuid
 import time
 from typing_extensions import assert_type
-from typing import Union, Literal
+from typing import Union
 
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
@@ -55,7 +55,7 @@ def fake_sync_executer(query, *args, run_async=False, **kwargs):
 
 
 def fake_async_executor(query, *args, run_async=False, **kwargs):
-    return str(uuid.uuid4()), CachedFutureDf(fake_sync_executer(query))
+    return str(uuid.uuid4()), CachedFutureDf(fake_sync_executer(query))  # type: ignore
 
 
 fake_async_cursor = MagicMock()
@@ -175,7 +175,6 @@ def test_aggregate_annual(temp_history_file):
     query1_1 = my_athena.agg.aggregate_annual(enduses=enduses,
                                               group_by=[(state_str, 'state'), bldg_type],
                                               sort=True,
-                                              
                                               get_query_only=True)
 
     valid_query_string1_1 = """
@@ -248,7 +247,7 @@ def test_aggregate_annual(temp_history_file):
         db_name='buildstock_testing',
         buildstock_type='resstock',
         table_name='res_n250_hrly_v1',
-        sample_weight=29.0,
+        sample_weight=29.1,
         execution_history=temp_history_file,
         skip_reports=True
     )
@@ -256,8 +255,8 @@ def test_aggregate_annual(temp_history_file):
                                              get_query_only=True,
                                              )
     valid_query_string5 = """
-        select sum(1) as sample_count, sum(29.0) as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * 29.0) as fuel_use_electricity_net_m_btu,
-        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * 29.0) as
+        select sum(1) as sample_count, sum(29.1) as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * 29.1) as fuel_use_electricity_net_m_btu,
+        sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * 29.1) as
         end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
     """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
@@ -334,7 +333,7 @@ def test_aggregate_ts(temp_history_file):
     assert_query_equal(query2, valid_query_string2)  # Test that proper query is formed for timeseries aggregation
 
     # test without grouping
-    my_athena._get_rows_per_building = lambda: 35040
+    my_athena._get_rows_per_building = lambda: 35040  # type: ignore
 
     query3 = my_athena.agg.aggregate_timeseries(enduses=enduses,
                                                 collapse_ts=True,
@@ -376,19 +375,19 @@ def test_aggregate_ts(temp_history_file):
         buildstock_type='resstock',
         table_name='res_n250_hrly_v1',
         execution_history=temp_history_file,
-        sample_weight=29.0,
+        sample_weight=29.1,
         skip_reports=True
     )
     my_athena2.get_available_upgrades = lambda: ['0']
-    my_athena2._get_rows_per_building = lambda: 35040
+    my_athena2._get_rows_per_building = lambda: 35040  # type: ignore
 
     query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=True,
                                                  get_query_only=True)
     valid_query_string5 = """
-            select sum(1) / 35040 as sample_count, sum(29.0 / 35040) as units_count,
-            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
-            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            select sum(1) / 35040 as sample_count, sum(29.1 / 35040) as units_count,
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.1) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.1)
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
             """  # noqa: E501
@@ -404,10 +403,10 @@ def test_aggregate_ts(temp_history_file):
     valid_query_string7 = """
             select date_trunc('month', date_add('second', -900, res_n250_hrly_v1_timeseries.time)) AS time,
              count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
-             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.0)) / sum(1) AS units_count,
+             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.1)) / sum(1) AS units_count,
              sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample,
-            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
-            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.1) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.1)
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
@@ -421,10 +420,10 @@ def test_aggregate_ts(temp_history_file):
     valid_query_string9 = """
             select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
              count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
-             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.0)) / sum(1) AS units_count,
+             (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.1)) / sum(1) AS units_count,
              sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample,
-            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.0) as
-            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.0)
+            sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.1) as
+            "fuel use: electricity: total", sum(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 29.1)
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
@@ -539,13 +538,13 @@ def test_get_building_average_kws_at(temp_history_file):
                                       'end use: electricity: cooling': [23.0, 34.0]})
 
     my_athena.submit_batch_query = lambda *args, **kwargs: 0
-    my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)
+    my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)  # type: ignore
     res = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
                                                     enduses=enduses)
     pd.testing.assert_frame_equal(res, true_weighted_sum)
 
     # Test at_hour as a list of hours that exactly coincide with timestamps. Single query must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # over-ride the function to return interval of 15 mins
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
     query1, = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
                                                         enduses=enduses, get_query_only=True)
     valid_query_string1 = """
@@ -563,7 +562,7 @@ def test_get_building_average_kws_at(temp_history_file):
 
     # Test at_hour as a list of hours which have only a few hours that coincide with timestamps.
     # Two queries must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # over-ride the function to return interval of 15 mins
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625,
                                                                                               12.75],
                                                                enduses=enduses, get_query_only=True)
@@ -600,7 +599,7 @@ def test_get_building_average_kws_at(temp_history_file):
                                       'end use: electricity: cooling': [20.0, 32.5]})
 
     my_athena.submit_batch_query = lambda *args, **kwargs: 0
-    my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)
+    my_athena.get_batch_query_result = lambda *args, **kwargs: (fake_lower_df, fake_upper_df)  # type: ignore
     res = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625, 12.75],
                                                     enduses=enduses)
     pd.testing.assert_frame_equal(res, true_weighted_sum)

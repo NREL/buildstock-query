@@ -6,6 +6,8 @@ import logging
 import buildstock_query.main as main
 from buildstock_query.schema import AnnualQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
+from pydantic import validate_arguments
+from typing import Union
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -190,8 +192,9 @@ class BuildStockAggregate:
 
         return self._bsq.execute(query)
 
+    @validate_arguments(config=dict(smart_union=True))
     def get_building_average_kws_at(self, *,
-                                    at_hour: list[float],
+                                    at_hour: Union[list[float], float],
                                     at_days: list[float],
                                     enduses: list[str],
                                     get_query_only: bool = False):

@@ -20,7 +20,7 @@ class RunParams(BaseModel):
 
 
 class BSQParams(RunParams):
-    skip_reports: Optional[bool] = False
+    skip_reports: bool = False
 
     def get_run_params(self):
         return RunParams.parse_obj(self.dict(include=set(RunParams.__fields__.keys())))

@@ -10,12 +10,12 @@ from buildstock_query.aggregate_query import BuildStockAggregate
 from buildstock_query.savings_query import BuildStockSavings
 from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
-
+from pydantic import validate_arguments, Field
 from typing import Optional, Literal
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.query_params import DBColType, SALabel
+from buildstock_query.schema.query_params import DBColType, SALabel, AnyColType, AnyTableType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord
 
 class BuildStockQuery(QueryCore):
 
+    @validate_arguments(config=dict(smart_union=True))
     def __init__(self,
                  workgroup: str,
                  db_name: str,
@@ -31,7 +32,7 @@ class BuildStockQuery(QueryCore):
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
                  timestamp_column_name: str = 'time',
                  building_id_column_name: str = 'building_id',
-                 sample_weight: Union[str, int, float] = "build_existing_model.sample_weight",
+                 sample_weight: Union[int, float, str] = "build_existing_model.sample_weight",
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
@@ -57,7 +58,7 @@ class BuildStockQuery(QueryCore):
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
         """
-        params = BSQParams(
+        self.params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
@@ -68,8 +69,8 @@ class BuildStockQuery(QueryCore):
             region_name=region_name,
             execution_history=execution_history
         )
-        run_params = params.get_run_params()
-        super().__init__(params=run_params)
+        self.run_params = self.params.get_run_params()
+        super().__init__(params=self.run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -101,6 +102,7 @@ class BuildStockQuery(QueryCore):
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
+    @validate_arguments
     def get_upgrades_analyzer(self, yaml_file: str) -> UpgradesAnalyzer:
         """
             Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
@@ -124,6 +126,7 @@ class BuildStockQuery(QueryCore):
     def _get_rows_per_building(self, get_query_only: Literal[True]) -> str:
         ...
 
+    @validate_arguments
     def _get_rows_per_building(self, get_query_only: bool = False) -> Union[int, str]:
         select_cols = []
         if self.ts_table is not None:
@@ -143,6 +146,7 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
+    @validate_arguments(config=dict(smart_union=True))
     def get_distinct_vals(self, column: str, table_name: Optional[str],
                           get_query_only: bool = False) -> Union[str, pd.Series]:
         """
@@ -164,7 +168,8 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r[column]
 
-    def get_distinct_count(self, column: str, table_name: Optional[str] = None, weight_column: Optional[str] = None,
+    @validate_arguments(config=dict(smart_union=True))
+    def get_distinct_count(self, column: str, table_name: Optional[str] = None,
                            get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
             Find distinct counts.
@@ -187,19 +192,32 @@ class BuildStockQuery(QueryCore):
         return r
 
     @typing.overload
-    def get_results_csv(self, *, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+    def get_results_csv(self, *,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                  default_factory=list),
                         get_query_only: Literal[False] = False) -> pd.DataFrame:
         ...
 
     @typing.overload
     def get_results_csv(self, *,
                         get_query_only: Literal[True],
-                        restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
                         ) -> str:
         ...
 
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: bool,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        ) -> Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_results_csv(self,
-                        restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                  default_factory=list),
                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run
@@ -226,23 +244,30 @@ class BuildStockQuery(QueryCore):
         return result.set_index(self.bs_bldgid_column.name)
 
     @typing.overload
-    def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade: int = 0,
-                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> pd.DataFrame:
+    def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list)
+                         ) -> pd.DataFrame:
         ...
 
     @typing.overload
-    def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade: int = 0,
-                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> str:
+    def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade_id: Union[int, str] = '0',
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list)
+                         ) -> str:
         ...
 
     @typing.overload
-    def get_upgrades_csv(self, *, get_query_only: bool, upgrade: int = 0,
-                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,) -> Union[pd.DataFrame,
-                                                                                                       str]:
+    def get_upgrades_csv(self, *, get_query_only: bool, upgrade_id: Union[int, str] = '0',
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list)
+                         ) -> Union[pd.DataFrame, str]:
         ...
 
-    def get_upgrades_csv(self, *, upgrade: int = 0,
-                         restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None,
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_upgrades_csv(self, *, upgrade_id: Union[str, int] = '0',
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list),
                          get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run for an upgrade.
@@ -256,10 +281,10 @@ class BuildStockQuery(QueryCore):
         """
         restrict = list(restrict) if restrict else []
         query = sa.select(['*']).select_from(self.up_table)
-        if upgrade:
+        if upgrade_id:
             if self.up_table is None:
                 raise ValueError("This run has no upgrades")
-            query = query.where(self.up_table.c['upgrade'] == str(upgrade))
+            query = query.where(self.up_table.c['upgrade'] == upgrade_id)
 
         query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
@@ -271,8 +296,36 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: Optional[List[Tuple[str, List]]] = None,
-                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list),
+                         get_query_only: Literal[False] = False
+                         ) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list),
+                         get_query_only: Literal[True]
+                         ) -> str:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list),
+                         get_query_only: bool
+                         ) -> Union[pd.DataFrame, str]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_building_ids(self,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                                    default_factory=list),
+                         get_query_only: bool = False
+                         ) -> Union[str, pd.DataFrame]:
         """
         Returns the list of buildings based on the restrict list
         Args:
@@ -290,8 +343,7 @@ class BuildStockQuery(QueryCore):
         query = self._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._compile(query)
-        res = self.execute(query)
-        return res
+        return self.execute(query)
 
     @typing.overload
     def _get_simulation_info(self, get_query_only: Literal[False] = False) -> tuple[int, int, int]:
@@ -301,7 +353,8 @@ class BuildStockQuery(QueryCore):
     def _get_simulation_info(self, get_query_only: Literal[True]) -> str:
         ...
 
-    def _get_simulation_info(self, get_query_only=False) -> Union[str, tuple[int, int, int]]:
+    @validate_arguments(config=dict(smart_union=True))
+    def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, tuple[int, int, int]]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
         bldg_df = self.execute(query0)
@@ -474,7 +527,24 @@ class BuildStockQuery(QueryCore):
 
         return bld0_step_count
 
-    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[False] = False) -> pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[True]) -> str:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool) -> Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool = False) -> Union[str, pd.DataFrame]:
         """
         Returns the list of buildings belonging to given list of locations.
         Args:

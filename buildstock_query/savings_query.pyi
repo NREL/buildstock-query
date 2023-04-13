@@ -20,7 +20,7 @@ class BuildStockSavings:
 
     def __get_timeseries_bs_up_table(self,
                                      enduses: Sequence[AnyColType],
-                                     upgrade_id: str,
+                                     upgrade_id: Union[int, str],
                                      applied_only: bool,
                                      restrict:
                                      Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]
@@ -29,14 +29,14 @@ class BuildStockSavings:
                                                            ] = Field(default_factory=list)):
         ...
 
-    def __get_annual_bs_up_table(self, upgrade_id: str, applied_only: bool):
+    def __get_annual_bs_up_table(self, upgrade_id: Union[int, str], applied_only: bool) -> ...:
         ...
 
     @typing.overload
     def savings_shape(
         self, *,
         get_query_only: Literal[True],
-        upgrade_id: str,
+        upgrade_id: Union[int, str],
         enduses:  Sequence[str],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
         annual_only: bool = True,
@@ -56,7 +56,7 @@ class BuildStockSavings:
     @typing.overload
     def savings_shape(
         self, *,
-        upgrade_id: str,
+        upgrade_id: Union[int, str],
         get_query_only: Literal[False] = False,
         enduses:  Sequence[str],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
@@ -78,7 +78,7 @@ class BuildStockSavings:
     def savings_shape(
         self, *,
         get_query_only: bool,
-        upgrade_id: str,
+        upgrade_id: Union[int, str],
         enduses:  Sequence[str],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
         annual_only: bool = True,

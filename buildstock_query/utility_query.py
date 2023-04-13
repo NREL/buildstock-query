@@ -7,6 +7,7 @@ from collections import defaultdict
 from buildstock_query.schema import UtilityTSQuery
 from buildstock_query.schema.helpers import gather_params
 from buildstock_query.schema.query_params import AnyColType
+from pydantic import validate_arguments
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,8 @@ class BuildStockUtility:
                                          id_list=params.eiaid_list,
                                          params=params)
 
-    def aggregate_unit_counts_by_eiaid(self, eiaid_list: list[str],
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def aggregate_unit_counts_by_eiaid(self, *, eiaid_list: list[str],
                                        group_by: list[Union[AnyColType, tuple[str, str]]] = [],
                                        get_query_only: bool = False):
         """
@@ -152,6 +154,7 @@ class BuildStockUtility:
                                             get_query_only=get_query_only)
         return result
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: Optional[List[str]] = None,
                                   get_query_only: bool = False):
         """
@@ -177,6 +180,7 @@ class BuildStockUtility:
                                             get_query_only=get_query_only)
         return result
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_filtered_results_csv_by_eiaid(
             self, eiaids: List[str], get_query_only: bool = False):
         """
@@ -200,9 +204,10 @@ class BuildStockUtility:
         res = self._bsq.execute(query)
         return res
 
-    def get_eiaids(self, restrict: Optional[List[Tuple[str, List]]] = None):
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_eiaids(self, restrict: Optional[List[Tuple[str, List]]] = None) -> list[str]:
         """
-        Returns the list of building
+        Returns the list of eiaids
         Args:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
@@ -226,9 +231,10 @@ class BuildStockUtility:
                                                 join_list=join_list,
                                                 weights=['weight'],
                                                 sort=True)
-        self._cache['eiaids'] = list(annual_agg['eiaid'].values)
+        self._cache['eiaids'] = list(annual_agg['eiaid'].to_numpy(dtype=str).tolist())
         return self._cache['eiaids']
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
@@ -252,6 +258,7 @@ class BuildStockUtility:
         res = self._bsq.execute(query)
         return res
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
