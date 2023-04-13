@@ -9,8 +9,10 @@ from ast import literal_eval
 from functools import reduce
 import buildstock_query.main as main
 import typing
-from typing import Optional, Union, Literal, Hashable
-
+from typing import Optional, Union, Literal, Hashable, Sequence
+from buildstock_query.schema.query_params import AnyColType
+from pydantic import validate_arguments, Field
+from typing_extensions import assert_never
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
@@ -88,7 +90,10 @@ class BuildStockReport:
             change_df = change_df.join(df, how='outer') if len(change_df) > 0 else df
         return change_df.fillna(0)
 
-    def print_change_details(self, upgrade_id: int, yml_file: str, change_type: str = 'no-chng'):
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def print_change_details(self, upgrade_id: int, yml_file: str,
+                             change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
+                                                  "true-ok-chng", "null", "any"] = 'no-chng'):
         ua = self._bsq.get_upgrades_analyzer(yml_file)
         bad_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type=change_type)
         good_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type='ok-chng')
@@ -172,20 +177,29 @@ class BuildStockReport:
 
     @typing.overload
     def get_buildings_by_change(self, *, upgrade_id: int, get_query_only: Literal[True],
-                                change_type: str = 'no-chng') -> str:
+                                change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
+                                                     "true-ok-chng", "null", "any"] = 'no-chng'
+                                ) -> str:
         ...
 
     @typing.overload
     def get_buildings_by_change(self, *,  upgrade_id: int, get_query_only: Literal[False] = False,
-                                change_type: str = 'no-chng') -> list[int]:
+                                change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
+                                                     "true-ok-chng", "null", "any"] = 'no-chng'
+                                ) -> list[int]:
         ...
 
     @typing.overload
     def get_buildings_by_change(self, *, upgrade_id: int, get_query_only: bool,
-                                change_type: str = 'no-chng') -> Union[list[int], str]:
+                                change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
+                                                     "true-ok-chng", "null", "any"] = 'no-chng'
+                                ) -> Union[list[int], str]:
         ...
 
-    def get_buildings_by_change(self, *, upgrade_id: int, change_type: str = 'no-chng',
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_buildings_by_change(self, *, upgrade_id: int,
+                                change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
+                                                     "true-ok-chng", "null", "any"] = 'no-chng',
                                 get_query_only: bool = False):
 
         if self._bsq.up_table is None:
@@ -291,6 +305,7 @@ class BuildStockReport:
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
         return df[applied_rows]
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_options_report(self, trim_missing_bs: bool = True) -> pd.DataFrame:
         """Finds out the number and list of buildings each of the options applied to.
 
@@ -329,6 +344,7 @@ class BuildStockReport:
         full_df = full_df.sort_values(['upgrade', 'option'])
         return full_df
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_option_integrity_report(self, yaml_file: str) -> pd.DataFrame:
         """Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and tabulates the discrepancy.
@@ -357,6 +373,7 @@ class BuildStockReport:
         diff_df = diff_df.join(fail_report)
         return diff_df
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def check_options_integrity(self, yaml_file: str) -> bool:
         """ Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and flags any discrepancy. The verificationa allows for some mismatch since some simulations
@@ -415,21 +432,22 @@ class BuildStockReport:
 
     @typing.overload
     def get_success_report(self, *, get_query_only: Literal[True],
-                           trim_missing_bs: Union[str, bool] = 'auto') -> tuple[str, str, list[str]]:
+                           trim_missing_bs: Union[Literal['auto'], bool] = 'auto') -> tuple[str, str, list[str]]:
         ...
 
     @typing.overload
     def get_success_report(self, *, get_query_only: Literal[False] = False,
-                           trim_missing_bs: Union[str, bool] = 'auto') -> pd.DataFrame:
+                           trim_missing_bs: Union[Literal['auto'], bool] = 'auto') -> pd.DataFrame:
         ...
 
     @typing.overload
     def get_success_report(self, *, get_query_only: bool,
-                           trim_missing_bs: Union[str, bool] = 'auto') -> Union[pd.DataFrame,
-                                                                                tuple[str, str, list[str]]]:
+                           trim_missing_bs: Union[Literal['auto'], bool] = 'auto'
+                           ) -> Union[pd.DataFrame, tuple[str, str, list[str]]]:
         ...
 
-    def get_success_report(self, trim_missing_bs: Union[str, bool] = 'auto',
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_success_report(self, trim_missing_bs: Union[Literal['auto'], bool] = 'auto',
                            get_query_only: bool = False):
         """Returns a basic report showing number of success and failures for each upgrade along with percentage.
         Additional information regarding number of buildings to which the upgrade applied and whether the enduses
@@ -484,6 +502,7 @@ class BuildStockReport:
         elif isinstance(trim_missing_bs, bool):
             trim = trim_missing_bs
         else:
+            assert_never(trim_missing_bs)
             raise ValueError("trim_missing_bs must be either True/False or 'auto'.")
 
         if get_query_only:
@@ -566,7 +585,11 @@ class BuildStockReport:
             print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
-    def get_successful_simulation_count(self, restrict: Optional[list[tuple[str, list]]] = None,
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_successful_simulation_count(self, *,
+                                        restrict: Sequence[tuple[AnyColType,
+                                                                 Union[str, int, Sequence[Union[int, str]]]]] =
+                                        Field(default_factory=list),
                                         get_query_only: bool = False):
         """
         Returns the count of successful simulation for the given restric condition in the baseline.
@@ -589,26 +612,27 @@ class BuildStockReport:
         return self._bsq.execute(query)
 
     @typing.overload
-    def get_applied_options(self, *, upgrade_id: int, bldg_ids: list[int],
+    def get_applied_options(self, *, upgrade_id: Union[str, int], bldg_ids: list[int],
                             include_base_opt: Literal[True]) -> list[dict[str, str]]:
         ...
 
     @typing.overload
-    def get_applied_options(self, *, upgrade_id: int, bldg_ids: list[int],
+    def get_applied_options(self, *, upgrade_id: Union[str, int], bldg_ids: list[int],
                             include_base_opt: Literal[False] = False) -> list[set[str]]:
         ...
 
     @typing.overload
-    def get_applied_options(self, *, upgrade_id: int, bldg_ids: list[int],
+    def get_applied_options(self, *, upgrade_id: Union[str, int], bldg_ids: list[int],
                             include_base_opt: bool) -> list[Union[dict[str, str], set[str]]]:
         ...
 
-    def get_applied_options(self, upgrade_id: int, bldg_ids: list[int],
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def get_applied_options(self, upgrade_id: Union[str, int], bldg_ids: list[int],
                             include_base_opt: bool = False):
         """Returns the list of options applied to each buildings for a given upgrade.
 
         Args:
-            upgrade_id (int): The upgrade for which to find the applied options.
+            upgrade_id (int | str): The upgrade for which to find the applied options.
             bldg_ids (list[int]): List of building ids.
             include_base_opt (bool, optional): If baseline value is to be included. Defaults to False.
 
@@ -642,12 +666,13 @@ class BuildStockReport:
 
         return return_val
 
-    def get_enduses_buildings_map_by_change(self, upgrade_id: int,
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def get_enduses_buildings_map_by_change(self, upgrade_id: Union[str, int],
                                             change_type: str = 'changed',
                                             bldg_list: Optional[list[int]] = None) -> dict[str, pd.Index]:
         """Finds the list of enduses and the buildings that had change in the enduses for a given change type.
         Args:
-            upgrade (int): The upgrade to look at.
+            upgrade (int | stsr): The upgrade to look at.
             change_type (str, optional): The kind of change to look for. Valid values are increased, decreased and
                                          and changed. Defaults to 'changed' which includes both cases.
             bldg_list (list[int], optional): The list of buildings to narrow down to. If omitted, searches through all
