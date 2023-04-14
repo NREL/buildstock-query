@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Union, Sequence
 import sqlalchemy as sa
-from typing import Literal, Any
+from typing import Literal
+from sqlalchemy.sql.elements import Label
 
-SACol = sa.Column[Any]
-SALabel = sa.sql.expression.Label[Any]  # type: ignore
+SACol = sa.Column
+SALabel = Label
 DBColType = Union[SALabel,  SACol]
 DBTableType = sa.Table
 AnyColType = Union[DBColType, str]
@@ -12,7 +13,7 @@ AnyTableType = Union[DBTableType, str]
 
 
 class AnnualQuery(BaseModel):
-    enduses:  Sequence[str]
+    enduses:  Sequence[AnyColType]
     group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list)
     upgrade_id: str = '0'
     sort: bool = True

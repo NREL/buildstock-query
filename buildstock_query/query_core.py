@@ -881,7 +881,7 @@ class QueryCore:
         return self._aws_athena.stop_query_execution(QueryExecutionId=execution_id)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def get_cols(self, table: AnyTableType, fuel_type=None) -> list[DBColType]:
+    def get_cols(self, table: AnyTableType, fuel_type=None) -> Sequence[DBColType]:
         """
         Returns the columns of for a particular table.
         Args:

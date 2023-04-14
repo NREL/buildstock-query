@@ -6,7 +6,10 @@ import datetime
 import pickle
 import os
 import pandas as pd
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from buildstock_query.schema.utiliies import MappedColumn  # noqa: F401
 
 
 KWH2MBTU = 0.003412141633127942
@@ -78,12 +81,25 @@ def print_g(text):  # print in Green
 
 
 class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
-    def render_literal_value(self, value, type_):
-        if isinstance(value, (datetime.datetime)):
-            return "timestamp '%s'" % str(value).replace("'", "''")
-        if isinstance(value, list):
-            return f"ARRAY[{','.join([str(v) for v in value])}]"
-        return super(CustomCompiler, self).render_literal_value(value, type_)
+    def render_literal_value(self, obj, type_):
+        from buildstock_query.schema.utiliies import MappedColumn  # noqa: F811
+        if isinstance(obj, (datetime.datetime)):
+            return "timestamp '%s'" % str(obj).replace("'", "''")
+        if isinstance(obj, list):
+            return f"ARRAY[{','.join([str(v) for v in obj])}]"
+        elif isinstance(obj, tuple):
+            return f"({','.join([str(v) for v in obj])})"
+        elif isinstance(obj, MappedColumn):
+            keys = list(obj.mapping_dict.keys())
+            values = list(obj.mapping_dict.values())
+            if isinstance(obj.key, tuple):
+                indexing_str = f"({', '.join(tuple(obj.bsq._compile(source) for source in obj.key))})"
+            else:
+                indexing_str = obj.bsq._compile(obj.key)
+
+            return f"MAP(ARRAY{keys}, ARRAY{values})[{indexing_str}]"
+
+        return super(CustomCompiler, self).render_literal_value(obj, type_)
 
 
 class DataExistsException(Exception):

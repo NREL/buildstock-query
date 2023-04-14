@@ -108,6 +108,8 @@ class BuildStockAggregate:
         self.result_dfs = result_dfs
         joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
         for enduse, res in list(zip(params.enduses, result_dfs))[1:]:
+            if not isinstance(enduse, str):
+                enduse = enduse.name
             joined_enduses_df = joined_enduses_df.join(res[[enduse]])
 
         logger.info("Joining Completed.")

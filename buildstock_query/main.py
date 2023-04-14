@@ -5,17 +5,15 @@ import logging
 import re
 from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
-from buildstock_query.report_query import BuildStockReport
-from buildstock_query.aggregate_query import BuildStockAggregate
-from buildstock_query.savings_query import BuildStockSavings
-from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
 from pydantic import validate_arguments, Field
 from typing import Optional, Literal
+from typing_extensions import assert_never
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.query_params import DBColType, SALabel, AnyColType
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,6 +68,11 @@ class BuildStockQuery(QueryCore):
             execution_history=execution_history
         )
         self.run_params = self.params.get_run_params()
+        from buildstock_query.report_query import BuildStockReport
+        from buildstock_query.aggregate_query import BuildStockAggregate
+        from buildstock_query.savings_query import BuildStockSavings
+        from buildstock_query.utility_query import BuildStockUtility
+
         super().__init__(params=self.run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
@@ -373,6 +376,29 @@ class BuildStockQuery(QueryCore):
         start_offset_seconds = int((time1 - reference_time).total_seconds())
         return sim_year, sim_interval_seconds, start_offset_seconds
 
+    def get_special_column(self,
+                           column_type: Literal['month', 'day', 'hour', 'is_weekend', 'day_of_week']) -> DBColType:
+        _, _, start_offset = self._get_simulation_info()
+        if start_offset > 0:
+            # If timestamps are not period begining we should make them so we get proper values of special columns.
+            time_col = sa.func.date_add('second', -start_offset, self.timestamp_column)
+        else:
+            time_col = self.timestamp_column
+
+        if column_type == 'month':
+            return sa.func.month(time_col).label('month')
+        elif column_type == 'day':
+            return sa.func.day(time_col).label('day')
+        elif column_type == 'hour':
+            return sa.func.hour(time_col).label('hour')
+        elif column_type == 'day_of_week':
+            return sa.func.day_of_week(time_col).label('day_of_week')
+        elif column_type == 'is_weekend':
+            return sa.cast(sa.func.day_of_week(time_col).in_([6, 7]), sa.Integer).label('is_weekend')
+        else:
+            assert_never(column_type)
+            raise ValueError(f"Unknown special column type: {column_type}")
+
     def _get_gcol(self, column) -> DBColType:  # gcol => group by col
         """Get a DB column for the purpose of grouping. If the provided column doesn't exist as is,
         tries to get the column by prepending build_existing_model."""
@@ -400,19 +426,26 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError(f"Invalid column name type {column}: {type(column)}")
 
-    def _get_enduse_cols(self, enduses: Sequence[str],
-                         table='baseline') -> Sequence[sa.Column]:
+    def _get_enduse_cols(self, enduses: Sequence[AnyColType],
+                         table='baseline') -> Sequence[DBColType]:
         tbls_dict = {'baseline': self.bs_table,
                      'upgrade': self.up_table,
                      'timeseries': self.ts_table}
         tbl = tbls_dict[table]
-        try:
-            enduse_cols = [tbl.c[e] for e in enduses]
-        except KeyError as e:
-            if table in ['baseline', 'upgrade']:
-                enduse_cols = [tbl.c[f"report_simulation_output.{e}"] for e in enduses]
+        enduse_cols: Sequence[DBColType] = []
+        for e in enduses:
+            if isinstance(e, (sa.Column, SALabel)):
+                enduse_cols.append(e)
+            elif isinstance(e, str):
+                try:
+                    enduse_cols = [tbl.c[e] for e in enduses]
+                except KeyError as e:
+                    if table in ['baseline', 'upgrade']:
+                        enduse_cols = [tbl.c[f"report_simulation_output.{e}"] for e in enduses]
+                    else:
+                        raise ValueError(f"Invalid enduse column names for {table} table") from e
             else:
-                raise ValueError(f"Invalid enduse column names for {table} table") from e
+                assert_never(e)
         return enduse_cols
 
     def get_groupby_cols(self) -> List[str]:

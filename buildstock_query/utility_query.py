@@ -1,15 +1,43 @@
 import buildstock_query.main as main
 import logging
-from typing import List, Any, Tuple, Optional, Union, Sequence
+from typing import List, Any, Tuple, Optional, Union, Sequence, Literal
 import pandas as pd
 import sqlalchemy as sa
+from sqlalchemy.sql import functions as safunc
 from collections import defaultdict
-from buildstock_query.schema import UtilityTSQuery
+from buildstock_query.schema import UtilityTSQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
-from buildstock_query.schema.query_params import AnyColType
-from pydantic import validate_arguments
+from buildstock_query.schema.query_params import AnyColType, AnyTableType
+from pydantic import Field, BaseModel, ValidationError, validate_arguments
+from buildstock_query.schema.utiliies import MappedColumn
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class TimeTuple(BaseModel):
+    # has to be between 1 and 12
+    month: int = Field(..., ge=1, le=12)
+    is_weekend: int = Field(..., ge=0, le=1)
+    hour: int = Field(..., ge=0, le=23)
+
+    def __hash__(self):
+        return hash((self.month, self.is_weekend, self.hour))
+
+
+class TOURate(BaseModel):
+    data: dict[TimeTuple, float] = Field(..., example={TimeTuple(month=1, is_weekend=0, hour=3): 0.5})
+    raw_dict: dict[Tuple[int, int, int], float] = Field(..., example={(1, 0, 3): 0.5})
+
+    def __init__(self, rate_dict: dict[Tuple[int, int, int], float]):
+        data: dict[TimeTuple, float] = {}
+        for key, value in rate_dict.items():
+            try:
+                data[TimeTuple(month=key[0], is_weekend=key[1], hour=key[2])] = value
+            except ValidationError as e:
+                raise ValueError(f"Invalid key {key} in rate_dict. Make sure the keys are"
+                                 " (month (1 to 12), is_weekend (0 or 1), hour_of_day (0 to 23)") from e
+        super().__init__(data=data, raw_dict=rate_dict)
 
 
 class BuildStockUtility:
@@ -282,3 +310,82 @@ class BuildStockUtility:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
         return list(res[map_eiaid_column].values)
+
+    def get_rate_map(self, weekend_csv_path: str, weekday_csv_path: str) -> dict[tuple[int, int, int], float]:
+        def read_rate_file(file_path: str) -> pd.DataFrame:
+            df = pd.read_csv(file_path)
+            if len(df) != 12:
+                raise ValueError(f"Invalid number of rows in {file_path}. Expected 12, got {len(df)}")
+            if len(df.columns) != 25:
+                raise ValueError(f"Invalid number of columns in {file_path}. Expected 25, got {len(df.columns)}")
+            if 'month' != df.columns[0]:
+                raise ValueError(f"Invalid column names in {file_path}. Expected first column to be 'month'")
+            df = df.set_index('month')
+            df.index = pd.Index(range(1, 13), name='month')
+            df.columns = pd.Index(range(0, 24), name="Hour")
+            return df
+
+        weekday_rate = read_rate_file(weekday_csv_path)
+        weekend_rate = read_rate_file(weekend_csv_path)
+        weekday_rate['weekend'] = 0
+        weekend_rate['weekend'] = 1
+        full_rate = pd.concat([weekday_rate, weekend_rate])
+        full_rate = full_rate.reset_index().melt(id_vars=['month', 'weekend'],
+                                                 value_vars=range(0, 24), var_name='hour', value_name='rate')
+        rate_map = full_rate.set_index(['month', 'weekend', 'hour'])['rate'].to_dict()
+        return rate_map
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def calculate_tou_bill(self, *,
+                           rate_map: Union[tuple[str, str], dict[tuple[int, int, int], float]],
+                           meter_col: Optional[Union[AnyColType, tuple[AnyColType, ...]]] = None,
+                           group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
+                           upgrade_id: Union[int, str] = '0',
+                           sort: bool = True,
+                           join_list: Sequence[tuple[AnyTableType, AnyColType,
+                                                     AnyColType]] = Field(default_factory=list),
+                           weights: Sequence[Union[str, tuple]] = Field(default_factory=list),
+                           restrict: Sequence[
+                               tuple[AnyColType,
+                                     Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
+                           collapse_ts: bool = False,
+                           timestamp_grouping_func: Optional[Literal["month", "day", "hour"]] = "month",
+                           limit: Optional[int] = None,
+                           get_query_only: bool = False
+                           ):
+
+        if isinstance(rate_map, tuple):
+            rate_map = self.get_rate_map(*rate_map)
+        user_rate = TOURate(rate_map)
+        if self._bsq.ts_table is None:
+            raise ValueError("No timeseries table found")
+
+        if meter_col is None:
+            total_col = self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
+                        safunc.coalesce(self._bsq.ts_table.c['end_use__electricity__pv__kwh'], 0)
+        else:
+            if isinstance(meter_col, tuple):
+                total_col = self._bsq.get_column(meter_col[0])
+                for other_col in meter_col[1:]:
+                    total_col += self._bsq.get_column(other_col)
+            else:
+                total_col = self._bsq.get_column(meter_col)
+
+        month_col, is_weekend_col, hour_col = (self._bsq.get_special_column(col) for col in
+                                               ("month", "is_weekend", "hour"))
+        rate_col = MappedColumn(bsq=self._bsq, name="tou_rate", mapping_dict=user_rate.raw_dict,
+                                key=(month_col, is_weekend_col, hour_col))
+
+        ts_query = TSQuery(enduses=[(total_col * rate_col / 100).label("total_cost_dollars")],
+                           group_by=group_by,
+                           upgrade_id=str(upgrade_id),
+                           sort=sort,
+                           join_list=join_list,
+                           weights=weights,
+                           restrict=restrict,
+                           collapse_ts=collapse_ts,
+                           timestamp_grouping_func=timestamp_grouping_func,
+                           limit=limit,
+                           get_query_only=get_query_only
+                           )
+        return self._agg.aggregate_timeseries(params=ts_query)
