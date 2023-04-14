@@ -26,7 +26,7 @@ from typing import TypedDict, NewType
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
-from buildstock_query.schema.query_params import DBColType, AnyColType, AnyTableType, SALabel
+from buildstock_query.schema.utilities import DBColType, AnyColType, AnyTableType, SALabel
 from pydantic import validate_arguments
 urllib3.disable_warnings()
 

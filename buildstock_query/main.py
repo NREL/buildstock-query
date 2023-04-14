@@ -12,8 +12,8 @@ from typing_extensions import assert_never
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.query_params import DBColType, SALabel, AnyColType
-
+from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
+from buildstock_query.schema.utilities import MappedColumn
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +35,6 @@ class BuildStockQuery(QueryCore):
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
                  ) -> None:
-
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
         Args:
@@ -197,7 +196,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def get_results_csv(self, *,
                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                  default_factory=list),
+                            default_factory=list),
                         get_query_only: Literal[False] = False) -> pd.DataFrame:
         ...
 
@@ -220,7 +219,7 @@ class BuildStockQuery(QueryCore):
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_results_csv(self,
                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                  default_factory=list),
+                            default_factory=list),
                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run
@@ -249,29 +248,29 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list)
-                         ) -> pd.DataFrame:
+        default_factory=list)
+    ) -> pd.DataFrame:
         ...
 
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade_id: Union[int, str] = '0',
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list)
-                         ) -> str:
+        default_factory=list)
+    ) -> str:
         ...
 
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: bool, upgrade_id: Union[int, str] = '0',
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list)
-                         ) -> Union[pd.DataFrame, str]:
+        default_factory=list)
+    ) -> Union[pd.DataFrame, str]:
         ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_upgrades_csv(self, *, upgrade_id: Union[str, int] = '0',
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list),
-                         get_query_only: bool = False) -> Union[pd.DataFrame, str]:
+            default_factory=list),
+            get_query_only: bool = False) -> Union[pd.DataFrame, str]:
         """
         Returns the results_csv table for the BuildStock run for an upgrade.
         Args:
@@ -302,7 +301,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def get_building_ids(self, *,
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list),
+                             default_factory=list),
                          get_query_only: Literal[False] = False
                          ) -> pd.DataFrame:
         ...
@@ -310,7 +309,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def get_building_ids(self, *,
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list),
+                             default_factory=list),
                          get_query_only: Literal[True]
                          ) -> str:
         ...
@@ -318,7 +317,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def get_building_ids(self, *,
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list),
+                             default_factory=list),
                          get_query_only: bool
                          ) -> Union[pd.DataFrame, str]:
         ...
@@ -326,7 +325,7 @@ class BuildStockQuery(QueryCore):
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_building_ids(self,
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
-                                    default_factory=list),
+                             default_factory=list),
                          get_query_only: bool = False
                          ) -> Union[str, pd.DataFrame]:
         """
@@ -409,6 +408,9 @@ class BuildStockQuery(QueryCore):
         if isinstance(column, SALabel):
             return column
 
+        if isinstance(column, MappedColumn):
+            return sa.literal(column).label(self._simple_label(column.name))
+
         if isinstance(column, tuple):
             try:
                 return self.get_column(column[0]).label(column[1])
@@ -432,20 +434,22 @@ class BuildStockQuery(QueryCore):
                      'upgrade': self.up_table,
                      'timeseries': self.ts_table}
         tbl = tbls_dict[table]
-        enduse_cols: Sequence[DBColType] = []
-        for e in enduses:
-            if isinstance(e, (sa.Column, SALabel)):
-                enduse_cols.append(e)
-            elif isinstance(e, str):
+        enduse_cols: list[DBColType] = []
+        for enduse in enduses:
+            if isinstance(enduse, (sa.Column, SALabel)):
+                enduse_cols.append(enduse)
+            elif isinstance(enduse, str):
                 try:
-                    enduse_cols = [tbl.c[e] for e in enduses]
-                except KeyError as e:
+                    enduse_cols.append(tbl.c[enduse])
+                except KeyError as err:
                     if table in ['baseline', 'upgrade']:
-                        enduse_cols = [tbl.c[f"report_simulation_output.{e}"] for e in enduses]
+                        enduse_cols.append(tbl.c[f"report_simulation_output.{enduse}"])
                     else:
-                        raise ValueError(f"Invalid enduse column names for {table} table") from e
+                        raise ValueError(f"Invalid enduse column names for {table} table") from err
+            elif isinstance(enduse, MappedColumn):
+                enduse_cols.append(sa.literal(enduse).label(enduse.name))
             else:
-                assert_never(e)
+                assert_never(enduse)
         return enduse_cols
 
     def get_groupby_cols(self) -> List[str]:

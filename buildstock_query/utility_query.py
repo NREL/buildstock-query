@@ -5,11 +5,11 @@ import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.sql import functions as safunc
 from collections import defaultdict
-from buildstock_query.schema import UtilityTSQuery, TSQuery
+from buildstock_query.schema.query_params import UtilityTSQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
-from buildstock_query.schema.query_params import AnyColType, AnyTableType
+from buildstock_query.schema.utilities import AnyColType, AnyTableType, MappedColumn
 from pydantic import Field, BaseModel, ValidationError, validate_arguments
-from buildstock_query.schema.utiliies import MappedColumn
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -362,7 +362,7 @@ class BuildStockUtility:
 
         if meter_col is None:
             total_col = self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
-                        safunc.coalesce(self._bsq.ts_table.c['end_use__electricity__pv__kwh'], 0)
+                safunc.coalesce(self._bsq.ts_table.c['end_use__electricity__pv__kwh'], 0)
         else:
             if isinstance(meter_col, tuple):
                 total_col = self._bsq.get_column(meter_col[0])

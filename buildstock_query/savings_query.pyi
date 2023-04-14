@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import Sequence, Union
-from buildstock_query.schema.query_params import AnyColType, AnyTableType, SavingsQuery
+from buildstock_query.schema.query_params import SavingsQuery
+from buildstock_query.schema.utilities import AnyColType, AnyTableType
 import buildstock_query.main as main
 from typing import Optional
 from pydantic import Field
@@ -37,7 +38,7 @@ class BuildStockSavings:
         self, *,
         get_query_only: Literal[True],
         upgrade_id: Union[int, str],
-        enduses:  Sequence[str],
+        enduses:  Sequence[AnyColType],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
         annual_only: bool = True,
         sort: bool = True,
@@ -58,7 +59,7 @@ class BuildStockSavings:
         self, *,
         upgrade_id: Union[int, str],
         get_query_only: Literal[False] = False,
-        enduses:  Sequence[str],
+        enduses:  Sequence[AnyColType],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
         annual_only: bool = True,
         sort: bool = True,
@@ -79,7 +80,7 @@ class BuildStockSavings:
         self, *,
         get_query_only: bool,
         upgrade_id: Union[int, str],
-        enduses:  Sequence[str],
+        enduses:  Sequence[AnyColType],
         group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
         annual_only: bool = True,
         sort: bool = True,

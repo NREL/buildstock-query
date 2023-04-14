@@ -9,7 +9,7 @@ import pandas as pd
 from typing import Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from buildstock_query.schema.utiliies import MappedColumn  # noqa: F401
+    from buildstock_query.schema.utilities import MappedColumn  # noqa: F401
 
 
 KWH2MBTU = 0.003412141633127942
@@ -82,7 +82,7 @@ def print_g(text):  # print in Green
 
 class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
     def render_literal_value(self, obj, type_):
-        from buildstock_query.schema.utiliies import MappedColumn  # noqa: F811
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
         if isinstance(obj, (datetime.datetime)):
             return "timestamp '%s'" % str(obj).replace("'", "''")
         if isinstance(obj, list):

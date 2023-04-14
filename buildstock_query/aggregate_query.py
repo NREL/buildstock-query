@@ -4,7 +4,7 @@ import datetime
 import numpy as np
 import logging
 import buildstock_query.main as main
-from buildstock_query.schema import AnnualQuery, TSQuery
+from buildstock_query.schema.query_params import AnnualQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
 from pydantic import validate_arguments
 from typing import Union

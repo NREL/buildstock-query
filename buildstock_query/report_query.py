@@ -10,7 +10,7 @@ from functools import reduce
 import buildstock_query.main as main
 import typing
 from typing import Optional, Union, Literal, Hashable, Sequence
-from buildstock_query.schema.query_params import AnyColType
+from buildstock_query.schema.utilities import AnyColType
 from pydantic import validate_arguments, Field
 from typing_extensions import assert_never
 logging.basicConfig(level=logging.INFO)

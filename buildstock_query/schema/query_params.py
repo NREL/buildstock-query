@@ -1,15 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Union, Sequence
-import sqlalchemy as sa
 from typing import Literal
-from sqlalchemy.sql.elements import Label
-
-SACol = sa.Column
-SALabel = Label
-DBColType = Union[SALabel,  SACol]
-DBTableType = sa.Table
-AnyColType = Union[DBColType, str]
-AnyTableType = Union[DBTableType, str]
+from buildstock_query.schema.utilities import AnyTableType, AnyColType
 
 
 class AnnualQuery(BaseModel):

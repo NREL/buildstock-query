@@ -2,8 +2,8 @@ import buildstock_query.main as main
 import logging
 from typing import List, Any, Optional, Union, Sequence
 import pandas as pd
-from buildstock_query.schema import UtilityTSQuery
-from buildstock_query.schema.query_params import AnyColType, AnyTableType
+from buildstock_query.schema.query_params import UtilityTSQuery
+from buildstock_query.schema.utilities import AnyColType, AnyTableType
 import typing
 from typing import Literal
 from pydantic import Field

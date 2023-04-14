@@ -1,7 +1,8 @@
 import pandas as pd
 import sqlalchemy as sa
 from typing import Sequence, Union
-from buildstock_query.schema.query_params import SavingsQuery, AnyColType
+from buildstock_query.schema.utilities import AnyColType
+from buildstock_query.schema.query_params import SavingsQuery
 from buildstock_query.schema.helpers import gather_params
 from sqlalchemy.sql import functions as safunc
 import buildstock_query.main as main
@@ -46,15 +47,15 @@ class BuildStockSavings:
         if applied_only:
             tbljoin = (
                 ts_b.join(
-                   ts_u, sa.and_(ts_b.c[self._bsq.building_id_column_name] == ts_u.c[self._bsq.building_id_column_name],
-                                 ts_b.c[self._bsq.timestamp_column_name] == ts_u.c[self._bsq.timestamp_column_name])
+                    ts_u, sa.and_(ts_b.c[self._bsq.building_id_column_name] == ts_u.c[self._bsq.building_id_column_name],
+                                  ts_b.c[self._bsq.timestamp_column_name] == ts_u.c[self._bsq.timestamp_column_name])
                 ).join(base, ts_b.c[self._bsq.building_id_column_name] == base.c[self._bsq.building_id_column_name])
             )
         else:
             tbljoin = (
                 ts_b.outerjoin(
-                   ts_u, sa.and_(ts_b.c[self._bsq.building_id_column_name] == ts_u.c[self._bsq.building_id_column_name],
-                                 ts_b.c[self._bsq.timestamp_column_name] == ts_u.c[self._bsq.timestamp_column_name])
+                    ts_u, sa.and_(ts_b.c[self._bsq.building_id_column_name] == ts_u.c[self._bsq.building_id_column_name],
+                                  ts_b.c[self._bsq.timestamp_column_name] == ts_u.c[self._bsq.timestamp_column_name])
                 ).join(base, ts_b.c[self._bsq.building_id_column_name] == base.c[self._bsq.building_id_column_name])
             )
         return ts_b, ts_u, tbljoin
