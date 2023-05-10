@@ -129,7 +129,7 @@ class BuildStockQuery(QueryCore):
     @validate_arguments
     def _get_rows_per_building(self, get_query_only: bool = False) -> Union[int, str]:
         select_cols = []
-        if self.ts_table is not None:
+        if self.up_table is not None:
             select_cols.append(self.ts_table.c['upgrade'])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label("row_count")))
         ts_query = sa.select(select_cols)
