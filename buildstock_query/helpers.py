@@ -80,15 +80,25 @@ def print_g(text):  # print in Green
     print(f"{COLOR.GREEN}{text}{COLOR.END}")
 
 
+class UnSupportedTypeException(Exception):
+    pass
+
+
 class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
-    def render_literal_value(self, obj, type_):
+
+    @staticmethod
+    def render_literal(obj):
         from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
-        if isinstance(obj, (datetime.datetime)):
+        if isinstance(obj, (int, float)):
+            return str(obj)
+        elif isinstance(obj, str):
+            return "'%s'" % obj.replace("'", "''")
+        elif isinstance(obj, (datetime.datetime)):
             return "timestamp '%s'" % str(obj).replace("'", "''")
-        if isinstance(obj, list):
-            return f"ARRAY[{','.join([str(v) for v in obj])}]"
+        elif isinstance(obj, list):
+            return CustomCompiler.get_array_string(obj)
         elif isinstance(obj, tuple):
-            return f"({','.join([str(v) for v in obj])})"
+            return f"({', '.join([CustomCompiler.render_literal(v) for v in obj])})"
         elif isinstance(obj, MappedColumn):
             keys = list(obj.mapping_dict.keys())
             values = list(obj.mapping_dict.values())
@@ -97,7 +107,25 @@ class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
             else:
                 indexing_str = obj.bsq._compile(obj.key)
 
-            return f"MAP(ARRAY{keys}, ARRAY{values})[{indexing_str}]"
+            return f"MAP({CustomCompiler.render_literal(keys)}, " +\
+                   f"{CustomCompiler.render_literal(values)})[{indexing_str}]"
+        else:
+            raise UnSupportedTypeException(f"Unsupported type {type(obj)} for literal {obj}")
+
+    @staticmethod
+    def get_array_string(array):
+        # rewrite to break into multiple arrays joined by CONCAT if the number of elements is > 254
+        if len(array) > 254:
+            array_list = ["ARRAY[" + ', '.join([CustomCompiler.render_literal(v) for v in array[i:i+254]]) + "]"
+                          for i in range(0, len(array), 254)]
+            return "CONCAT(" + ', '.join(array_list) + ")"
+        else:
+            return f"ARRAY[{', '.join([CustomCompiler.render_literal(v) for v in array])}]"
+
+    def render_literal_value(self, obj, type_):
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+        if isinstance(obj, (datetime.datetime, list, tuple, MappedColumn)):
+            return CustomCompiler.render_literal(obj)
 
         return super(CustomCompiler, self).render_literal_value(obj, type_)
 
