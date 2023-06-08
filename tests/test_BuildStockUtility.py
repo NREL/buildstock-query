@@ -211,6 +211,73 @@ def test_get_buildings_by_county(temp_history_file: str):
     assert_query_equal(query, expected_query)
 
 
+def test_calc_tou_bill(temp_history_file: str):
+    my_athena = BuildStockQuery(
+        workgroup='eulp',
+        db_name='buildstock_testing',
+        buildstock_type='resstock',
+        table_name='res_n250_hrly_v1',
+        execution_history=temp_history_file,
+        skip_reports=True
+    )
+    # generate sample rate_map
+    rate_map = {}
+    for month in range(1, 2):
+        for is_weekend in [1, 0]:
+            for hour in range(0, 2):
+                rate_map[(month, is_weekend, hour)] = 0.1
+
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 15 * 60)  # type: ignore
+    my_athena._get_rows_per_building = lambda: 8760  # type: ignore
+    query = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
+                                                 meter_col="fuel use: electricity: total",
+                                                 get_query_only=True)
+
+    expected_query = """
+    SELECT date_trunc('month', date_add('second', -900, res_n250_hrly_v1_timeseries.time)) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS total_cost_dollars
+ FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id GROUP BY 1 ORDER BY 1
+    """  # noqa: E501
+
+    assert_query_equal(query, expected_query)
+
+    query2 = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
+                                                  meter_col="fuel use: electricity: total",
+                                                  collapse_ts=True,
+                                                  get_query_only=True)
+
+    expected_query2 = """
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS total_cost_dollars
+ FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
+    """  # noqa: E501
+
+    assert_query_equal(query2, expected_query2)
+
+    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+    my_athena._get_rows_per_building = lambda: 8760  # type: ignore
+    query3 = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
+                                                  meter_col="fuel use: electricity: total",
+                                                  get_query_only=True)
+
+    expected_query3 = """
+    SELECT date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS total_cost_dollars
+ FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id GROUP BY 1 ORDER BY 1
+    """  # noqa: E501
+
+    assert_query_equal(query3, expected_query3)
+
+    query4 = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
+                                                  meter_col="fuel use: electricity: total",
+                                                  collapse_ts=True,
+                                                  get_query_only=True)
+
+    expected_query4 = """
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS total_cost_dollars
+ FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
+    """  # noqa: E501
+
+    assert_query_equal(query4, expected_query4)
+
+
 def static_test_utility_inferred_types(temp_history_file):
     # Test that the utility methods return types are inferred as the correct type
     # This is a static test, not a unit test. Any errors will be caught by static type checking and will
@@ -249,6 +316,10 @@ def static_test_utility_inferred_types(temp_history_file):
     query = my_athena.utility.aggregate_annual_by_eiaid(enduses=enduses,
                                                         group_by=['build_existing_model.geometry_building_type_recs'],
                                                         get_query_only=True)
+
+    query = my_athena.utility.calculate_tou_bill(rate_map={(1, 0, 1): 0.1, (1, 0, 5): 0.2},
+                                                 group_by=['build_existing_model.geometry_building_type_recs'],
+                                                 get_query_only=True)
     print(query)
     df: pd.DataFrame = pd.DataFrame()  # make sure return types are dataframes
     df = my_athena.get_buildings_by_locations(location_col="build_existing_model.county",
@@ -271,4 +342,8 @@ def static_test_utility_inferred_types(temp_history_file):
     df = my_athena.utility.aggregate_annual_by_eiaid(enduses=enduses,
                                                      group_by=['build_existing_model.geometry_building_type_recs'],
                                                      )
+
+    df = my_athena.utility.calculate_tou_bill(rate_map={(1, 0, 1): 0.1, (1, 0, 5): 0.2},
+                                              group_by=['build_existing_model.geometry_building_type_recs'],
+                                              )
     print(df)

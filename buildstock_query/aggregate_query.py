@@ -4,7 +4,7 @@ import datetime
 import numpy as np
 import logging
 import buildstock_query.main as main
-from buildstock_query.schema import AnnualQuery, TSQuery
+from buildstock_query.schema.query_params import AnnualQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
 from pydantic import validate_arguments
 from typing import Union
@@ -108,6 +108,8 @@ class BuildStockAggregate:
         self.result_dfs = result_dfs
         joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
         for enduse, res in list(zip(params.enduses, result_dfs))[1:]:
+            if not isinstance(enduse, str):
+                enduse = enduse.name
             joined_enduses_df = joined_enduses_df.join(res[[enduse]])
 
         logger.info("Joining Completed.")

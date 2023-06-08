@@ -1,9 +1,9 @@
 from typing import Optional, Union, Literal, Sequence
 import pandas as pd
 import typing
-from buildstock_query.schema import TSQuery, AnnualQuery
+from buildstock_query.schema.query_params import TSQuery, AnnualQuery
 import buildstock_query.main as main
-from buildstock_query.schema.query_params import AnyColType, AnyTableType
+from buildstock_query.schema.utilities import AnyColType, AnyTableType
 
 
 class BuildStockAggregate:
@@ -13,7 +13,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_annual(self, *,
-                         enduses: Sequence[str],
+                         enduses: Sequence[AnyColType],
                          get_query_only: Literal[True],
                          group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
@@ -27,7 +27,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_annual(self, *,
-                         enduses: Sequence[str],
+                         enduses: Sequence[AnyColType],
                          get_query_only: Literal[False] = False,
                          group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
@@ -41,7 +41,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_annual(self, *,
-                         enduses: Sequence[str],
+                         enduses: Sequence[AnyColType],
                          get_query_only: bool,
                          group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                          sort: bool = False,
@@ -96,7 +96,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
+                             enduses: Sequence[AnyColType],
                              get_query_only: Literal[True],
                              group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',
@@ -113,7 +113,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
+                             enduses: Sequence[AnyColType],
                              group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',
                              sort: bool = False,
@@ -130,7 +130,7 @@ class BuildStockAggregate:
 
     @typing.overload
     def aggregate_timeseries(self, *,
-                             enduses: Sequence[str],
+                             enduses: Sequence[AnyColType],
                              get_query_only: bool,
                              group_by: Sequence[Union[AnyColType, tuple[str, str]]] = [],
                              upgrade_id: Union[int, str] = '0',

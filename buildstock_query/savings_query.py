@@ -1,7 +1,8 @@
 import pandas as pd
 import sqlalchemy as sa
 from typing import Sequence, Union
-from buildstock_query.schema.query_params import SavingsQuery, AnyColType
+from buildstock_query.schema.utilities import AnyColType
+from buildstock_query.schema.query_params import SavingsQuery
 from buildstock_query.schema.helpers import gather_params
 from sqlalchemy.sql import functions as safunc
 import buildstock_query.main as main
