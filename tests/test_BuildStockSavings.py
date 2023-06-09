@@ -221,3 +221,58 @@ class TestResStockSavings:
                     pd.DataFrame)
         assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
                     Union[str, pd.DataFrame])
+
+    def test_savings_shape_with_timestamp_grouping(self, my_athena: BuildStockQuery):
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        group_by = ["geometry_building_type_recs"]
+        my_athena._get_simulation_info = lambda: (2012, 15 * 60, 900)  # type: ignore
+        annual_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
+                                                               timestamp_grouping_func='hour', get_query_only=True,
+                                                               annual_only=False,
+                                                               sort=True)
+        expected_query = """
+        SELECT date_trunc('hour', date_add('second', -900, ts_b.time)) AS time,
+        count(distinct(res_n250_15min_v19_baseline.building_id)) AS sample_count,
+        (count(distinct(res_n250_15min_v19_baseline.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
+        sum(1) / count(distinct(res_n250_15min_v19_baseline.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
+        res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__baseline,
+        sum((coalesce(ts_b.fuel_use__electricity__total__kwh, 0) - coalesce(CASE WHEN (ts_u.building_id IS NULL) THEN
+        ts_b.fuel_use__electricity__total__kwh ELSE ts_u.fuel_use__electricity__total__kwh END, 0)) *
+        res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__savings,
+        res_n250_15min_v19_baseline."build_existing_model.geometry_building_type_recs" AS geometry_building_type_recs
+        FROM (SELECT res_n250_15min_v19_timeseries.building_id AS building_id, res_n250_15min_v19_timeseries.time AS time,
+        res_n250_15min_v19_timeseries.fuel_use__electricity__total__kwh AS fuel_use__electricity__total__kwh
+        FROM res_n250_15min_v19_timeseries
+        WHERE res_n250_15min_v19_timeseries.upgrade = '0') AS ts_b LEFT OUTER JOIN (SELECT res_n250_15min_v19_timeseries.building_id AS building_id,
+        res_n250_15min_v19_timeseries.time AS time, res_n250_15min_v19_timeseries.fuel_use__electricity__total__kwh AS fuel_use__electricity__total__kwh
+        FROM res_n250_15min_v19_timeseries
+        WHERE res_n250_15min_v19_timeseries.upgrade = '1') AS ts_u ON ts_b.building_id = ts_u.building_id AND ts_b.time = ts_u.time JOIN
+        res_n250_15min_v19_baseline ON ts_b.building_id = res_n250_15min_v19_baseline.building_id GROUP BY 7, 1 ORDER BY 7, 1
+        """   # noqa: E501
+        assert_query_equal(annual_savings_query, expected_query)
+
+        my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+        annual_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
+                                                               timestamp_grouping_func='hour', get_query_only=True,
+                                                               annual_only=False,
+                                                               sort=True)
+        expected_query = """
+        SELECT date_trunc('hour', ts_b.time) AS time,
+        count(distinct(res_n250_15min_v19_baseline.building_id)) AS sample_count,
+        (count(distinct(res_n250_15min_v19_baseline.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
+        sum(1) / count(distinct(res_n250_15min_v19_baseline.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
+        res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__baseline,
+        sum((coalesce(ts_b.fuel_use__electricity__total__kwh, 0) - coalesce(CASE WHEN (ts_u.building_id IS NULL) THEN
+        ts_b.fuel_use__electricity__total__kwh ELSE ts_u.fuel_use__electricity__total__kwh END, 0)) *
+        res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__savings,
+        res_n250_15min_v19_baseline."build_existing_model.geometry_building_type_recs" AS geometry_building_type_recs
+        FROM (SELECT res_n250_15min_v19_timeseries.building_id AS building_id, res_n250_15min_v19_timeseries.time AS time,
+        res_n250_15min_v19_timeseries.fuel_use__electricity__total__kwh AS fuel_use__electricity__total__kwh
+        FROM res_n250_15min_v19_timeseries
+        WHERE res_n250_15min_v19_timeseries.upgrade = '0') AS ts_b LEFT OUTER JOIN (SELECT res_n250_15min_v19_timeseries.building_id AS building_id,
+        res_n250_15min_v19_timeseries.time AS time, res_n250_15min_v19_timeseries.fuel_use__electricity__total__kwh AS fuel_use__electricity__total__kwh
+        FROM res_n250_15min_v19_timeseries
+        WHERE res_n250_15min_v19_timeseries.upgrade = '1') AS ts_u ON ts_b.building_id = ts_u.building_id AND ts_b.time = ts_u.time JOIN
+        res_n250_15min_v19_baseline ON ts_b.building_id = res_n250_15min_v19_baseline.building_id GROUP BY 7, 1 ORDER BY 7, 1
+        """   # noqa: E501
+        assert_query_equal(annual_savings_query, expected_query)
