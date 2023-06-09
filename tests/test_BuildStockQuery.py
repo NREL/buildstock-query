@@ -444,6 +444,7 @@ def test_batch_query(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True
     )
+    my_athena._log_execution_cost = MagicMock()
     my_athena._async_conn.cursor = MagicMock(return_value=fake_async_cursor)
 
     queries = ["select * from mocked_query1, 12.1", "select 2 from mocked_query2, 13.2"]
