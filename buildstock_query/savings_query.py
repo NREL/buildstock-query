@@ -90,6 +90,10 @@ class BuildStockSavings:
         [self._bsq.get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
 
         upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
+        if params.timestamp_grouping_func and \
+                params.timestamp_grouping_func not in ['hour', 'day', 'month']:
+            raise ValueError("timestamp_grouping_func must be one of ['hour', 'day', 'month']")
+
         enduse_cols = self._bsq._get_enduse_cols(
             params.enduses, table="baseline" if params.annual_only else "timeseries")
         partition_by = self._validate_partition_by(params.partition_by)
@@ -135,22 +139,38 @@ class BuildStockSavings:
         if params.annual_only:  # Use annual tables
             grouping_metrics_selection = [safunc.sum(1).label(
                 "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
-            query_cols = grouping_metrics_selection + query_cols
         elif params.collapse_ts:  # Use timeseries tables but collapse timeseries
             rows_per_building = self._bsq._get_rows_per_building()
             grouping_metrics_selection = [(safunc.sum(1) / rows_per_building).label(
                 "sample_count"), safunc.sum(total_weight / rows_per_building).label("units_count")]
-            query_cols = grouping_metrics_selection + query_cols
-        else:  # Use timeseries table and return timeseries results
-            grouping_metrics_selection = [safunc.sum(1).label(
-                "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
-            query_cols = grouping_metrics_selection + query_cols
+        elif params.timestamp_grouping_func:
+            colname = self._bsq.timestamp_column_name
+            # sa.func.dis
+            grouping_metrics_selection = [safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column)).
+                                          label("sample_count"),
+                                          (safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column)) *
+                                           safunc.sum(total_weight) / safunc.sum(1)).label("units_count"),
+                                          (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))).
+                                          label("rows_per_sample"), ]
+            _, _, start_offset = self._bsq._get_simulation_info()
+            time_col = ts_b.c[self._bsq.timestamp_column_name]
+            if start_offset > 0:
+                # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
+                new_col = sa.func.date_trunc(params.timestamp_grouping_func,
+                                             sa.func.date_add('second',
+                                                              -start_offset, time_col)).label(colname)
+            else:
+                new_col = sa.func.date_trunc(params.timestamp_grouping_func, time_col).label(colname)
+            grouping_metrics_selection.insert(0, new_col)
+            group_by_selection.append(new_col)
+        else:
             time_col = ts_b.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
-            query_cols.insert(0, time_col)
+            grouping_metrics_selection = [time_col] + [safunc.sum(1).label(
+                "sample_count"), safunc.sum(1 * total_weight).label("units_count")]
             group_by_selection.append(time_col)
 
+        query_cols = grouping_metrics_selection + query_cols
         query = sa.select(query_cols).select_from(tbljoin)
-
         query = self._bsq._add_join(query, params.join_list)
         query = self._bsq._add_restrict(query, params.restrict)
         if params.annual_only:

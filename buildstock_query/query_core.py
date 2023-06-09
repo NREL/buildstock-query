@@ -5,7 +5,6 @@ from pyathena.connection import Connection
 from pyathena.error import OperationalError
 from pyathena.sqlalchemy_athena import AthenaDialect
 import sqlalchemy as sa
-import dask.dataframe as dd
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
@@ -390,11 +389,11 @@ class QueryCore:
         with open(self._execution_history_file, 'a') as f:
             f.write(f'{time.time()},{execution_id}\n')
 
-    def _log_execution_cost(self, execution_id):
-        if not execution_id.startswith('A'):
-            # Can't log cost for Spark query
+    def _log_execution_cost(self, execution_id: ExeId):
+        if execution_id == "CACHED":
+            # Can't log cost for cached query
             return
-        res = self._aws_athena.get_query_execution(QueryExecutionId=execution_id[1:])
+        res = self._aws_athena.get_query_execution(QueryExecutionId=execution_id)
         scanned_GB = res['QueryExecution']['Statistics']['DataScannedInBytes'] / 1e9
         cost = scanned_GB * 5 / 1e3  # 5$ per TB scanned
         if execution_id not in self.seen_execution_ids:
@@ -402,7 +401,7 @@ class QueryCore:
             self.execution_cost['GB'] += scanned_GB
             self.seen_execution_ids.add(execution_id)
 
-        logger.info(f"{execution_id} cost {scanned_GB:.1f}GB (${cost:.1f}). Session total:"
+        logger.info(f"{execution_id} cost {scanned_GB:.1f} GB (${cost:.1f}). Session total:"
                     f" {self.execution_cost['GB']:.1f} GB (${self.execution_cost['Dollars']:.1f})")
 
     def _compile(self, query) -> str:
@@ -678,6 +677,7 @@ class QueryCore:
                 else:
                     df['query_id'] = index
             logger.info(f"Got result from Query [{index}] ({exe_id})")
+            self._log_execution_cost(exe_id)
             res_df_array.append(df)
         if not combine:
             return res_df_array
@@ -790,7 +790,10 @@ class QueryCore:
         query_status = self.get_query_status(query_execution_id)
         if query_status == 'SUCCEEDED':
             path = self.get_query_output_location(query_execution_id)
-            df = dd.read_csv(path).compute()  # type: ignore
+            bucket = path.split('/')[2]
+            key = '/'.join(path.split('/')[3:])
+            response = self._aws_s3.get_object(Bucket=bucket, Key=key)
+            df = pd.read_csv(response['Body'])
             return df
         # If failed, return error message
         elif query_status == 'FAILED':

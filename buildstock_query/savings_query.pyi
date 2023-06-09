@@ -51,6 +51,7 @@ class BuildStockSavings:
         unload_to: str = '',
         partition_by: Optional[Sequence[str]] = None,
         collapse_ts: bool = False,
+        timestamp_grouping_func: Optional[str] = None,
     ) -> str:
         ...
 
@@ -72,6 +73,7 @@ class BuildStockSavings:
         unload_to: str = '',
         partition_by: Optional[Sequence[str]] = None,
         collapse_ts: bool = False,
+        timestamp_grouping_func: Optional[str] = None,
     ) -> pd.DataFrame:
         ...
 
@@ -93,6 +95,7 @@ class BuildStockSavings:
         unload_to: str = '',
         partition_by: Optional[Sequence[str]] = None,
         collapse_ts: bool = False,
+        timestamp_grouping_func: Optional[str] = None,
     ) -> Union[str, pd.DataFrame]:
         """Calculate savings shape for an upgrade
         Args:
@@ -125,6 +128,8 @@ class BuildStockSavings:
             partition_by: List of columns to partition when writing to s3. To be used with unload_to.
             collapse_ts: Only used when annual_only=False. When collapse_ts=True, the timeseries values are summed into
                          a single annual value. Useful for quality checking and comparing with annual values.
+            timestamp_grouping_func: One of 'hour', 'day' or 'month' or None. If provided, perform timeseries
+                        aggregation of specified granularity.
          Returns:
                 if get_query_only is True, returns the query_string, otherwise returns a pandas dataframe
         """
