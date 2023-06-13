@@ -204,7 +204,7 @@ class UpgradesAnalyzer:
         return logic_array
 
     def get_report(self, upgrade_num: Optional[int] = None) -> pd.DataFrame:
-        """Analyses which how many buildings various options in all the upgrades is going to apply to and returns
+        """Analyses how many buildings various options in all the upgrades is going to apply to and returns
         a report in DataFrame format.
         Args:
             upgrade_num: Numeric index of upgrade (1-indexed). If None, all upgrades are assessed
@@ -345,6 +345,14 @@ class UpgradesAnalyzer:
             return logic
 
     def _get_options_combination_report(self, logic_dict, comb_type="and"):
+        """
+        For a given logic dictionary, this method will return a report of all possible combinations of options.
+        Example report below:
+        Option 1 and Option 2: 2 (66.7%)
+        Option 1 and Option 3: 2 (66.7%)
+        Option 2 and Option 3: 1 (33.3%)
+        Option 1 and Option 2 and Option 3: 1 (33.3%)
+        """
         report_str = ""
         n_options = len(logic_dict)
         assert comb_type in ["and", "or"]
@@ -371,6 +379,40 @@ class UpgradesAnalyzer:
                 report_str += f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)" + "\n"
         report_str += "-" * len(header) + "\n"
         return report_str
+
+    def _get_options_application_count_report(self, logic_dict) -> Optional[pd.DataFrame]:
+        """
+        For a given logic dictionary, this method will return a report of count of options for number of buildings .
+        Example report below:
+        1 options: 2 (20%), 
+        Option 1 and Option 3: 2 (66.7%)
+        Option 2 and Option 3: 1 (33.3%)
+        Option 1 and Option 2 and Option 3: 1 (33.3%)
+        """
+
+        n_options = len(logic_dict)
+        if n_options < 2:
+            return None
+
+        logic_df = pd.DataFrame(logic_dict)
+        nbldgs = len(logic_df)
+        options_application_counts = logic_df.sum(axis=1).value_counts()
+        cum_count = 0
+        application_report_rows = []
+        for n_applied_options in range(1, n_options + 1):
+            n_applied_bldgs = options_application_counts.get(n_applied_options, 0)
+            if n_applied_bldgs == 0:
+                continue
+            cum_count += n_applied_bldgs
+            record = {"Number of options": n_applied_options,
+                      "Buildings applied": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
+                      "Cumulative": f"{cum_count} ({self._to_pct(cum_count, nbldgs)}%)"}
+            application_report_rows.append(record)
+            if cum_count >= nbldgs:
+                break
+        assert cum_count <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
+        application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
+        return application_report_df
 
     def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
@@ -438,8 +480,7 @@ class UpgradesAnalyzer:
         for option_indx in range(n_options):
             logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1)
             report_str += sub_report_str + "\n"
-            if n_options <= MAX_COMBINATION_REPORT_COUNT:
-                conds_dict[option_indx] = logic_array
+            conds_dict[option_indx] = logic_array
             or_array |= logic_array
             and_array &= logic_array
         and_count = and_array.sum()
@@ -456,6 +497,11 @@ class UpgradesAnalyzer:
             report_str += "-" * len(text) + "\n"
         report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
+        app_report_df = self._get_options_application_count_report(conds_dict)
+        if app_report_df is not None:
+            report_str += "-" * 80 + "\n"
+            report_str += f"Report of how many of the {n_options} options were applied to how many buildings." + "\n"
+            report_str += "\n" + app_report_df.to_string() + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -466,7 +512,7 @@ class UpgradesAnalyzer:
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         logic_str = [""]
         if parent not in [None, "and", "or", "not"]:
-            raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
+            raise ValueError(f"Logic can only include and, or, not blocks. {parent} found in {logic}.")
         if isinstance(logic, str):
             logic_condition = UpgradesAnalyzer._get_eq_str(logic)
             logic_array = self.buildstock_df.eval(logic_condition, engine="python")

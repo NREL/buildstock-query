@@ -146,7 +146,7 @@ class TestUpgradesAnalyzer:
             0: np.array([True, True, True]),
             1: np.array([True, False, True]),
             2: np.array([True, True, False]),
-        }
+        }  # {"opt_index": logic_array_of_applicable_buildings}
         report_text = ua._get_options_combination_report(logic_dict, comb_type="and")
         assert "Option 1 and Option 2: 2 (66.7%)" in report_text
         assert "Option 1 and Option 3: 2 (66.7%)" in report_text
@@ -158,6 +158,20 @@ class TestUpgradesAnalyzer:
         assert "Option 1 or Option 3: 3 (100.0%)" in report_text
         assert "Option 2 or Option 3: 3 (100.0%)" in report_text
         assert "Option 1 or Option 2 or Option 3: 3 (100.0%)" in report_text
+
+    def test_print_options_application_report(self, ua: UpgradesAnalyzer, capsys):
+        logic_dict = {
+            0: np.array([True, True, True]),
+            1: np.array([True, False, True]),
+            2: np.array([True, True, False]),
+            3: np.array([False, False, True]),
+        }  # {"opt_index": logic_array_of_applicable_buildings}
+        report_df = ua._get_options_application_count_report(logic_dict)
+        assert len(report_df) == 2
+        assert report_df.loc[2]['Buildings applied'] == '1 (33.3%)'
+        assert report_df.loc[2]['Cumulative'] == '1 (33.3%)'
+        assert report_df.loc[3]['Buildings applied'] == '2 (66.7%)'
+        assert report_df.loc[3]['Cumulative'] == '3 (100.0%)'
 
     def test_get_report(self, ua: UpgradesAnalyzer):
         cfg = ua.get_cfg()
