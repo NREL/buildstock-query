@@ -382,12 +382,12 @@ class UpgradesAnalyzer:
 
     def _get_options_application_count_report(self, logic_dict) -> Optional[pd.DataFrame]:
         """
-        For a given logic dictionary, this method will return a report of count of options for number of buildings .
+        For a given logic dictionary, this method will return a report df of options application.
         Example report below:
-        1 options: 2 (20%), 
-        Option 1 and Option 3: 2 (66.7%)
-        Option 2 and Option 3: 1 (33.3%)
-        Option 1 and Option 2 and Option 3: 1 (33.3%)
+                          Buildings applied   Cumulative
+        Number of options
+        3                       2765 (2.8%)  2765 (2.8%)
+        5                        263 (0.3%)  3028 (3.0%)
         """
 
         n_options = len(logic_dict)
