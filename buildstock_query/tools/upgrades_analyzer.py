@@ -9,6 +9,7 @@ from InquirerPy import inquirer
 from InquirerPy.validator import PathValidator
 import os
 from typing import Optional
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -344,50 +345,20 @@ class UpgradesAnalyzer:
         else:
             return logic
 
-    def _get_options_combination_report(self, logic_dict, comb_type="and"):
-        """
-        For a given logic dictionary, this method will return a report of all possible combinations of options.
-        Example report below:
-        Option 1 and Option 2: 2 (66.7%)
-        Option 1 and Option 3: 2 (66.7%)
-        Option 2 and Option 3: 1 (33.3%)
-        Option 1 and Option 2 and Option 3: 1 (33.3%)
-        """
-        report_str = ""
-        n_options = len(logic_dict)
-        assert comb_type in ["and", "or"]
-        if n_options < 2:
-            return ""
-        header = f"Options '{comb_type}' combination report"
-        report_str += "-" * len(header) + "\n"
-        report_str += header + "\n"
-        for combination_size in range(2, n_options + 1):
-            report_str += "-" * len(header) + "\n"
-            for group in combinations(list(range(n_options)), combination_size):
-                if comb_type == "and":
-                    combined_logic = reduce(
-                        lambda c1, c2: c1 & c2,
-                        [logic_dict[opt_indx] for opt_indx in group],
-                    )
-                else:
-                    combined_logic = reduce(
-                        lambda c1, c2: c1 | c2,
-                        [logic_dict[opt_indx] for opt_indx in group],
-                    )
-                count = combined_logic.sum()
-                text = f" {comb_type} ".join([f"Option {opt_indx + 1}" for opt_indx in group])
-                report_str += f"{text}: {count} ({self._to_pct(count, len(combined_logic))}%)" + "\n"
-        report_str += "-" * len(header) + "\n"
-        return report_str
-
     def _get_options_application_count_report(self, logic_dict) -> Optional[pd.DataFrame]:
         """
         For a given logic dictionary, this method will return a report df of options application.
         Example report below:
-                          Buildings applied   Cumulative
+                           Applied options Applied buildings Cumulative sub Cumulative all
         Number of options
-        3                       2765 (2.8%)  2765 (2.8%)
-        5                        263 (0.3%)  3028 (3.0%)
+        4                    1, 10, 13, 14         75 (0.1%)      75 (0.1%)      75 (0.1%)
+        4                    1, 11, 13, 14       2279 (2.3%)    2354 (2.4%)    2354 (2.4%)
+        4                    1, 12, 13, 14        309 (0.3%)    2663 (2.7%)    2663 (2.7%)
+        5                  1, 2, 3, 13, 14          8 (0.0%)       8 (0.0%)    2671 (2.7%)
+        5                  1, 2, 4, 13, 14        158 (0.2%)     166 (0.2%)    2829 (2.8%)
+        5                  1, 2, 5, 13, 14         65 (0.1%)     231 (0.2%)    2894 (2.9%)
+        5                  1, 6, 7, 13, 14         23 (0.0%)     254 (0.3%)    2917 (2.9%)
+        5                  1, 6, 8, 13, 14         42 (0.0%)     296 (0.3%)    2959 (3.0%)
         """
 
         n_options = len(logic_dict)
@@ -396,21 +367,27 @@ class UpgradesAnalyzer:
 
         logic_df = pd.DataFrame(logic_dict)
         nbldgs = len(logic_df)
-        options_application_counts = logic_df.sum(axis=1).value_counts()
-        cum_count = 0
+        opts2count = logic_df.apply(lambda row: tuple(indx+1 for indx, val in enumerate(row) if val),
+                                    axis=1).value_counts().to_dict()
+        cum_count_all = 0
+        cum_count = defaultdict(int)
         application_report_rows = []
-        for n_applied_options in range(1, n_options + 1):
-            n_applied_bldgs = options_application_counts.get(n_applied_options, 0)
-            if n_applied_bldgs == 0:
+        for applied_opts in sorted(opts2count.keys(), key=lambda x: (len(x), x)):
+            num_opt = len(applied_opts)
+            if num_opt == 0:
                 continue
-            cum_count += n_applied_bldgs
-            record = {"Number of options": n_applied_options,
-                      "Buildings applied": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
-                      "Cumulative": f"{cum_count} ({self._to_pct(cum_count, nbldgs)}%)"}
+            n_applied_bldgs = opts2count[applied_opts]
+            cum_count_all += n_applied_bldgs
+            cum_count[num_opt] += n_applied_bldgs
+            record = {"Number of options": num_opt,
+                      "Applied options": ", ".join([f"{opt}" for opt in applied_opts]),
+                      "Applied buildings": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
+                      "Cumulative sub": f"{cum_count[num_opt]} ({self._to_pct(cum_count[num_opt], nbldgs)}%)",
+                      "Cumulative all": f"{cum_count_all} ({self._to_pct(cum_count_all, nbldgs)}%)"
+                      }
             application_report_rows.append(record)
-            if cum_count >= nbldgs:
-                break
-        assert cum_count <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
+
+        assert cum_count_all <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
         application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
         return application_report_df
 
@@ -485,22 +462,12 @@ class UpgradesAnalyzer:
             and_array &= logic_array
         and_count = and_array.sum()
         or_count = or_array.sum()
-        if n_options <= MAX_COMBINATION_REPORT_COUNT:
-            report_str += self._get_options_combination_report(conds_dict, "and") + "\n"
-            report_str += self._get_options_combination_report(conds_dict, "or") + "\n"
-        else:
-            text = (
-                f"Combination report not printed because {n_options} options would require "
-                f"{2**n_options - n_options - 1} rows."
-            )
-            report_str += text + "\n"
-            report_str += "-" * len(text) + "\n"
         report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
         app_report_df = self._get_options_application_count_report(conds_dict)
         if app_report_df is not None:
             report_str += "-" * 80 + "\n"
-            report_str += f"Report of how many of the {n_options} options were applied to how many buildings." + "\n"
+            report_str += f"Report of how the {n_options} options were applied to buildings." + "\n"
             report_str += "\n" + app_report_df.to_string() + "\n"
         return or_array, report_str
 
