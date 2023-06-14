@@ -467,7 +467,7 @@ class UpgradesAnalyzer:
         app_report_df = self._get_options_application_count_report(conds_dict)
         if app_report_df is not None:
             report_str += "-" * 80 + "\n"
-            report_str += f"Report of how the {n_options} options were applied to buildings." + "\n"
+            report_str += f"Report of how the {n_options} options were applied to the buildings." + "\n"
             report_str += "\n" + app_report_df.to_string() + "\n"
         return or_array, report_str
 
