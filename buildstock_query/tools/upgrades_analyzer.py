@@ -10,6 +10,7 @@ from InquirerPy.validator import PathValidator
 import os
 from typing import Optional
 from collections import defaultdict
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -554,9 +555,9 @@ def main():
     ).execute()
     ua = UpgradesAnalyzer(yaml_file, buildstock_file)
     report_df = ua.get_report()
-    folder_path = os.getcwd()
-    csv_name = f"{folder_path}/{output_prefix}options_report.csv"
-    txt_name = f"{folder_path}/{output_prefix}detailed_report.txt"
+    folder_path = Path.cwd()
+    csv_name = folder_path / f"{output_prefix}options_report.csv"
+    txt_name = folder_path / f"{output_prefix}detailed_report.txt"
     report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name)
     ua.save_detailed_report_all(txt_name)
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
