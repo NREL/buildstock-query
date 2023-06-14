@@ -141,23 +141,23 @@ class TestUpgradesAnalyzer:
         expected_logic = logic.copy()
         assert flatened_logic == expected_logic
 
-    def test_print_options_combination_report(self, ua, capsys):
+    def test_print_options_application_report(self, ua: UpgradesAnalyzer, capsys):
         logic_dict = {
             0: np.array([True, True, True]),
             1: np.array([True, False, True]),
             2: np.array([True, True, False]),
-        }
-        report_text = ua._get_options_combination_report(logic_dict, comb_type="and")
-        assert "Option 1 and Option 2: 2 (66.7%)" in report_text
-        assert "Option 1 and Option 3: 2 (66.7%)" in report_text
-        assert "Option 2 and Option 3: 1 (33.3%)" in report_text
-        assert "Option 1 and Option 2 and Option 3: 1 (33.3%)" in report_text
-
-        report_text = ua._get_options_combination_report(logic_dict, comb_type="or")
-        assert "Option 1 or Option 2: 3 (100.0%)" in report_text
-        assert "Option 1 or Option 3: 3 (100.0%)" in report_text
-        assert "Option 2 or Option 3: 3 (100.0%)" in report_text
-        assert "Option 1 or Option 2 or Option 3: 3 (100.0%)" in report_text
+            3: np.array([False, False, True]),
+        }  # {"opt_index": logic_array_of_applicable_buildings}
+        report_df = ua._get_options_application_count_report(logic_dict)
+        assert len(report_df) == 3
+        assert report_df.loc[2]['Applied buildings'] == '1 (33.3%)'
+        assert report_df.loc[2]['Cumulative all'] == '1 (33.3%)'
+        assert report_df.loc[3]['Applied options'].iloc[0] == "1, 2, 3"
+        assert report_df.loc[3]['Applied options'].iloc[1] == "1, 2, 4"
+        assert report_df.loc[3]['Applied buildings'].iloc[0] == "1 (33.3%)"
+        assert report_df.loc[3]['Applied buildings'].iloc[1] == "1 (33.3%)"
+        assert report_df.loc[3]['Cumulative all'].iloc[0] == "2 (66.7%)"
+        assert report_df.loc[3]['Cumulative all'].iloc[1] == "3 (100.0%)"
 
     def test_get_report(self, ua: UpgradesAnalyzer):
         cfg = ua.get_cfg()
