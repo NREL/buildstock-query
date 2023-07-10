@@ -1,5 +1,5 @@
 schema_version: '0.3'
-buildstock_directory: /Users/radhikar/Documents/resstock/OpenStudio-BuildStock # Relative to this file or absolute
+buildstock_directory: ../resstock/ # Relative to this file or absolute
 project_directory: project_national  # Relative to buildstock_directory
 output_directory: /projects/enduse/euss/resstock_runs/res_test_02_2018_10k_20220520
 # weather_files_url: https://s3.amazonaws.com/epwweatherfiles/project_resstock_national.zip
@@ -90,7 +90,7 @@ postprocessing:
       prefix: tests #the folder within whatever bucket, should be specific to the run, can be in heirarchy (like GMLC/APS) in which case only the last part will be used by the athena database namer
     athena:
       glue_service_role: service-role/AWSGlueServiceRole-default
-      database_name: euss-tests #collection of Athena tables (post-crawling), can be constant for the entire analysis
+      database_name: euss_tests #collection of Athena tables (post-crawling), can be constant for the entire analysis
       max_crawling_time: 1200 #time to wait for the crawler to complete before aborting it
 
 upgrades:

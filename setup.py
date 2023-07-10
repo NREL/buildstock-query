@@ -20,7 +20,8 @@ setup(
         "inquirerpy >= 0.3.4",
         "types-PyYAML >= 6.0.12.2",
         "pydantic",
-        "PyYAML"
+        "PyYAML",
+        "tabulate"
     ],
 
     extras_require={
@@ -41,7 +42,6 @@ setup(
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
                  "dash >= 2.6.2",
-                 "tabulate"
                  ]
 
     },
