@@ -570,7 +570,7 @@ class UpgradesAnalyzer:
         if detailed_app_report_df is not None:
             report_str += "-" * 80 + "\n"
             if len(detailed_app_report_df) > 100:
-                report_str += f"Detailed report is skipped because of too many rows. " + "\n"
+                report_str += "Detailed report is skipped because of too many rows. " + "\n"
                 report_str += "Ask the developer if this is useful to see" + "\n"
             else:
                 report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"

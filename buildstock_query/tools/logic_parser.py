@@ -75,7 +75,8 @@ class LogicParser:
                 for opt1, opt2 in it.combinations(opt2logic.keys(), 2):
                     overlap = self.get_overlapping_selections(opt2logic[opt1], opt2logic[opt2])
                     if overlap:
-                        overlap_report += f"Upgrade {upgrade_num} ({upgrade_name}), has overlapping selections for {opt1} and {opt2}:\n"
+                        overlap_report += f"Upgrade {upgrade_num} ({upgrade_name}),\
+                                            has overlapping selections for {opt1} and {opt2}:\n"
                         overlap_report += json.dumps(overlap, indent=2) + "\n"
         return overlap_report
 
@@ -239,17 +240,17 @@ class LogicParser:
             val = logic[key]
             val = [val] if not isinstance(val, list) else val
             if key == 'and':
-                and_result = list(reduce(self.and_, (self.prase_logic(l) for l in val)))
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
                 return self.clean_selections(and_result)
             elif key == 'or':
-                or_result = list(reduce(self.or_, (self.prase_logic(l) for l in val)))
+                or_result = list(reduce(self.or_, (self.prase_logic(block) for block in val)))
                 return self.clean_selections(or_result)
             elif key == 'not':
-                and_result = list(reduce(self.and_, (self.prase_logic(l) for l in val)))
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
                 not_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in and_result]))
                 return self.clean_selections(not_val)
         elif isinstance(logic, list):
-            list_val = list(reduce(self.and_, (self.prase_logic(l) for l in logic)))
+            list_val = list(reduce(self.and_, (self.prase_logic(block) for block in logic)))
             return self.clean_selections(list_val)
         elif isinstance(logic, str):
             para, option = self._get_para_option(logic)

@@ -162,14 +162,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
             grouped_df = res_df.groupby(group_cols, sort=False)
             df_generator = ((', '.join(indx) if isinstance(indx, tuple) else indx, df) for (indx, df) in grouped_df)
-            df_type = "groups"
         else:
-            df_type = "upgrades"
             df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, applied_only)) for upgrade in [report_upgrade])
 
         for indx, res_df in df_generator:
             if change_type:
-                #  upgrade = indx if df_type == "upgrades" else report_upgrade
                 chng_upgrade = int(sync_upgrade) if sync_upgrade else int(report_upgrade) if report_upgrade else 0
                 if chng_upgrade and chng_upgrade > 0:
                     change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
@@ -230,10 +227,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                                              <br>Building: {bid}<br>Sample Count: {len(base_df)}')
         if group_cols:
             if len(group_cols) == 1:
-                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals", facet_col=group_cols[0])
+                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
+                                 facet_col=group_cols[0])
             elif len(group_cols) > 1:
-                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals", facet_col=group_cols[0],
-                                 facet_row=group_cols[1])
+                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
+                                 facet_col=group_cols[0], facet_row=group_cols[1])
             fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
         else:
             fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals")
@@ -458,7 +456,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                               options={}))
                          ],
                         className="flex items-center"),
-                dbc.Row([dbc.Col(html.Div("Select:"), style={"padding-left": "12px", "padding-right": "0px"},  width='auto'),
+                dbc.Row([dbc.Col(html.Div("Select:"), style={"padding-left": "12px", "padding-right": "0px"},
+                                 width='auto'),
                          dbc.Col(dcc.Dropdown(id='input_building'), width=1),
                          dbc.Col(html.Div("("), width='auto',
                                  style={"padding-left": "0px", "padding-right": "0px"}),
@@ -1114,7 +1113,8 @@ def main():
                             default='largeee_test_runs').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file)",
-                               default='medium_run_baseline_20230622_baseline,medium_run_category_1_20230622_timeseries,medium_run_category_1_20230622_upgrades').execute()
+                               default='medium_run_baseline_20230622_baseline,medium_run_category_1_20230622_timeseries,\
+                                        medium_run_category_1_20230622_upgrades').execute()
 
     if ',' in table_name:
         table_name = table_name.split(',')
