@@ -41,6 +41,7 @@ setup(
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
                  "dash >= 2.6.2",
+                 "tabulate"
                  ]
 
     },

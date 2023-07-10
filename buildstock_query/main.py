@@ -105,19 +105,20 @@ class BuildStockQuery(QueryCore):
         return buildstock_df
 
     @validate_arguments
-    def get_upgrades_analyzer(self, yaml_file: str) -> UpgradesAnalyzer:
+    def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -> UpgradesAnalyzer:
         """
             Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
 
         Args:
             yaml_file (str): The path to the buildstock configuration file.
+            opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
 
         Returns:
             UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
         """
 
         buildstock_df = self.get_buildstock_df()
-        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
         return ua
 
     @typing.overload
@@ -286,7 +287,7 @@ class BuildStockQuery(QueryCore):
         if upgrade_id:
             if self.up_table is None:
                 raise ValueError("This run has no upgrades")
-            query = query.where(self.up_table.c['upgrade'] == upgrade_id)
+            query = query.where(self.up_table.c['upgrade'] == str(upgrade_id))
 
         query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)

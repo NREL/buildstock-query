@@ -91,10 +91,10 @@ class BuildStockReport:
         return change_df.fillna(0)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def print_change_details(self, upgrade_id: int, yml_file: str,
+    def print_change_details(self, upgrade_id: int, yml_file: str, opt_sat_path: str,
                              change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
                                                   "true-ok-chng", "null", "any"] = 'no-chng'):
-        ua = self._bsq.get_upgrades_analyzer(yml_file)
+        ua = self._bsq.get_upgrades_analyzer(yml_file, opt_sat_path)
         bad_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type=change_type)
         good_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type='ok-chng')
         ua.print_unique_characteristic(upgrade_id, change_type, good_bids, bad_bids)
@@ -345,7 +345,7 @@ class BuildStockReport:
         return full_df
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_option_integrity_report(self, yaml_file: str) -> pd.DataFrame:
+    def get_option_integrity_report(self, yaml_file: str, opt_sat_path: str) -> pd.DataFrame:
         """Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and tabulates the discrepancy.
         Args:
@@ -354,7 +354,7 @@ class BuildStockReport:
         Returns:
             pd.DataFrame: The report dataframe.
         """
-        ua_df = self._bsq.get_upgrades_analyzer(yaml_file).get_report()
+        ua_df = self._bsq.get_upgrades_analyzer(yaml_file, opt_sat_path).get_report()
         ua_df = ua_df.groupby(['upgrade', 'option']).aggregate({'applicable_to': 'sum',
                                                                 'applicable_buildings': lambda x: reduce(set.union, x)})
         assert (ua_df['applicable_to'] == ua_df['applicable_buildings'].map(lambda x: len(x))).all()
@@ -374,7 +374,7 @@ class BuildStockReport:
         return diff_df
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def check_options_integrity(self, yaml_file: str) -> bool:
+    def check_options_integrity(self, yaml_file: str, opt_sat_path: str) -> bool:
         """ Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and flags any discrepancy. The verificationa allows for some mismatch since some simulations
         could have failed. Unless there is a bug somewhere in buildstock workflow, integrity check should pass
@@ -386,7 +386,7 @@ class BuildStockReport:
         Returns:
             bool: Whether or not the integrity check passed.
         """
-        intg_df = self.get_option_integrity_report(yaml_file).reset_index()
+        intg_df = self.get_option_integrity_report(yaml_file, opt_sat_path).reset_index()
         all_intg_df = intg_df[intg_df['option'] == 'All']
         blank_opt_upgrades = all_intg_df[all_intg_df['applied_buildings_count'] < all_intg_df['Upgrade Success']]
         assert (all_intg_df['applied_buildings_count'] >= all_intg_df['Upgrade Success']).all()
