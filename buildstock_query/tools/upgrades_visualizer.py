@@ -219,7 +219,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             base_df['upgrade_vals'] = base_df['baseline_vals'] - sub_df
         elif savings_type == 'Percent Savings':
             base_df['upgrade_vals'] = 100 * (base_df['baseline_vals'] - sub_df) / base_df['baseline_vals']
-            base_df['upgrade_vals'][(base_df['baseline_vals'] == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
+            # If base is 0, and upgrade is not, assume -100% savings
+            base_df['upgrade_vals'][(base_df['baseline_vals'] == 0)] = -100
             base_df['upgrade_vals'][(sub_df == 0) & (base_df['baseline_vals'] == 0)] = 0
 
         base_df = base_df.reset_index()

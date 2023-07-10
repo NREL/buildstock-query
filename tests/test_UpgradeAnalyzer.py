@@ -1,6 +1,5 @@
 import pathlib
 import numpy as np
-import pandas as pd
 from buildstock_query.tools import UpgradesAnalyzer
 import pytest
 
