@@ -10,8 +10,9 @@ class TestUpgradesAnalyzer:
     def ua(self):
         folder_path = pathlib.Path(__file__).parent.resolve()
         yaml_path = folder_path / "reference_files" / "res_n250_15min_v19.yml"
-        buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
-        ua = UpgradesAnalyzer(yaml_path, str(buildstock_path))
+        self.buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
+        self.opt_sat_path = folder_path / "reference_files" / "options_saturations.csv"
+        ua = UpgradesAnalyzer(str(yaml_path), str(self.buildstock_path), str(self.opt_sat_path))
         return ua
 
     def test_read_cfg(self, ua):
@@ -19,14 +20,6 @@ class TestUpgradesAnalyzer:
         assert isinstance(cfg, dict)
         assert "upgrades" in cfg
         assert "postprocessing" in cfg
-
-    def test_custom_buildstock(self):
-        folder_path = pathlib.Path(__file__).parent.resolve()
-        yaml_path = folder_path / "reference_files" / "res_n250_15min_v19.yml"
-        buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
-        bdf = pd.read_csv(buildstock_path)
-        ua = UpgradesAnalyzer(yaml_path, bdf)
-        ua.get_detailed_report(2)
 
     @pytest.mark.parametrize("test_case", [0, 1])
     def test_get_para_option(self, test_case):
@@ -143,10 +136,10 @@ class TestUpgradesAnalyzer:
 
     def test_print_options_application_report(self, ua: UpgradesAnalyzer, capsys):
         logic_dict = {
-            0: np.array([True, True, True]),
-            1: np.array([True, False, True]),
-            2: np.array([True, True, False]),
-            3: np.array([False, False, True]),
+            1: np.array([True, True, True]),
+            2: np.array([True, False, True]),
+            3: np.array([True, True, False]),
+            4: np.array([False, False, True]),
         }  # {"opt_index": logic_array_of_applicable_buildings}
         report_df = ua._get_options_application_count_report(logic_dict)
         assert len(report_df) == 3

@@ -548,7 +548,7 @@ class UpgradesAnalyzer:
                                                                    normalize_logic=normalize_logic)
             opt_name, _ = self._get_para_option(cfg["upgrades"][upgrade_num - 1]["options"][option_indx]["option"])
             report_str += sub_report_str + "\n"
-            conds_dict[option_indx] = logic_array
+            conds_dict[option_indx + 1] = logic_array
             if opt_name not in grouped_conds_dict:
                 grouped_conds_dict[opt_name] = logic_array
             else:
