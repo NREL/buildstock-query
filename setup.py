@@ -38,7 +38,7 @@ setup(
                 "dash >= 2.6.2"],
         'full': ["dash-bootstrap-components >= 1.2.1",
                  "dash-extensions >= 0.1.6",
-                 "dash-mantine-components >= 0.10.2",
+                 "dash-mantine-components == 0.10.2",
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
                  "dash >= 2.6.2",

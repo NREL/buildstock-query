@@ -399,6 +399,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution", "Scatter"], "Mean",
                                         id="radio_graph_type",
+                                        inline=True,
                                         labelClassName="pr-2"), width='auto'),
                 #  dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
                  #                                               inline=True, id='check_all_points')
@@ -408,7 +409,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                                  inline=True, id='check_all_points')
                                    ],),
                  dbc.Col(dbc.Label("Value Type: "), width='auto'),
-                 dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",
+                 dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",  inline=True,
                                         id='radio_savings', labelClassName="pr-2"), width='auto'),
                  dbc.Col(dcc.Checklist(options=['Applied Only'], value=[],
                                        inline=True, id='chk_applied_only'), width='auto')
@@ -422,7 +423,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         dbc.Row([dbc.Col(
             dcc.Tabs(id='tab_view_type', value='energy', children=[
                 dcc.Tab(id='energy_tab', label='Energy', value='energy', children=[
-                    dcc.RadioItems(fuels_types + ['All'], "electricity", id='radio_fuel',
+                    dcc.RadioItems(fuels_types + ['All'], "electricity", id='radio_fuel',  inline=True,
                                    labelClassName="pr-2")]
                         ),
                 dcc.Tab(label='Water Usage', value='water', children=[]
