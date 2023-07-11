@@ -88,7 +88,11 @@ class BuildStockReport:
             df['upgrade'] = df['upgrade'].map(int)
             df = df.set_index('upgrade').sort_index()
             change_df = change_df.join(df, how='outer') if len(change_df) > 0 else df
-        return change_df.fillna(0)
+        change_df = change_df.fillna(0)
+        for chng_type in chng_types:
+            if chng_type not in change_df.columns:
+                change_df[chng_type] = 0
+        return change_df
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def print_change_details(self, upgrade_id: int, yml_file: str, opt_sat_path: str,
