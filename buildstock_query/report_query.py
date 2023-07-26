@@ -643,13 +643,13 @@ class BuildStockReport:
         Returns:
             list[set|dict]: List of options (along with baseline chars, if include_base_opt is true)
         """
-        up_csv = self._bsq.get_upgrades_csv(upgrade_id=upgrade_id)
+        up_csv = self._bsq.get_upgrades_csv_full(upgrade_id=int(upgrade_id))
         rel_up_csv = up_csv.loc[bldg_ids]
         upgrade_cols = [key for key in up_csv.columns
                         if key.startswith("upgrade_costs.option_") and key.endswith("_name")]
 
         if include_base_opt:
-            base_csv = self._bsq.get_results_csv()
+            base_csv = self._bsq.get_results_csv_full()
             rel_base_csv = base_csv.loc[bldg_ids]
             rel_base_csv = rel_base_csv.rename(columns=lambda c: c.split('.')[1] if '.' in c else c)
             char_df = rel_up_csv[upgrade_cols].fillna('').agg(
@@ -685,8 +685,8 @@ class BuildStockReport:
         Returns:
             dict[str, pd.Index]: Dict mapping enduses that had a given change and building ids showing that change.
         """
-        up_csv = self._bsq.get_upgrades_csv(upgrade_id=str(upgrade_id))
-        bs_csv = self._bsq.get_results_csv()
+        up_csv = self._bsq.get_upgrades_csv_full(upgrade_id=int(upgrade_id))
+        bs_csv = self._bsq.get_results_csv_full()
         if bldg_list:
             up_csv = up_csv.loc[bldg_list]
             bs_csv = bs_csv.loc[bldg_list]

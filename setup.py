@@ -9,7 +9,7 @@ setup(
     package_dir={"buildstock_query": "buildstock_query"},
     python_requires='>=3.9',
     install_requires=[
-        "pandas >= 1.5.0",
+        "pandas >= 2.0.0",
         "pyarrow >= 9.0.0",
         # "s3fs[boto3] >= 2022.8.2",
         "pyathena == 2.24.0",
@@ -31,7 +31,7 @@ setup(
                 "autopep8 >= 1.7.0",
                 "dash-bootstrap-components >= 1.2.1",
                 "dash-extensions >= 0.1.6",
-                "dash-mantine-components >= 0.10.2",
+                "dash-mantine-components == 0.10.2",
                 "dash-iconify >= 0.1.2",
                 "coverage >= 6.5.0",
                 "plotly >= 5.10.0",

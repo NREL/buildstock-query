@@ -14,6 +14,7 @@ from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
 from buildstock_query.schema.utilities import MappedColumn
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ class BuildStockQuery(QueryCore):
         Returns:
             pd.DataFrame: The buildstock.csv dataframe.
         """
-        results_df = self.get_results_csv()
+        results_df = self.get_results_csv_full()
         results_df = results_df[results_df["completed_status"] == "Success"]
         buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
         buildstock_df = results_df[buildstock_cols]
@@ -246,6 +247,31 @@ class BuildStockQuery(QueryCore):
         result = self.execute(query)
         return result.set_index(self.bs_bldgid_column.name)
 
+    def get_results_csv_full(self) -> pd.DataFrame:
+        """Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+        the stored parquet files in s3 to download the results which is faster than querying athena.
+        Returns:
+            pd.DataFrame: The full results csv.
+        """
+        local_copy_path = f"{self.db_name}_{self.bs_table.name}.parquet"
+        if os.path.exists(local_copy_path):
+            return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
+
+        baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=self.bs_table.name)['Table']['StorageDescriptor']['Location']
+        bucket = baseline_path.split('/')[2]
+        key = '/'.join(baseline_path.split('/')[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if 'Contents' not in s3_data:
+            raise ValueError(f"Results parquet not found in s3 at {baseline_path}")
+        if len(s3_data['Contents']) > 1:
+            raise ValueError(f"Multiple results parquet found in s3 at {baseline_path}")
+
+        baseline_parquet_path = s3_data['Contents'][0]['Key']
+        self._aws_s3.download_file(bucket, baseline_parquet_path, local_copy_path)
+        return self.get_results_csv_full()
+
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
@@ -298,6 +324,47 @@ class BuildStockQuery(QueryCore):
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
+
+    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
+        """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+        athena.
+        """
+        if self.up_table is None:
+            raise ValueError("This run has no upgrades")
+
+        available_upgrades = list(self.get_available_upgrades())
+        available_upgrades.remove('0')
+        if str(upgrade_id) not in available_upgrades:
+            raise ValueError(f"Upgrade {upgrade_id} not found")
+
+        local_copy_path = f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
+        if os.path.exists(local_copy_path):
+            df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
+            df.insert(0, 'upgrade', upgrade_id)
+            return df
+
+        upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=self.up_table.name)['Table']['StorageDescriptor']['Location']
+        bucket = upgrades_path.split('/')[2]
+        key = '/'.join(upgrades_path.split('/')[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if 'Contents' not in s3_data:
+            raise ValueError(f"Results parquet not found in s3 at {upgrades_path}")
+        if len(s3_data['Contents']) != len(available_upgrades):
+            raise ValueError(f"Number of parquet found in s3 at {upgrades_path} is not equal to number of upgrades")
+        # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
+        matching_files = [path['Key'] for path in s3_data['Contents'] if f"up{upgrade_id:02}.parquet" in path['Key']]
+        if len(matching_files) > 1:
+            raise ValueError(f"Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
+                             f"These files matched: {matching_files}")
+        if len(matching_files) == 0:
+            raise ValueError(f"No results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
+                             f"Here are the files: {[content[0]['Key'] for content in s3_data['Contents']]}")
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
+        return self.get_upgrades_csv_full(upgrade_id)
 
     @typing.overload
     def get_building_ids(self, *,

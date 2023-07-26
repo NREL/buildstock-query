@@ -24,7 +24,6 @@ import pandas as pd
 from InquirerPy import inquirer
 import plotly.express as px
 
-
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
 # from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
 # app = DashProxy(transforms=[
@@ -67,8 +66,10 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     chng2bldg = {}
     for chng in change_types:
         for upgrade in available_upgrades:
+            print(f"Getting buildings for {upgrade} and {chng}")
             chng2bldg[(upgrade, chng)] = euss_athena.report.get_buildings_by_change(upgrade_id=int(upgrade),
                                                                                     change_type=chng)
+    download_csv_df = pd.DataFrame()
 
     def get_cols(df, prefixes=[], suffixes=[]):
         cols = []
@@ -84,7 +85,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                         break
         return cols
 
-    res_csv_df = euss_athena.get_results_csv()
+    res_csv_df = euss_athena.get_results_csv_full()
     euss_athena.save_cache()
     res_csv_df = res_csv_df[res_csv_df['completed_status'] == 'Success']
     sample_weight = res_csv_df['build_existing_model.sample_weight'].iloc[0]
@@ -99,7 +100,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     upgrade2res = {0: res_csv_df}
     for upgrade in available_upgrades:
         print(f"Getting up_csv for {upgrade}")
-        up_csv = euss_athena.get_upgrades_csv(upgrade_id=int(upgrade))
+        up_csv = euss_athena.get_upgrades_csv_full(upgrade_id=int(upgrade))
         euss_athena.save_cache()
         # print(list(up_csv.columns))
         # print(list(res_csv_df.columns))
@@ -160,8 +161,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         if group_cols:
             res_df = get_res(report_upgrade, applied_only)
             res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
-            grouped_df = res_df.groupby(group_cols, sort=False)
-            df_generator = ((', '.join(indx) if isinstance(indx, tuple) else indx, df) for (indx, df) in grouped_df)
+            if len(group_cols) > 1:
+                grouped_df = res_df.groupby(group_cols, sort=False)
+                df_generator = ((', '.join(indx), df) for (indx, df) in grouped_df)
+            else:
+                df_generator = ((indx, df) for indx, df in res_df.groupby(group_cols[0], sort=False))
         else:
             df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, applied_only)) for upgrade in [report_upgrade])
 
@@ -212,7 +216,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         base_df['baseline_vals'] = base_df[end_use].sum(axis=1, skipna=False)
         base_df = base_df.loc[filter_bldg] if filter_bldg is not None else base_df
         base_df = base_df.loc[sub_df.index]
-
+        ytitle = f"Upgrade {savings_type} values"
+        xtitle = "Baseline absolute values"
         if savings_type == 'Absolute':
             base_df['upgrade_vals'] = sub_df
         elif savings_type == 'Savings':
@@ -220,44 +225,62 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         elif savings_type == 'Percent Savings':
             base_df['upgrade_vals'] = 100 * (base_df['baseline_vals'] - sub_df) / base_df['baseline_vals']
             # If base is 0, and upgrade is not, assume -100% savings
-            base_df['upgrade_vals'][(base_df['baseline_vals'] == 0)] = -100
-            base_df['upgrade_vals'][(sub_df == 0) & (base_df['baseline_vals'] == 0)] = 0
+            base_df.loc[(base_df['baseline_vals'] == 0), "upgrade_vals"] = -100
+            base_df.loc[(sub_df == 0) & (base_df['baseline_vals'] == 0), 'upgrade_vals'] = 0
 
         base_df = base_df.reset_index()
-        base_df['hovertext'] = base_df['building_id'].apply(lambda bid: f'{upgrade2name.get(report_upgrade)}\
-                                                             <br>Building: {bid}<br>Sample Count: {len(base_df)}')
+        base_df['hovertext'] = base_df['building_id'].apply(lambda bid: f'{upgrade2name.get(int(report_upgrade))}'
+                                                            f'<br>Building: {bid}<br>Sample Count: {len(base_df)}')
+        report_df = base_df.rename(columns={'baseline_vals': xtitle, 'upgrade_vals': ytitle, 'hovertext': 'info'})
         if group_cols:
             if len(group_cols) == 1:
                 fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
-                                 facet_col=group_cols[0])
+                                 facet_col=group_cols[0],
+                                 labels={'baseline_vals': '', 'upgrade_vals': ''})
+                report_df = report_df[['building_id', xtitle, ytitle,  group_cols[0], 'info']]
             elif len(group_cols) > 1:
                 fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
-                                 facet_col=group_cols[0], facet_row=group_cols[1])
+                                 facet_col=group_cols[0], facet_row=group_cols[1],
+                                 labels={'baseline_vals': '', 'upgrade_vals': ''})
+                report_df = report_df[['building_id', xtitle, ytitle,  group_cols[0], group_cols[1], 'info']]
             fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
         else:
-            fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals")
-
-        fig.update_layout(yaxis_title=f"{get_ylabel(end_use)} {savings_type}",
-                          boxmode="group",
-                          # xaxis_title=", ".join(group_cols) if group_cols else 'Upgrade',
-                          title=f"Savings scatter for {change_type} buildings" if change_type else 'Savings scatter',
+            fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
+                             labels={'baseline_vals': '', 'upgrade_vals': ''})
+            report_df = report_df[['building_id', xtitle, ytitle, 'info']]
+        title = f"{get_ylabel(end_use)}"
+        fig.update_layout(boxmode="group",
+                          title=f"{title} for {change_type} buildings" if change_type else f'{title}',
                           clickmode='event+select')
-        return fig
+        fig.add_annotation(x=-0.02, y=0.5,
+                           text=ytitle, textangle=-90,
+                           arrowcolor="white",
+                           xref="paper", yref="paper")
+        fig.add_annotation(x=0.5, y=-0.17,
+                           text=xtitle, textangle=0,
+                           arrowcolor="white",
+                           xref="paper", yref="paper")
+        return fig, report_df
 
     def get_distribution(end_use, savings_type='', applied_only=False, change_type='', show_all_points=False,
                          sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=0):
         fig = go.Figure()
         counter = 0
+        report_dfs = []
         if show_all_points:
             points = 'all'
             upgrades_to_plot = [report_upgrade] if report_upgrade else [0]
         else:
             points = 'suspectedoutliers'
             upgrades_to_plot = [0] + available_upgrades
+        ytitle = f"{get_ylabel(end_use)}"
+        xtitle = ", ".join(group_cols) if group_cols else 'Upgrade'
         for upgrade in upgrades_to_plot:
             yvals = []
             xvals = []
+            sample_counts = []
             hovervals = []
+            all_building_ids = []
             for indx, sub_df in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
                                               filter_bldg, upgrade, group_cols):
                 building_ids = list(sub_df.index)
@@ -272,6 +295,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                 else:
                     xvals.extend([indx]*len(sub_df))
                     yvals.extend(sub_df.values)
+                    all_building_ids.extend(building_ids)
+                    sample_counts.extend([count] * len(sub_df))
                     hovertext = [f'{upgrade2name.get(upgrade)}<br>{indx}<br> Building: {bid}<br>Sample Count: {count}'
                                  for bid in building_ids]
                     hovervals.extend(hovertext)
@@ -286,21 +311,33 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                 hovertext=hovervals,
                 hoverinfo="all"
             ))
+            try:
+                df = pd.DataFrame({'building_ids': all_building_ids, xtitle: xvals, ytitle: yvals,
+                                   'upgrade': f'Upgrade {upgrade}', 'sample_count': sample_counts, 'info': hovervals})
+            except Exception as exp:
+                print(exp)
+                continue
+            report_dfs.append(df)
 
-        fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}",
+        fig.update_layout(yaxis_title=ytitle,
                           boxmode="group",
-                          xaxis_title=", ".join(group_cols) if group_cols else 'Upgrade',
+                          xaxis_title=xtitle,
                           title=f"Distribution for {change_type} buildings" if change_type else 'Distribution',
                           clickmode='event+select')
-        return fig
+        return fig, pd.concat(report_dfs)
 
     def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, change_type='',
                  sync_upgrade=None, filter_bldg=None, group_cols=None):
         fig = go.Figure()
         counter = 0
+        report_dfs = []
+        xtitle = ", ".join(group_cols) if group_cols else 'Upgrade'
+        ytitle = f"{get_ylabel(end_use)}_{value_type}"
         for upgrade in [0] + available_upgrades:
             yvals = []
             xvals = []
+            sample_counts = []
+            upgrades = []
             hovervals = []
             for indx, up_vals in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
                                                filter_bldg, upgrade, group_cols):
@@ -315,10 +352,15 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                 if counter >= 200:
                     yvals.append(0)
                     xvals.append("Too many groups")
+                    sample_counts.append(0)
+                    upgrades.append(upgrade)
+                    hovervals.append("Too many groups")
                     break
                 else:
                     yvals.append(val)
                     xvals.append(indx)
+                    sample_counts.append(count)
+                    upgrades.append(upgrade)
                     hovertext = f"{upgrade2name.get(upgrade)}<br>{indx}<br>Average {val}. <br>Sample Count: {count}."
                     f"<br>Units Count: {count * sample_weight}."
                     hovervals.append(hovertext)
@@ -333,13 +375,19 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             )).update_traces(
                 marker={"line": {"width": 0.5, "color": "rgb(0,0,0)"}}
             )
+            try:
+                df = pd.DataFrame({xtitle: xvals, ytitle: yvals, 'upgrade': [f'Upgrade {upgrade}'] * len(xvals),
+                                   'sample_count': sample_counts, 'info': hovervals})
+            except Exception:
+                continue
+            report_dfs.append(df)
 
-        fig.update_layout(yaxis_title=f"{get_ylabel(end_use)}_{value_type}",
+        fig.update_layout(yaxis_title=ytitle,
                           barmode='group',
-                          xaxis_title=", ".join(group_cols) if group_cols else 'Upgrade',
+                          xaxis_title=xtitle,
                           title=f"{value_type} for {change_type} buildings" if change_type else f'{value_type}')
 
-        return fig
+        return fig, pd.concat(report_dfs)
 
     def get_end_use_cols(fuel):
         cols = []
@@ -395,6 +443,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     app = DashProxy(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], transforms=transforms,
                     external_scripts=external_script)
     app.layout = html.Div([dbc.Container(html.Div([
+        dcc.Download(id="download-dataframe-csv"),
         dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution", "Scatter"], "Mean",
@@ -411,14 +460,14 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                  dbc.Col(dbc.Label("Value Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",  inline=True,
                                         id='radio_savings', labelClassName="pr-2"), width='auto'),
-                 dbc.Col(dcc.Checklist(options=['Applied Only'], value=[],
+                 dbc.Col(dcc.Checklist(options=['Applied Only'], value=['Applied Only'],
                                        inline=True, id='chk_applied_only'), width='auto')
                  ]),
         dbc.Row([dbc.Col(html.Br())]),
         dbc.Row([dbc.Col(dcc.Loading(id='graph-loader', children=[html.Div(id='loader_label')]))]),
         dbc.Row([dbc.Col(dcc.Graph(id='graph'))]),
-
-
+        dbc.Row([dbc.Col(dbc.Button("Download", id='csv-download'))], justify='end'),
+        dcc.Store(id='graph-data-store'),
     ])),
         dbc.Row([dbc.Col(
             dcc.Tabs(id='tab_view_type', value='energy', children=[
@@ -533,6 +582,17 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         dcc.Store("uirevision")
         # dbc.Button("Kill me", id="button110")
     ])
+
+    # download data with button click
+    @app.callback(
+        Output("download-dataframe-csv", "data"),
+        Input("csv-download", "n_clicks"),
+        prevent_initial_call=True)
+    def download_csv(n_clicks):
+        if not n_clicks:
+            raise PreventUpdate()
+        nonlocal download_csv_df
+        return dcc.send_data_frame(download_csv_df.to_csv, "graph_data.csv")
 
     @app.callback(
         Output("download-chars-csv", "data"),
@@ -1064,7 +1124,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
                       show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision,
                       report_upgrade):
-
+        nonlocal download_csv_df
         if dash.callback_context.triggered_id == 'input_building2' and "Graph" not in chk_graph:
             raise PreventUpdate()
 
@@ -1088,18 +1148,22 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
         # print(f"Sync upgrade is {sync_upgrade}. {sync_upgrade is None}")
         if graph_type in ['Mean', 'Total', 'Count']:
-            new_figure = get_bars(full_name, graph_type, savings_type, applied_only,
-                                  chng_type, sync_upgrade, filter_bldg, grp_by)
+            new_figure, report_df = get_bars(full_name, graph_type, savings_type, applied_only,
+                                             chng_type, sync_upgrade, filter_bldg, grp_by)
         elif graph_type in ["Distribution"]:
-            new_figure = get_distribution(full_name, savings_type, applied_only,
-                                          chng_type, 'Show all points' in show_all_points, sync_upgrade,
-                                          filter_bldg, grp_by, report_upgrade)
+            new_figure, report_df = get_distribution(full_name, savings_type, applied_only,
+                                                     chng_type, 'Show all points' in show_all_points, sync_upgrade,
+                                                     filter_bldg, grp_by, report_upgrade)
         elif graph_type in ["Scatter"]:
-            new_figure = get_scatter(full_name, savings_type, applied_only,
-                                     chng_type, 'Show all points' in show_all_points, sync_upgrade,
-                                     filter_bldg, grp_by, report_upgrade)
+            new_figure, report_df = get_scatter(full_name, savings_type, applied_only,
+                                                chng_type, 'Show all points' in show_all_points, sync_upgrade,
+                                                filter_bldg, grp_by, report_upgrade)
+        else:
+            raise ValueError(f"Invalid graph type {graph_type}")
         uirevision = uirevision or "default"
         new_figure.update_layout(uirevision=uirevision)
+        download_csv_df = report_df.reset_index(drop=True)
+        euss_athena.save_cache()
         return new_figure, ""
 
     euss_athena.save_cache()
@@ -1108,20 +1172,23 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
 def main():
     print("Welcome to Upgrades Visualizer.")
-    yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ").execute()
-    opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ").execute()
+    yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
+                              default="/Users/radhikar/Downloads/fact_sheets_category_5.yml").execute()
+    opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
+                                 default="/Users/radhikar/Downloads/options_saturations.csv").execute()
     db_name = inquirer.text(message="Please enter database_name "
                             "(found in postprocessing:aws:athena in the buildstock configuration file)",
                             default='largeee_test_runs').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file)",
-                               default='medium_run_baseline_20230622_baseline,medium_run_category_1_20230622_timeseries,\
-                                        medium_run_category_1_20230622_upgrades').execute()
+                               default='medium_run_baseline_20230622_baseline'
+                                       ',medium_run_category_5_20230628_timeseries'
+                                       ',medium_run_category_5_20230628_upgrades').execute()
 
     if ',' in table_name:
         table_name = table_name.split(',')
     app = get_app(yaml_path, opt_sat_path, db_name=db_name, table_name=table_name)
-    app.run_server(debug=False)
+    app.run_server(debug=False, port=8005)
 
 
 if __name__ == '__main__':
