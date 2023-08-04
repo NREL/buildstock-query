@@ -362,7 +362,8 @@ class BuildStockUtility:
 
         TOU_enduse = {}
         if meter_col is None:
-            TOU_enduse["fuel_use__electricity__total__kwh__TOU"] = self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
+            TOU_enduse["fuel_use__electricity__total__kwh__TOU"] =\
+                  self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
                 safunc.coalesce(self._bsq.ts_table.c['end_use__electricity__pv__kwh'], 0)
         else:
             if isinstance(meter_col, tuple):
