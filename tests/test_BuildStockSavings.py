@@ -50,7 +50,7 @@ class TestResStockSavings:
         annual_savings_full = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses)
         annual_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, applied_only=True)
         annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses)
-        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses)
+        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses)
         assert len(annual_savings_full) == len(annual_savings_applied) == 1
         assert annual_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
         assert annual_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
@@ -98,7 +98,7 @@ class TestResStockSavings:
         annual_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, group_by=group_by,
                                                                  applied_only=True, sort=True)
         annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses, group_by=group_by, sort=True)
-        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id=1, enduses=enduses, group_by=group_by,
+        annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, group_by=group_by,
                                                                sort=True)
         assert len(annual_savings_full) == len(annual_savings_applied) == n_groups
         assert annual_savings_full['sample_count'].sum() == success_report.loc[0].Success
