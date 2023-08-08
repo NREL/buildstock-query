@@ -11,6 +11,8 @@ import os
 from typing import Optional
 from collections import defaultdict
 from pathlib import Path
+from .logic_parser import LogicParser
+from tabulate import tabulate
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,13 +25,17 @@ class UpgradesAnalyzer:
     Analyze the apply logic for various upgrades in the project yaml file.
     """
 
-    def __init__(self, yaml_file: str, buildstock: Union[str, pd.DataFrame]) -> None:
+    def __init__(self, yaml_file: str,
+                 buildstock: Union[str, pd.DataFrame],
+                 opt_sat_file: str) -> None:
         """
         Initialize the analyzer instance.
         Args:
             yaml_file (str): The path to the yaml file.
             buildstock (Union[str, pd.DataFrame]): Either the buildstock dataframe, or path to the csv
+            opt_sat_file (str): The path to the option saturation file.
         """
+        self.parser = LogicParser(opt_sat_file, yaml_file)
         self.yaml_file = yaml_file
         if isinstance(buildstock, str):
             self.buildstock_df_original = pd.read_csv(buildstock, dtype=str)
@@ -222,8 +228,8 @@ class UpgradesAnalyzer:
             all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
             package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
             if "package_apply_logic" in upgrade:
-                package_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
-                package_applied_bldgs = self._reduce_logic(package_flat_logic, parent=None)
+                pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
+                package_applied_bldgs = self._reduce_logic(pkg_flat_logic, parent=None)
 
             for opt_index, option in enumerate(upgrade["options"]):
                 applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
@@ -381,7 +387,7 @@ class UpgradesAnalyzer:
             cum_count_all += n_applied_bldgs
             cum_count[num_opt] += n_applied_bldgs
             record = {"Number of options": num_opt,
-                      "Applied options": ", ".join([f"{opt}" for opt in applied_opts]),
+                      "Applied options": ", ".join([f"{logic_df.columns[opt - 1]}" for opt in applied_opts]),
                       "Applied buildings": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
                       "Cumulative sub": f"{cum_count[num_opt]} ({self._to_pct(cum_count[num_opt], nbldgs)}%)",
                       "Cumulative all": f"{cum_count_all} ({self._to_pct(cum_count_all, nbldgs)}%)"
@@ -392,12 +398,40 @@ class UpgradesAnalyzer:
         application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
         return application_report_df
 
-    def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None) -> tuple[np.ndarray, str]:
+    def _get_left_out_report_all(self, upgrade_num):
+        cfg = self.get_cfg()
+        report_str = ""
+        upgrade = cfg["upgrades"][upgrade_num - 1]
+        ugrade_name = upgrade.get("upgrade_name")
+        header = f"Left Out Report for - Upgrade{upgrade_num}:'{ugrade_name}'"
+        report_str += "-" * len(header) + "\n"
+        report_str += header + "\n"
+        report_str += "-" * len(header) + "\n"
+        logic = {"or": []}
+        for opt in upgrade["options"]:
+            if "apply_logic" in opt:
+                logic["or"].append(self._normalize_lists(opt["apply_logic"]))
+        if "package_apply_logic" in upgrade:
+            logic = {"and": [logic, upgrade["package_apply_logic"]]}
+        logic = {"not": logic}  # invert it
+        logic = self.parser.normalize_logic(logic)
+        logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += "\n".join(logic_str) + "\n"
+        report_str += "-" * footer_len + "\n"
+        count = logic_array.sum()
+        footer_str = f"Overall Not Applied to => {count} ({self._to_pct(count)}%)."
+        report_str += footer_str + "\n"
+        report_str += "-" * len(footer_str) + "\n"
+        return logic_array, report_str
+
+    def get_left_out_report(self, upgrade_num: int, option_num: Optional[int] = None) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
             option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
                                         will print report for all options.
+            normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
         Returns:
             (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
         """
@@ -406,7 +440,58 @@ class UpgradesAnalyzer:
             raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
 
         if option_num is None:
-            return self._get_detailed_report_all(upgrade_num)
+            return self._get_left_out_report_all(upgrade_num)
+
+        self._logic_cache = {}
+        if upgrade_num == 0 or option_num == 0:
+            raise ValueError(f"Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}")
+        report_str = ""
+        try:
+            upgrade = cfg["upgrades"][upgrade_num - 1]
+            opt = upgrade["options"][option_num - 1]
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f"The yaml doesn't have {upgrade_num}/{option_num} upgrade/option") from e
+
+        ugrade_name = upgrade.get("upgrade_name")
+        header = f"Left Out Report for - Upgrade{upgrade_num}:'{ugrade_name}', Option{option_num}:'{opt['option']}'"
+        report_str += "-" * len(header) + "\n"
+        report_str += header + "\n"
+        report_str += "-" * len(header) + "\n"
+        if "apply_logic" in opt and "package_apply_logic" in upgrade:
+            logic = {"not": {"and": [opt["apply_logic"], upgrade["package_apply_logic"]]}}
+        elif "apply_logic" in opt:
+            logic = {"not": opt["apply_logic"]}
+        else:
+            logic = {"not": upgrade["package_apply_logic"]}
+        logic = self.parser.normalize_logic(logic)
+
+        logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += "\n".join(logic_str) + "\n"
+        report_str += "-" * footer_len + "\n"
+        count = logic_array.sum()
+        footer_str = f"Overall Not Applied to => {count} ({self._to_pct(count)}%)."
+        report_str += footer_str + "\n"
+        report_str += "-" * len(footer_str) + "\n"
+        return logic_array, report_str
+
+    def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None,
+                            normalize_logic: bool = False) -> tuple[np.ndarray, str]:
+        """Prints detailed report for a particular upgrade (and optionally, an option)
+        Args:
+            upgrade_num (int): The 1-indexed upgrade for which to print the report.
+            option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                        will print report for all options.
+            normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
+        Returns:
+            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+        """
+        cfg = self.get_cfg()
+        if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
+
+        if option_num is None:
+            return self._get_detailed_report_all(upgrade_num, normalize_logic=normalize_logic)
 
         self._logic_cache = {}
         if upgrade_num == 0 or option_num == 0:
@@ -425,6 +510,7 @@ class UpgradesAnalyzer:
         report_str += "-" * len(header) + "\n"
         if "apply_logic" in opt:
             logic = UpgradesAnalyzer._normalize_lists(opt["apply_logic"])
+            logic = self.parser.normalize_logic(logic) if normalize_logic else logic
             logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             report_str += "\n".join(logic_str) + "\n"
@@ -434,6 +520,7 @@ class UpgradesAnalyzer:
 
         if "package_apply_logic" in upgrade:
             logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
+            logic = self.parser.normalize_logic(logic) if normalize_logic else logic
             package_logic_array, logic_str = self._get_logic_report(logic)
             footer_len = len(logic_str[-1])
             report_str += "Package Apply Logic Report" + "\n"
@@ -448,28 +535,46 @@ class UpgradesAnalyzer:
         report_str += "-" * len(footer_str) + "\n"
         return logic_array, report_str
 
-    def _get_detailed_report_all(self, upgrade_num):
+    def _get_detailed_report_all(self, upgrade_num, normalize_logic: bool = False):
         conds_dict = {}
+        grouped_conds_dict = {}
         cfg = self.get_cfg()
         report_str = ""
         n_options = len(cfg["upgrades"][upgrade_num - 1]["options"])
         or_array = np.zeros((1, self.total_samples), dtype=bool)
         and_array = np.ones((1, self.total_samples), dtype=bool)
         for option_indx in range(n_options):
-            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1)
+            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1,
+                                                                   normalize_logic=normalize_logic)
+            opt_name, _ = self._get_para_option(cfg["upgrades"][upgrade_num - 1]["options"][option_indx]["option"])
             report_str += sub_report_str + "\n"
-            conds_dict[option_indx] = logic_array
+            conds_dict[option_indx + 1] = logic_array
+            if opt_name not in grouped_conds_dict:
+                grouped_conds_dict[opt_name] = logic_array
+            else:
+                grouped_conds_dict[opt_name] |= logic_array
             or_array |= logic_array
             and_array &= logic_array
         and_count = and_array.sum()
         or_count = or_array.sum()
         report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
-        app_report_df = self._get_options_application_count_report(conds_dict)
-        if app_report_df is not None:
+
+        option_app_report = self._get_options_application_count_report(grouped_conds_dict)
+        if option_app_report is not None:
             report_str += "-" * 80 + "\n"
-            report_str += f"Report of how the {n_options} options were applied to the buildings." + "\n"
-            report_str += "\n" + app_report_df.to_string() + "\n"
+            report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
+            report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+
+        detailed_app_report_df = self._get_options_application_count_report(conds_dict)
+        if detailed_app_report_df is not None:
+            report_str += "-" * 80 + "\n"
+            if len(detailed_app_report_df) > 100:
+                report_str += "Detailed report is skipped because of too many rows. " + "\n"
+                report_str += "Ask the developer if this is useful to see" + "\n"
+            else:
+                report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
+                report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -522,7 +627,7 @@ class UpgradesAnalyzer:
 
         return logic_array, logic_str
 
-    def save_detailed_report_all(self, file_path: str):
+    def save_detailed_report_all(self, file_path: str, logic_transform=None):
         """Save detailed text based upgrade report.
 
         Args:
@@ -532,7 +637,7 @@ class UpgradesAnalyzer:
         all_report = ""
         for upgrade in range(1, len(cfg["upgrades"]) + 1):
             logger.info(f"Getting report for upgrade {upgrade}")
-            _, report = self.get_detailed_report(upgrade)
+            _, report = self.get_detailed_report(upgrade, normalize_logic=logic_transform)
             all_report += report + "\n"
         with open(file_path, "w") as file:
             file.write(all_report)
@@ -549,11 +654,15 @@ def main():
         validate=PathValidator(),
         filter=lambda x: x or "buildstock.csv",
     ).execute()
+    opt_sat_file = inquirer.filepath(
+        message="Path to option_saturation.csv file",
+        validate=PathValidator()
+    ).execute()
     output_prefix = inquirer.text(
         message="output file name prefix:",
         filter=lambda x: "" if x is None else f"{x}_",
     ).execute()
-    ua = UpgradesAnalyzer(yaml_file, buildstock_file)
+    ua = UpgradesAnalyzer(yaml_file, buildstock_file, opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}options_report.csv"
