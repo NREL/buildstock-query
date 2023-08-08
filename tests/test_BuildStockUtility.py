@@ -277,6 +277,19 @@ SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_exist
 
     assert_query_equal(query4, expected_query4)
 
+    query5 = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
+                                                  meter_col=['fuel use: electricity: total',
+                                                             'end use: electricity: cooling'],
+                                                  collapse_ts=True,
+                                                  get_query_only=True)
+
+    expected_query5 = """
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars", sum(((res_n250_hrly_v1_timeseries."end use: electricity: cooling" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "end use: electricity: cooling__TOU__dollars" 
+FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
+    """  # noqa: E501
+
+    assert_query_equal(query5, expected_query5)
+
 
 def static_test_utility_inferred_types(temp_history_file):
     # Test that the utility methods return types are inferred as the correct type
