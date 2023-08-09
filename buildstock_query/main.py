@@ -450,16 +450,16 @@ class BuildStockQuery(QueryCore):
         reference_time = datetime(year=sim_year, month=1, day=1)
         sim_interval_seconds = int((time2 - time1).total_seconds())
         start_offset_seconds = int((time1 - reference_time).total_seconds())
-        # The offset should either be 0 (period begining format) or equal to the interval (period ending format)
-        assert start_offset_seconds == 0 or start_offset_seconds == sim_interval_seconds
-        if sim_interval_seconds == 31 * 24 * 60 * 60:
-            interval = sim_interval_seconds // (24 * 60 * 60 * 31)
-            offset = start_offset_seconds // (24 * 60 * 60 * 31)
+        if sim_interval_seconds >= 28 * 24 * 60 * 60:  # 28 days or more means monthly resoultion
+            assert start_offset_seconds in [0, 31 * 24 * 60 * 60]
+            interval = 1
+            offset = start_offset_seconds // (31 * 24 * 60 * 60)
             unit = "month"
         else:
             interval = sim_interval_seconds
             offset = start_offset_seconds
             unit = "second"
+        assert offset in [0, interval]
         return SimInfo(sim_year, interval, offset, unit)
 
     def get_special_column(self,
