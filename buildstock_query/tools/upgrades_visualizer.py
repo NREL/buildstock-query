@@ -46,16 +46,33 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             table_name: str = 'res_test_03_2018_10k_20220607',
             workgroup: str = 'largeee',
             buildstock_type: str = 'resstock'):
-    euss_athena = BuildStockQuery(workgroup=workgroup,
+    if isinstance(table_name, tuple) or isinstance(table_name, list):
+        baseline_run = BuildStockQuery(workgroup=workgroup,
+                                       db_name=db_name,
+                                       buildstock_type=buildstock_type,
+                                       table_name=table_name[0],
+                                       skip_reports=False)
+        baseline_table_name = table_name[0] + "_baseline"
+        upgrade_table_name = table_name[1] + "_upgrades"
+        ts_table_name = table_name[1] + "_timeseries"
+        tables = (baseline_table_name, ts_table_name, upgrade_table_name)
+    else:
+        baseline_run = None
+        tables = table_name
+    upgrade_run = BuildStockQuery(workgroup=workgroup,
                                   db_name=db_name,
                                   buildstock_type=buildstock_type,
-                                  table_name=table_name,
+                                  table_name=tables,
                                   skip_reports=False)
 
-    report = euss_athena.report.get_success_report()
+    report = upgrade_run.report.get_success_report()
     available_upgrades = list(report.index)
     available_upgrades.remove(0)
-    euss_ua = euss_athena.get_upgrades_analyzer(yaml_path, opt_sat_file=opt_sat_path)
+    euss_ua = upgrade_run.get_upgrades_analyzer(yaml_path, opt_sat_file=opt_sat_path)
+    monthly_vals = upgrade_run.agg.aggregate_timeseries(enduses=['fuel_use__electricity__total__kwh'],
+                                                        group_by=[upgrade_run.bs_bldgid_column],
+                                                        upgrade_id=5,
+                                                        timestamp_grouping_func='month')
     upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
                     upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
     upgrade2name[0] = "Upgrade 0: Baseline"
@@ -67,7 +84,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     for chng in change_types:
         for upgrade in available_upgrades:
             print(f"Getting buildings for {upgrade} and {chng}")
-            chng2bldg[(upgrade, chng)] = euss_athena.report.get_buildings_by_change(upgrade_id=int(upgrade),
+            chng2bldg[(upgrade, chng)] = upgrade_run.report.get_buildings_by_change(upgrade_id=int(upgrade),
                                                                                     change_type=chng)
     download_csv_df = pd.DataFrame()
 
@@ -85,8 +102,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                         break
         return cols
 
-    res_csv_df = euss_athena.get_results_csv_full()
-    euss_athena.save_cache()
+    res_csv_df = upgrade_run.get_results_csv_full()
+    upgrade_run.save_cache()
     res_csv_df = res_csv_df[res_csv_df['completed_status'] == 'Success']
     sample_weight = res_csv_df['build_existing_model.sample_weight'].iloc[0]
     res_csv_df['upgrade'] = 0
@@ -100,8 +117,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     upgrade2res = {0: res_csv_df}
     for upgrade in available_upgrades:
         print(f"Getting up_csv for {upgrade}")
-        up_csv = euss_athena.get_upgrades_csv_full(upgrade_id=int(upgrade))
-        euss_athena.save_cache()
+        up_csv = upgrade_run.get_upgrades_csv_full(upgrade_id=int(upgrade))
+        upgrade_run.save_cache()
         # print(list(up_csv.columns))
         # print(list(res_csv_df.columns))
         # print("upgrade", i, set(up_csv.columns)  - set(res_csv_df.columns))
@@ -134,15 +151,28 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     char_cols = [c.removeprefix('build_existing_model.') for c in build_cols if 'applicable' not in c]
     fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
-    def get_res(upgrade, applied_only=False):
+    def get_res(upgrade: int, enduse: list[str], group_by: list[str] | None = None, applied_only: bool = False):
         if upgrade == 0:
-            return upgrade2res[0]
+            res_df = upgrade2res[0].copy()
+        elif applied_only:
+            res = upgrade2res[int(upgrade)].copy()
+            res = res[res['completed_status'] != 'Invalid']
+            res_df = res
+        else:
+            res_df = upgrade2res[int(upgrade)].copy()
+        group_by = group_by or []
+        res_df.loc[:, 'value'] = res_df[enduse].sum(axis=1)
+        return res_df[group_by + ['value']]
+
+    def get_buildings(upgrade, applied_only=False):
+        if upgrade == 0:
+            return upgrade2res[0].index
         elif applied_only:
             res = upgrade2res[int(upgrade)]
             res = res[res['completed_status'] != 'Invalid']
-            return res
+            return res.index
         else:
-            return upgrade2res[int(upgrade)]
+            return upgrade2res[int(upgrade)].index
 
     def explode_str(input_str):
         input_str = str(input_str).lower()
@@ -153,13 +183,13 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         return tuple("X" if x is None else x for x in input_str)
 
     def csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None,
-                      report_upgrade=None, group_cols=None):
+                      report_upgrade: int = 0, group_cols=None):
 
-        base_vals = get_res(0)[end_use].sum(axis=1, skipna=False)
+        base_vals = get_res(0, end_use)
         base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
 
         if group_cols:
-            res_df = get_res(report_upgrade, applied_only)
+            res_df = get_res(report_upgrade, end_use, group_by=group_cols, applied_only=applied_only)
             res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
             if len(group_cols) > 1:
                 grouped_df = res_df.groupby(group_cols, sort=False)
@@ -167,7 +197,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             else:
                 df_generator = ((indx, df) for indx, df in res_df.groupby(group_cols[0], sort=False))
         else:
-            df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, applied_only)) for upgrade in [report_upgrade])
+            df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, end_use, applied_only=applied_only)) for upgrade in [report_upgrade])
 
         for indx, res_df in df_generator:
             if change_type:
@@ -183,11 +213,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             if len(res_df) == 0:
                 continue
 
-            sub_df = res_df[end_use].sum(axis=1, skipna=False)
+            sub_df = res_df['value']
             if savings_type == 'Savings':
-                sub_df = base_df[sub_df.index] - sub_df
+                sub_df = base_df.loc[sub_df.index, 'value'] - sub_df
             elif savings_type == 'Percent Savings':
-                sub_base_df = base_df[sub_df.index]
+                sub_base_df = base_df.loc[sub_df.index, 'value']
                 saving_df = 100 * (sub_base_df - sub_df) / sub_base_df
                 saving_df[(sub_base_df == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
                 saving_df[(sub_df == 0) & (sub_base_df == 0)] = 0
@@ -206,14 +236,13 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                     sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=0):
         fig = go.Figure()
         report_upgrade = report_upgrade or 0
-        res_df = get_res(report_upgrade, applied_only)
+        res_df = get_res(report_upgrade, end_use, group_by=group_cols, applied_only=applied_only)
         if filter_bldg is not None:
             res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
 
-        sub_df = res_df[end_use].sum(axis=1, skipna=False)
-
-        base_df = get_res(0).copy()
-        base_df['baseline_vals'] = base_df[end_use].sum(axis=1, skipna=False)
+        sub_df = res_df['value'].copy()
+        base_df = get_res(0, end_use, group_by=group_cols).copy()
+        base_df['baseline_vals'] = base_df['value']
         base_df = base_df.loc[filter_bldg] if filter_bldg is not None else base_df
         base_df = base_df.loc[sub_df.index]
         ytitle = f"Upgrade {savings_type} values"
@@ -416,7 +445,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         return valid_cols
 
     def get_opt_report(upgrade, bldg_id):
-        applied_options = list(euss_athena.report.get_applied_options(upgrade_id=int(upgrade), bldg_ids=[bldg_id])[0])
+        applied_options = list(upgrade_run.report.get_applied_options(upgrade_id=int(upgrade), bldg_ids=[bldg_id])[0])
         applied_options = [val for key, val in upgrade2res[upgrade].loc[bldg_id].items() if
                            key.startswith("option_") and key.endswith("_name")
                            and not (isinstance(val, float) and np.isnan(val))]
@@ -445,6 +474,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     app.layout = html.Div([dbc.Container(html.Div([
         dcc.Download(id="download-dataframe-csv"),
         dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
+        # Add a row for annual, vs monthly vs seasonal plot radio buttons
+        dbc.Row([dbc.Col(dbc.Label("Resolution: "), width='auto'),
+                 dbc.Col(dcc.RadioItems(["Annual", "Monthly"], "Annual",
+                                        inline=True, id="radio_resolution"))]),
+
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution", "Scatter"], "Mean",
                                         id="radio_graph_type",
@@ -779,11 +813,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             valid_bldgs = list(sorted(chng2bldg[(int(sync_upgrade), change_type)]))
         elif report_upgrade and change_type:
             valid_bldgs = list(sorted(chng2bldg[(int(report_upgrade), change_type)]))
-            res = get_res(report_upgrade, applied_only=True)
-            valid_bldgs = list(res.index.intersection(valid_bldgs))
+            buildings = get_buildings(report_upgrade, applied_only=True)
+            valid_bldgs = list(buildings.intersection(valid_bldgs))
         elif report_upgrade:
-            res = get_res(report_upgrade, applied_only=True)
-            valid_bldgs = list(res.index)
+            buildings = get_buildings(report_upgrade, applied_only=True)
+            valid_bldgs = list(buildings)
         else:
             valid_bldgs = list(upgrade2res[0].index)
 
@@ -943,7 +977,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
-        applied_options = euss_athena.report.get_applied_options(upgrade_id=int(report_upgrade), bldg_ids=bldg_list,
+        applied_options = upgrade_run.report.get_applied_options(upgrade_id=int(report_upgrade), bldg_ids=bldg_list,
                                                                  include_base_opt=True)
         opt_only = [{entry.split('|')[0] for entry in opt.keys()} for opt in applied_options]
         reduced_set = list(reduce(set.union, opt_only))
@@ -1011,7 +1045,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
         # print(bldg_list)
-        dict_changed_enduses = euss_athena.report.get_enduses_buildings_map_by_change(upgrade_id=int(report_upgrade),
+        dict_changed_enduses = upgrade_run.report.get_enduses_buildings_map_by_change(upgrade_id=int(report_upgrade),
                                                                                       change_type=enduse_change_type,
                                                                                       bldg_list=bldg_list)
         # print(changed_enduses)
@@ -1163,17 +1197,17 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         uirevision = uirevision or "default"
         new_figure.update_layout(uirevision=uirevision)
         download_csv_df = report_df.reset_index(drop=True)
-        euss_athena.save_cache()
+        upgrade_run.save_cache()
         return new_figure, ""
 
-    euss_athena.save_cache()
+    upgrade_run.save_cache()
     return app
 
 
 def main():
     print("Welcome to Upgrades Visualizer.")
     yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default="/Users/radhikar/Downloads/fact_sheets_category_5.yml").execute()
+                              default="/Users/radhikar/Downloads/fact_sheets_category_2.yml").execute()
     opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
                                  default="/Users/radhikar/Downloads/options_saturations.csv").execute()
     db_name = inquirer.text(message="Please enter database_name "
@@ -1181,9 +1215,8 @@ def main():
                             default='largeee_test_runs').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file)",
-                               default='medium_run_baseline_20230622_baseline'
-                                       ',medium_run_category_5_20230628_timeseries'
-                                       ',medium_run_category_5_20230628_upgrades').execute()
+                               default="medium_run_baseline_20230622,medium_run_category_2_20230713"
+                               ).execute()
 
     if ',' in table_name:
         table_name = table_name.split(',')
