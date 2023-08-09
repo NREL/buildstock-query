@@ -15,10 +15,19 @@ from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
 from buildstock_query.schema.utilities import MappedColumn
 import os
+from dataclasses import dataclass
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
+
+
+@dataclass
+class SimInfo:
+    year: int
+    interval: int
+    offset: int
+    unit: str
 
 
 class BuildStockQuery(QueryCore):
@@ -416,7 +425,7 @@ class BuildStockQuery(QueryCore):
         return self.execute(query)
 
     @typing.overload
-    def _get_simulation_info(self, get_query_only: Literal[False] = False) -> tuple[int, int, int]:
+    def _get_simulation_info(self, get_query_only: Literal[False] = False) -> SimInfo:
         ...
 
     @typing.overload
@@ -424,7 +433,7 @@ class BuildStockQuery(QueryCore):
         ...
 
     @validate_arguments(config=dict(smart_union=True))
-    def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, tuple[int, int, int]]:
+    def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, SimInfo]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
         bldg_df = self.execute(query0)
@@ -439,16 +448,26 @@ class BuildStockQuery(QueryCore):
         time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
         reference_time = datetime(year=sim_year, month=1, day=1)
-        sim_interval_seconds = (time2 - time1).total_seconds()
+        sim_interval_seconds = int((time2 - time1).total_seconds())
         start_offset_seconds = int((time1 - reference_time).total_seconds())
-        return sim_year, sim_interval_seconds, start_offset_seconds
+        # The offset should either be 0 (period begining format) or equal to the interval (period ending format)
+        assert start_offset_seconds == 0 or start_offset_seconds == sim_interval_seconds
+        if sim_interval_seconds == 31 * 24 * 60 * 60:
+            interval = sim_interval_seconds // (24 * 60 * 60 * 31)
+            offset = start_offset_seconds // (24 * 60 * 60 * 31)
+            unit = "month"
+        else:
+            interval = sim_interval_seconds
+            offset = start_offset_seconds
+            unit = "second"
+        return SimInfo(sim_year, interval, offset, unit)
 
     def get_special_column(self,
                            column_type: Literal['month', 'day', 'hour', 'is_weekend', 'day_of_week']) -> DBColType:
-        _, _, start_offset = self._get_simulation_info()
-        if start_offset > 0:
+        sim_info = self._get_simulation_info()
+        if sim_info.offset > 0:
             # If timestamps are not period begining we should make them so we get proper values of special columns.
-            time_col = sa.func.date_add('second', -start_offset, self.timestamp_column)
+            time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
         else:
             time_col = self.timestamp_column
 

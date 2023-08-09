@@ -1,6 +1,6 @@
 import numpy as np
 from unittest.mock import MagicMock
-from buildstock_query.main import BuildStockQuery
+from buildstock_query.main import BuildStockQuery, SimInfo
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
 import buildstock_query.query_core as query_core
@@ -225,7 +225,7 @@ class TestResStockSavings:
     def test_savings_shape_with_timestamp_grouping(self, my_athena: BuildStockQuery):
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         group_by = ["geometry_building_type_recs"]
-        my_athena._get_simulation_info = lambda: (2012, 15 * 60, 900)  # type: ignore
+        my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 900, 'second')  # type: ignore
         annual_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
                                                                timestamp_grouping_func='hour', get_query_only=True,
                                                                annual_only=False,
@@ -251,7 +251,7 @@ class TestResStockSavings:
         """   # noqa: E501
         assert_query_equal(annual_savings_query, expected_query)
 
-        my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+        my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
         annual_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
                                                                timestamp_grouping_func='hour', get_query_only=True,
                                                                annual_only=False,
