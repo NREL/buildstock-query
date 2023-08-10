@@ -6,7 +6,7 @@ Experimental Stage.
 """
 
 from functools import reduce
-from buildstock_query import BuildStockQuery
+from buildstock_query import BuildStockQuery, KWH2MBTU
 import numpy as np
 import re
 from collections import defaultdict, Counter
@@ -42,6 +42,21 @@ opt_sat_path = "/Users/radhikar/Downloads/options_saturations.csv"
 default_end_use = "fuel_use_electricity_total_m_btu"
 
 
+def filter_cols(all_columns, prefixes=[], suffixes=[]):
+        cols = []
+        for col in all_columns:
+            for prefix in prefixes:
+                if col.startswith(prefix):
+                    cols.append(col)
+                    break
+            else:
+                for suffix in suffixes:
+                    if col.endswith(suffix):
+                        cols.append(col)
+                        break
+        return cols
+
+
 def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             table_name: str = 'res_test_03_2018_10k_20220607',
             workgroup: str = 'largeee',
@@ -64,15 +79,32 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                   buildstock_type=buildstock_type,
                                   table_name=tables,
                                   skip_reports=False)
+    upgrade2monthly_res = {}
+
+    def save_monthly_result(upgrade, build_df):
+        if upgrade == 0 and baseline_run is not None:
+            run_obj = baseline_run
+        else:
+            run_obj = upgrade_run
+        all_cols = [str(c.name) for c in run_obj.get_cols(table=run_obj.ts_table)]
+        all_cols = filter_cols(all_cols, suffixes=['_kbtu', '_kwh', '_lb'])
+        monthly_vals = run_obj.agg.aggregate_timeseries(enduses=all_cols,
+                                                        group_by=[run_obj.bs_bldgid_column],
+                                                        upgrade_id=0,
+                                                        timestamp_grouping_func='month')
+        monthly_vals = monthly_vals.set_index('building_id')
+        monthly_vals['Month'] = monthly_vals['time'].dt.month_name()
+        for col in monthly_vals.columns:
+            if col.endswith('kwh'):
+                monthly_vals[col] *= KWH2MBTU
+        monthly_vals = monthly_vals.rename(columns=lambda col: col.replace('kwh', 'mbtu'))
+        monthly_vals = build_df.join(monthly_vals)
+        upgrade2monthly_res[upgrade] = monthly_vals
 
     report = upgrade_run.report.get_success_report()
     available_upgrades = list(report.index)
     available_upgrades.remove(0)
     euss_ua = upgrade_run.get_upgrades_analyzer(yaml_path, opt_sat_file=opt_sat_path)
-    monthly_vals = upgrade_run.agg.aggregate_timeseries(enduses=['fuel_use__electricity__total__kwh'],
-                                                        group_by=[upgrade_run.bs_bldgid_column],
-                                                        upgrade_id=5,
-                                                        timestamp_grouping_func='month')
     upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
                     upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
     upgrade2name[0] = "Upgrade 0: Baseline"
@@ -87,20 +119,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             chng2bldg[(upgrade, chng)] = upgrade_run.report.get_buildings_by_change(upgrade_id=int(upgrade),
                                                                                     change_type=chng)
     download_csv_df = pd.DataFrame()
-
-    def get_cols(df, prefixes=[], suffixes=[]):
-        cols = []
-        for col in df.columns:
-            for prefix in prefixes:
-                if col.startswith(prefix):
-                    cols.append(col)
-                    break
-            else:
-                for suffix in suffixes:
-                    if col.endswith(suffix):
-                        cols.append(col)
-                        break
-        return cols
+    resolution = 'annual'
 
     res_csv_df = upgrade_run.get_results_csv_full()
     upgrade_run.save_cache()
@@ -115,9 +134,11 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     # all_up_csvs = [res_csv_df]
 
     upgrade2res = {0: res_csv_df}
+    save_monthly_result(0, build_df)
     for upgrade in available_upgrades:
         print(f"Getting up_csv for {upgrade}")
         up_csv = upgrade_run.get_upgrades_csv_full(upgrade_id=int(upgrade))
+        save_monthly_result(upgrade, build_df)
         upgrade_run.save_cache()
         # print(list(up_csv.columns))
         # print(list(res_csv_df.columns))
@@ -137,21 +158,21 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             up_csv[invalid_rows_keys] = invalid_rows
         # up_csv = up_csv.reset_index().set_index(['upgrade'])
         upgrade2res[upgrade] = up_csv
-
-    emissions_cols = get_cols(res_csv_df, suffixes=['_lb'])
-    end_use_cols = get_cols(res_csv_df, ["end_use_", "energy_use__", "fuel_use_"])
-    water_usage_cols = get_cols(res_csv_df, suffixes=["_gal"])
-    load_cols = get_cols(res_csv_df, ["load_", "flow_rate_"])
-    peak_cols = get_cols(res_csv_df, ["peak_"])
-    unmet_cols = get_cols(res_csv_df, ["unmet_"])
-    area_cols = get_cols(res_csv_df, suffixes=["_ft_2", ])
-    size_cols = get_cols(res_csv_df, ["size_"])
-    qoi_cols = get_cols(res_csv_df, ["qoi_"])
-    cost_cols = get_cols(res_csv_df, ["upgrade_cost_"])
+    all_cols = res_csv_df.columns
+    emissions_cols = filter_cols(all_cols, suffixes=['_lb'])
+    end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
+    water_usage_cols = filter_cols(all_cols, suffixes=["_gal"])
+    load_cols = filter_cols(all_cols, ["load_", "flow_rate_"])
+    peak_cols = filter_cols(all_cols, ["peak_"])
+    unmet_cols = filter_cols(all_cols, ["unmet_"])
+    area_cols = filter_cols(all_cols, suffixes=["_ft_2", ])
+    size_cols = filter_cols(all_cols, ["size_"])
+    qoi_cols = filter_cols(all_cols, ["qoi_"])
+    cost_cols = filter_cols(all_cols, ["upgrade_cost_"])
     char_cols = [c.removeprefix('build_existing_model.') for c in build_cols if 'applicable' not in c]
     fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
-    def get_res(upgrade: int, enduse: list[str], group_by: list[str] | None = None, applied_only: bool = False):
+    def get_res(upgrade: int, enduses: list[str], group_by: list[str] | None = None, applied_only: bool = False):
         if upgrade == 0:
             res_df = upgrade2res[0].copy()
         elif applied_only:
@@ -161,8 +182,28 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         else:
             res_df = upgrade2res[int(upgrade)].copy()
         group_by = group_by or []
-        res_df.loc[:, 'value'] = res_df[enduse].sum(axis=1)
-        return res_df[group_by + ['value']]
+        if resolution == 'monthly':
+            if upgrade == 0 and baseline_run is not None:
+                run_obj = baseline_run
+            else:
+                run_obj = upgrade_run
+            monthly_vals = run_obj.agg.aggregate_timeseries(enduses=enduses,
+                                                            group_by=[run_obj.ts_bldgid_column],
+                                                            upgrade_id=upgrade,
+                                                            timestamp_grouping_func='month')
+            run_obj.save_cache()
+            monthly_vals = monthly_vals.set_index('building_id')
+            monthly_vals['Month'] = monthly_vals['time'].dt.month_name()
+            for enduse in enduses:
+                if enduse.endswith('kwh'):
+                    monthly_vals[enduse] *= KWH2MBTU
+            monthly_vals.loc[:, 'value'] = monthly_vals[enduses].sum(axis=1)
+            monthly_vals = monthly_vals.join(res_df[group_by])
+            return monthly_vals[group_by + ['Month', 'value']]
+        else:
+            res_df.loc[:, 'value'] = res_df[enduses].sum(axis=1)
+            baseline_df = res_df[group_by + ['value']]
+            return baseline_df
 
     def get_buildings(upgrade, applied_only=False):
         if upgrade == 0:
@@ -418,30 +459,54 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
         return fig, pd.concat(report_dfs)
 
+    def get_all_cols():
+        if resolution == "annual":
+            all_cols = [str(c.name) for c in upgrade_run.get_cols(table=upgrade_run.bs_table)]
+            all_cols = [col.split('.')[1] if '.' in col else col for col in all_cols]
+        else:
+            assert upgrade_run.ts_table is not None
+            all_cols = [str(c.name) for c in upgrade_run.get_cols(table=upgrade_run.ts_table)]
+        return all_cols
+
+    def get_all_end_use_cols():
+        all_cols = get_all_cols()
+        all_end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use_", "fuel_use_"])
+        return all_end_use_cols
+
     def get_end_use_cols(fuel):
         cols = []
-        for c in end_use_cols:
+        all_end_use_cols = get_all_end_use_cols()
+        sep = "_" if resolution == "annual" else "__"
+        for c in all_end_use_cols:
             if fuel in c or fuel == 'All':
-                c = c.removeprefix(f"end_use_{fuel}_")
-                c = c.removeprefix(f"fuel_use_{fuel}_")
+                c = c.removeprefix(f"end_use{sep}{fuel}{sep}")
+                c = c.removeprefix(f"fuel_use{sep}{fuel}{sep}")
                 if fuel == 'All':
                     for f in sorted(fuels_types):
-                        c = c.removeprefix(f"end_use_{f}_")
-                        c = c.removeprefix(f"fuel_use_{f}_")
+                        c = c.removeprefix(f"end_use{sep}{f}{sep}")
+                        c = c.removeprefix(f"fuel_use{sep}{f}{sep}")
                 cols.append(c)
         no_dup_cols = {c: None for c in cols}
         return list(no_dup_cols.keys())
 
-    def get_all_end_use_cols(fuel, end_use):
-        all_enduses_set = set(end_use_cols)
+    def get_emissions_cols():
+        all_cols = get_all_cols()
+        all_emissions_cols = filter_cols(all_cols, ["emissions_"])
+        return all_emissions_cols
+
+    def get_energy_db_cols(fuel, end_use):
+        all_enduses = get_all_end_use_cols()
+        if not end_use:
+            return all_enduses[0]
         valid_cols = []
+        sep = "_" if resolution == "annual" else "__"
         prefix = "fuel_use" if end_use.startswith("total") else "end_use"
         if fuel == 'All':
-            valid_cols.extend(f"{prefix}_{f}_{end_use}" for f in fuels_types
-                              if f"{prefix}_{f}_{end_use}" in all_enduses_set)
+            valid_cols.extend(f"{prefix}{sep}{f}{sep}{end_use}" for f in fuels_types
+                              if f"{prefix}{sep}{f}{sep}{end_use}" in all_enduses)
 
         else:
-            valid_cols.append(f"{prefix}_{fuel}_{end_use}")
+            valid_cols.append(f"{prefix}{sep}{fuel}{sep}{end_use}")
         return valid_cols
 
     def get_opt_report(upgrade, bldg_id):
@@ -476,7 +541,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
         # Add a row for annual, vs monthly vs seasonal plot radio buttons
         dbc.Row([dbc.Col(dbc.Label("Resolution: "), width='auto'),
-                 dbc.Col(dcc.RadioItems(["Annual", "Monthly"], "Annual",
+                 dbc.Col(dcc.RadioItems(["annual", "monthly"], "annual",
                                         inline=True, id="radio_resolution"))]),
 
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
@@ -648,46 +713,52 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         bdf = res_csv_df[char_cols].loc[bldg_ids]
         return dcc.send_data_frame(bdf.to_csv, f"chars_{n_clicks}.csv")
 
+    def get_elligible_output_columns(category, fuel):
+        if category == 'energy':
+            elligible_cols = get_end_use_cols(fuel)
+        elif category == 'water':
+            elligible_cols = water_usage_cols if resolution == 'annual' else []
+        elif category == 'load':
+            elligible_cols = load_cols if resolution == 'annual' else []
+        elif category == 'peak':
+            elligible_cols = peak_cols if resolution == 'annual' else []
+        elif category == 'unmet_hours':
+            elligible_cols = unmet_cols if resolution == 'annual' else []
+        elif category == 'area':
+            elligible_cols = area_cols if resolution == 'annual' else []
+        elif category == 'size':
+            elligible_cols = size_cols if resolution == 'annual' else []
+        elif category == 'qoi':
+            elligible_cols = qoi_cols if resolution == 'annual' else []
+        elif category == 'emissions':
+            elligible_cols = emissions_cols if resolution == 'annual' else get_emissions_cols()
+        elif category == 'upgrade_cost':
+            elligible_cols = cost_cols if resolution == 'annual' else []
+        else:
+            raise ValueError(f"Invalid tab {category}")
+        return elligible_cols
+
+    @app.callback(
+            Output('radio_resolution', 'options'),
+            Input('radio_resolution', 'value'),
+    )
+    def update_resolution(res):
+        nonlocal resolution
+        resolution = res
+        return ['annual', 'monthly']
+
     @app.callback(
         Output('dropdown_enduse', "options"),
         Output('dropdown_enduse', "value"),
         Input('tab_view_type', "value"),
         Input('radio_fuel', "value"),
-        Input('dropdown_enduse', "value")
+        Input('dropdown_enduse', "value"),
+        Input('radio_resolution', 'value')
     )
-    def update_enduse_options(view_tab, fuel_type, current_enduse):
-        if view_tab == 'energy':
-            available_endues = get_end_use_cols(fuel_type)
-        elif view_tab == 'water':
-            available_endues = water_usage_cols
-        elif view_tab == 'load':
-            available_endues = load_cols
-        elif view_tab == 'peak':
-            available_endues = peak_cols
-        elif view_tab == 'unmet_hours':
-            available_endues = unmet_cols
-        elif view_tab == 'area':
-            available_endues = area_cols
-        elif view_tab == 'size':
-            available_endues = size_cols
-        elif view_tab == 'qoi':
-            available_endues = qoi_cols
-        elif view_tab == 'emissions':
-            available_endues = emissions_cols
-        elif view_tab == 'upgrade_cost':
-            available_endues = cost_cols
-        else:
-            raise ValueError(f"Invalid tab {view_tab}")
-
-        enduse = current_enduse or available_endues[0]
-        if fuel_type == 'All':
-            return available_endues, enduse
-
-        if enduse not in available_endues:
-            # print(f"Bad enduse {enduse}")
-            return sorted(available_endues), available_endues[0]
-    #     print(fuel_type, f"Update enduse",  available_endues, enduse)
-        return sorted(available_endues), enduse
+    def update_enduse_options(view_tab, fuel_type, current_enduse, resolution):
+        elligible_cols = get_elligible_output_columns(view_tab, fuel_type)
+        enduse = current_enduse if current_enduse in elligible_cols else elligible_cols[0]
+        return sorted(elligible_cols), enduse
 
     # @app.callback(
     #     Output("collapse_points", 'is_open'),
@@ -1169,7 +1240,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         if not enduse:
             full_name = []
         if view_tab == 'energy':
-            full_name = get_all_end_use_cols(fuel, enduse)
+            full_name = get_energy_db_cols(fuel, enduse)
         else:
             full_name = [enduse]
 
@@ -1197,7 +1268,6 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         uirevision = uirevision or "default"
         new_figure.update_layout(uirevision=uirevision)
         download_csv_df = report_df.reset_index(drop=True)
-        upgrade_run.save_cache()
         return new_figure, ""
 
     upgrade_run.save_cache()
@@ -1207,7 +1277,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 def main():
     print("Welcome to Upgrades Visualizer.")
     yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default="/Users/radhikar/Downloads/fact_sheets_category_2.yml").execute()
+                              default="/Users/radhikar/Downloads/fact_sheets_category_6.yml").execute()
     opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
                                  default="/Users/radhikar/Downloads/options_saturations.csv").execute()
     db_name = inquirer.text(message="Please enter database_name "
@@ -1215,7 +1285,7 @@ def main():
                             default='largeee_test_runs').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file)",
-                               default="medium_run_baseline_20230622,medium_run_category_2_20230713"
+                               default="medium_run_baseline_20230622,medium_run_category_6_20230707"
                                ).execute()
 
     if ',' in table_name:
