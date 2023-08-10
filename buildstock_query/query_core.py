@@ -3,7 +3,7 @@ import contextlib
 import pathlib
 from pyathena.connection import Connection
 from pyathena.error import OperationalError
-from pyathena.sqlalchemy_athena import AthenaDialect
+from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor

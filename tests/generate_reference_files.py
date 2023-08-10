@@ -88,4 +88,4 @@ def generate_table(table_name: str):
 
 if __name__ == "__main__":
     generate_table_and_cache("res_n250_15min_v19")
-    generate_table("res_n250_hrly_v1")
+    # generate_table("res_n250_hrly_v1")

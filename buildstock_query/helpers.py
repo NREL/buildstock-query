@@ -1,5 +1,5 @@
 from concurrent.futures import Future
-from pyathena.sqlalchemy_athena import AthenaDialect
+from pyathena.sqlalchemy.base import AthenaDialect
 from pyathena.pandas.result_set import AthenaPandasResultSet
 import datetime
 import pickle
