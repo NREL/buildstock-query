@@ -23,6 +23,10 @@ from dash_iconify import DashIconify
 import pandas as pd
 from InquirerPy import inquirer
 import plotly.express as px
+from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
+from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
+from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
+import polars as pl
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
 # from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
@@ -43,124 +47,34 @@ default_end_use = "fuel_use_electricity_total_m_btu"
 
 
 def filter_cols(all_columns, prefixes=[], suffixes=[]):
-        cols = []
-        for col in all_columns:
-            for prefix in prefixes:
-                if col.startswith(prefix):
+    cols = []
+    for col in all_columns:
+        for prefix in prefixes:
+            if col.startswith(prefix):
+                cols.append(col)
+                break
+        else:
+            for suffix in suffixes:
+                if col.endswith(suffix):
                     cols.append(col)
                     break
-            else:
-                for suffix in suffixes:
-                    if col.endswith(suffix):
-                        cols.append(col)
-                        break
-        return cols
+    return cols
 
 
 def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             table_name: str = 'res_test_03_2018_10k_20220607',
             workgroup: str = 'largeee',
             buildstock_type: str = 'resstock'):
-    if isinstance(table_name, tuple) or isinstance(table_name, list):
-        baseline_run = BuildStockQuery(workgroup=workgroup,
-                                       db_name=db_name,
-                                       buildstock_type=buildstock_type,
-                                       table_name=table_name[0],
-                                       skip_reports=False)
-        baseline_table_name = table_name[0] + "_baseline"
-        upgrade_table_name = table_name[1] + "_upgrades"
-        ts_table_name = table_name[1] + "_timeseries"
-        tables = (baseline_table_name, ts_table_name, upgrade_table_name)
-    else:
-        baseline_run = None
-        tables = table_name
-    upgrade_run = BuildStockQuery(workgroup=workgroup,
-                                  db_name=db_name,
-                                  buildstock_type=buildstock_type,
-                                  table_name=tables,
-                                  skip_reports=False)
-    upgrade2monthly_res = {}
-
-    def save_monthly_result(upgrade, build_df):
-        if upgrade == 0 and baseline_run is not None:
-            run_obj = baseline_run
-        else:
-            run_obj = upgrade_run
-        all_cols = [str(c.name) for c in run_obj.get_cols(table=run_obj.ts_table)]
-        all_cols = filter_cols(all_cols, suffixes=['_kbtu', '_kwh', '_lb'])
-        monthly_vals = run_obj.agg.aggregate_timeseries(enduses=all_cols,
-                                                        group_by=[run_obj.bs_bldgid_column],
-                                                        upgrade_id=0,
-                                                        timestamp_grouping_func='month')
-        monthly_vals = monthly_vals.set_index('building_id')
-        monthly_vals['Month'] = monthly_vals['time'].dt.month_name()
-        for col in monthly_vals.columns:
-            if col.endswith('kwh'):
-                monthly_vals[col] *= KWH2MBTU
-        monthly_vals = monthly_vals.rename(columns=lambda col: col.replace('kwh', 'mbtu'))
-        monthly_vals = build_df.join(monthly_vals)
-        upgrade2monthly_res[upgrade] = monthly_vals
-
-    report = upgrade_run.report.get_success_report()
-    available_upgrades = list(report.index)
-    available_upgrades.remove(0)
-    euss_ua = upgrade_run.get_upgrades_analyzer(yaml_path, opt_sat_file=opt_sat_path)
-    upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
-                    upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
-    upgrade2name[0] = "Upgrade 0: Baseline"
-    upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx,
-                         upgrade in enumerate(euss_ua.get_cfg().get('upgrades', []))}
-    # allupgrade2name = {0: "Upgrade 0: Baseline"} | upgrade2name
-    change_types = ["any", "no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng"]
-    chng2bldg = {}
-    for chng in change_types:
-        for upgrade in available_upgrades:
-            print(f"Getting buildings for {upgrade} and {chng}")
-            chng2bldg[(upgrade, chng)] = upgrade_run.report.get_buildings_by_change(upgrade_id=int(upgrade),
-                                                                                    change_type=chng)
-    download_csv_df = pd.DataFrame()
+    viz_data = VizData(yaml_path=yaml_path, opt_sat_path=opt_sat_path, db_name=db_name,
+                       run=table_name, workgroup=workgroup, buildstock_type=buildstock_type)
+    upgrades_plot = UpgradesPlot(viz_data)
+    upgrade2res = viz_data.upgrade2res
+    # upgrade2res_monthly = viz_data.upgrade2res_monthly
+    upgrade2name = viz_data.upgrade2name
     resolution = 'annual'
-
-    res_csv_df = upgrade_run.get_results_csv_full()
-    upgrade_run.save_cache()
-    res_csv_df = res_csv_df[res_csv_df['completed_status'] == 'Success']
-    sample_weight = res_csv_df['build_existing_model.sample_weight'].iloc[0]
-    res_csv_df['upgrade'] = 0
-    build_cols = [c for c in res_csv_df.columns if c.startswith('build_existing_model.')]
-    build_df = res_csv_df[build_cols]
-    res_csv_df = res_csv_df.rename(columns={'upgrade_costs.upgrade_cost_usd': 'upgrade_cost_total_usd'})
-    res_csv_df = res_csv_df.rename(columns=lambda x: x.split('.')[1] if '.' in x else x)
-    res_csv_df = res_csv_df.drop(columns=['applicable', 'output_format'])  # These are useless columns
-    # all_up_csvs = [res_csv_df]
-
-    upgrade2res = {0: res_csv_df}
-    save_monthly_result(0, build_df)
-    for upgrade in available_upgrades:
-        print(f"Getting up_csv for {upgrade}")
-        up_csv = upgrade_run.get_upgrades_csv_full(upgrade_id=int(upgrade))
-        save_monthly_result(upgrade, build_df)
-        upgrade_run.save_cache()
-        # print(list(up_csv.columns))
-        # print(list(res_csv_df.columns))
-        # print("upgrade", i, set(up_csv.columns)  - set(res_csv_df.columns))
-        # print("upgrade", i, set(res_csv_df.columns)  - set(up_csv.columns))
-        up_csv = up_csv.loc[res_csv_df.index]
-        up_csv = up_csv.join(build_df)
-        up_csv = up_csv.rename(columns={'upgrade_costs.upgrade_cost_usd': 'upgrade_cost_total_usd'})
-        up_csv = up_csv.rename(columns=lambda x: x.split('.')[1] if '.' in x else x)
-        up_csv = up_csv.drop(columns=['applicable', 'output_format'])
-        up_csv['upgrade'] = up_csv['upgrade'].map(lambda x: int(x))
-        invalid_rows_keys = up_csv['completed_status'] == 'Invalid'
-        invalid_rows = up_csv[invalid_rows_keys].copy()
-        if len(invalid_rows) > 0:
-            invalid_rows.update(res_csv_df[invalid_rows_keys])
-            invalid_rows['completed_status'] = 'Invalid'
-            up_csv[invalid_rows_keys] = invalid_rows
-        # up_csv = up_csv.reset_index().set_index(['upgrade'])
-        upgrade2res[upgrade] = up_csv
-    all_cols = res_csv_df.columns
+    all_cols = viz_data.upgrade2res[0].columns
     emissions_cols = filter_cols(all_cols, suffixes=['_lb'])
-    end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
+    # end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
     water_usage_cols = filter_cols(all_cols, suffixes=["_gal"])
     load_cols = filter_cols(all_cols, ["load_", "flow_rate_"])
     peak_cols = filter_cols(all_cols, ["peak_"])
@@ -169,314 +83,62 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     size_cols = filter_cols(all_cols, ["size_"])
     qoi_cols = filter_cols(all_cols, ["qoi_"])
     cost_cols = filter_cols(all_cols, ["upgrade_cost_"])
+    build_cols = viz_data.metadata_df.columns
     char_cols = [c.removeprefix('build_existing_model.') for c in build_cols if 'applicable' not in c]
+    char_cols += ['month']
     fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
+    change_types = ["any", "no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng"]
+    download_csv_df = pl.DataFrame()
 
-    def get_res(upgrade: int, enduses: list[str], group_by: list[str] | None = None, applied_only: bool = False):
-        if upgrade == 0:
-            res_df = upgrade2res[0].copy()
-        elif applied_only:
-            res = upgrade2res[int(upgrade)].copy()
-            res = res[res['completed_status'] != 'Invalid']
-            res_df = res
-        else:
-            res_df = upgrade2res[int(upgrade)].copy()
-        group_by = group_by or []
-        if resolution == 'monthly':
-            if upgrade == 0 and baseline_run is not None:
-                run_obj = baseline_run
-            else:
-                run_obj = upgrade_run
-            monthly_vals = run_obj.agg.aggregate_timeseries(enduses=enduses,
-                                                            group_by=[run_obj.ts_bldgid_column],
-                                                            upgrade_id=upgrade,
-                                                            timestamp_grouping_func='month')
-            run_obj.save_cache()
-            monthly_vals = monthly_vals.set_index('building_id')
-            monthly_vals['Month'] = monthly_vals['time'].dt.month_name()
-            for enduse in enduses:
-                if enduse.endswith('kwh'):
-                    monthly_vals[enduse] *= KWH2MBTU
-            monthly_vals.loc[:, 'value'] = monthly_vals[enduses].sum(axis=1)
-            monthly_vals = monthly_vals.join(res_df[group_by])
-            return monthly_vals[group_by + ['Month', 'value']]
-        else:
-            res_df.loc[:, 'value'] = res_df[enduses].sum(axis=1)
-            baseline_df = res_df[group_by + ['value']]
-            return baseline_df
-
-    def get_buildings(upgrade, applied_only=False):
-        if upgrade == 0:
-            return upgrade2res[0].index
-        elif applied_only:
-            res = upgrade2res[int(upgrade)]
-            res = res[res['completed_status'] != 'Invalid']
-            return res.index
-        else:
-            return upgrade2res[int(upgrade)].index
+    def get_buildings(upgrade):
+        return upgrade2res[int(upgrade)]['building_id'].to_list()
 
     def explode_str(input_str):
         input_str = str(input_str).lower()
+        month2num = {"january": 1, "february": 2, "march": 3, "april": 4,
+                     "may": 5, "june": 6, "july": 7, "august": 8,
+                     "september": 9, "october": 10, "november": 11, "december": 12}
+        input_str = str(month2num[input_str] if input_str in month2num else input_str)
         input_str = [
             int(x) if x and x[0] in "0123456789" else x
             for x in re.split(r"([\<\-])|([0-9]+)", input_str)
         ]
+
         return tuple("X" if x is None else x for x in input_str)
 
-    def csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade, filter_bldg=None,
-                      report_upgrade: int = 0, group_cols=None):
+    def get_plot(end_use, value_type='mean', savings_type='', change_type='',
+                 sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=None):
+        filter_bldg = filter_bldg or []
+        group_cols = group_cols or []
+        sync_upgrade = sync_upgrade or 0
 
-        base_vals = get_res(0, end_use)
-        base_df = base_vals.loc[filter_bldg] if filter_bldg is not None else base_vals.copy()
+        params = PlotParams(enduses=end_use, value_type=ValueTypes[value_type.lower()],
+                            savings_type=SavingsTypes[savings_type.lower().replace(' ', '_')],
+                            change_type=change_type, sync_upgrade=sync_upgrade,
+                            filter_bldgs=filter_bldg, group_by=group_cols, upgrades_to_plot=[],
+                            resolution=resolution)
 
-        if group_cols:
-            res_df = get_res(report_upgrade, end_use, group_by=group_cols, applied_only=applied_only)
-            res_df = res_df.sort_values(group_cols, key=lambda series: [explode_str(x) for x in series])
-            if len(group_cols) > 1:
-                grouped_df = res_df.groupby(group_cols, sort=False)
-                df_generator = ((', '.join(indx), df) for (indx, df) in grouped_df)
-            else:
-                df_generator = ((indx, df) for indx, df in res_df.groupby(group_cols[0], sort=False))
+        if len(group_cols) >= 2 or report_upgrade not in [None, ''] or \
+           (value_type in ['Distribution', 'Scatter'] and len(group_cols) >= 1):
+            report_upgrade = report_upgrade or 0
+            params.upgrades_to_plot = [report_upgrade]
+            params.group_by = ['upgrade'] if not params.group_by else params.group_by
+            plot_df = viz_data.get_plotting_df(upgrade=int(report_upgrade), params=params)
         else:
-            df_generator = ((f"Upgrade {upgrade}", get_res(upgrade, end_use, applied_only=applied_only)) for upgrade in [report_upgrade])
+            params.group_by = ['upgrade'] + params.group_by
+            plot_df = viz_data.get_plotting_df_all_upgrades(params=params)
 
-        for indx, res_df in df_generator:
-            if change_type:
-                chng_upgrade = int(sync_upgrade) if sync_upgrade else int(report_upgrade) if report_upgrade else 0
-                if chng_upgrade and chng_upgrade > 0:
-                    change_bldg_list = chng2bldg[(chng_upgrade, change_type)]
-                else:
-                    change_bldg_list = []
-                res_df = res_df.loc[res_df.index.intersection(change_bldg_list)]
-
-            if filter_bldg is not None:
-                res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
-            if len(res_df) == 0:
-                continue
-
-            sub_df = res_df['value']
-            if savings_type == 'Savings':
-                sub_df = base_df.loc[sub_df.index, 'value'] - sub_df
-            elif savings_type == 'Percent Savings':
-                sub_base_df = base_df.loc[sub_df.index, 'value']
-                saving_df = 100 * (sub_base_df - sub_df) / sub_base_df
-                saving_df[(sub_base_df == 0)] = -100  # If base is 0, and upgrade is not, assume -100% savings
-                saving_df[(sub_df == 0) & (sub_base_df == 0)] = 0
-                sub_df = saving_df
-            yield indx, sub_df
-
-    def get_ylabel(end_use):
-        if len(end_use) == 1:
-            return end_use[0]
-        pure_end_use_name = end_use[0].removeprefix("end_use_")
-        pure_end_use_name = pure_end_use_name.removeprefix("fuel_use_")
-        pure_end_use_name = "_".join(pure_end_use_name.split("_")[1:])
-        return f"{len(end_use)}_fuels_{pure_end_use_name}"
-
-    def get_scatter(end_use, savings_type='', applied_only=False, change_type='', show_all_points=False,
-                    sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=0):
-        fig = go.Figure()
-        report_upgrade = report_upgrade or 0
-        res_df = get_res(report_upgrade, end_use, group_by=group_cols, applied_only=applied_only)
-        if filter_bldg is not None:
-            res_df = res_df.loc[res_df.index.intersection(filter_bldg)]
-
-        sub_df = res_df['value'].copy()
-        base_df = get_res(0, end_use, group_by=group_cols).copy()
-        base_df['baseline_vals'] = base_df['value']
-        base_df = base_df.loc[filter_bldg] if filter_bldg is not None else base_df
-        base_df = base_df.loc[sub_df.index]
-        ytitle = f"Upgrade {savings_type} values"
-        xtitle = "Baseline absolute values"
-        if savings_type == 'Absolute':
-            base_df['upgrade_vals'] = sub_df
-        elif savings_type == 'Savings':
-            base_df['upgrade_vals'] = base_df['baseline_vals'] - sub_df
-        elif savings_type == 'Percent Savings':
-            base_df['upgrade_vals'] = 100 * (base_df['baseline_vals'] - sub_df) / base_df['baseline_vals']
-            # If base is 0, and upgrade is not, assume -100% savings
-            base_df.loc[(base_df['baseline_vals'] == 0), "upgrade_vals"] = -100
-            base_df.loc[(sub_df == 0) & (base_df['baseline_vals'] == 0), 'upgrade_vals'] = 0
-
-        base_df = base_df.reset_index()
-        base_df['hovertext'] = base_df['building_id'].apply(lambda bid: f'{upgrade2name.get(int(report_upgrade))}'
-                                                            f'<br>Building: {bid}<br>Sample Count: {len(base_df)}')
-        report_df = base_df.rename(columns={'baseline_vals': xtitle, 'upgrade_vals': ytitle, 'hovertext': 'info'})
-        if group_cols:
-            if len(group_cols) == 1:
-                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
-                                 facet_col=group_cols[0],
-                                 labels={'baseline_vals': '', 'upgrade_vals': ''})
-                report_df = report_df[['building_id', xtitle, ytitle,  group_cols[0], 'info']]
-            elif len(group_cols) > 1:
-                fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
-                                 facet_col=group_cols[0], facet_row=group_cols[1],
-                                 labels={'baseline_vals': '', 'upgrade_vals': ''})
-                report_df = report_df[['building_id', xtitle, ytitle,  group_cols[0], group_cols[1], 'info']]
-            fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-        else:
-            fig = px.scatter(base_df, hover_name='hovertext', x='baseline_vals', y="upgrade_vals",
-                             labels={'baseline_vals': '', 'upgrade_vals': ''})
-            report_df = report_df[['building_id', xtitle, ytitle, 'info']]
-        title = f"{get_ylabel(end_use)}"
-        fig.update_layout(boxmode="group",
-                          title=f"{title} for {change_type} buildings" if change_type else f'{title}',
-                          clickmode='event+select')
-        fig.add_annotation(x=-0.02, y=0.5,
-                           text=ytitle, textangle=-90,
-                           arrowcolor="white",
-                           xref="paper", yref="paper")
-        fig.add_annotation(x=0.5, y=-0.17,
-                           text=xtitle, textangle=0,
-                           arrowcolor="white",
-                           xref="paper", yref="paper")
-        return fig, report_df
-
-    def get_distribution(end_use, savings_type='', applied_only=False, change_type='', show_all_points=False,
-                         sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=0):
-        fig = go.Figure()
-        counter = 0
-        report_dfs = []
-        if show_all_points:
-            points = 'all'
-            upgrades_to_plot = [report_upgrade] if report_upgrade else [0]
-        else:
-            points = 'suspectedoutliers'
-            upgrades_to_plot = [0] + available_upgrades
-        ytitle = f"{get_ylabel(end_use)}"
-        xtitle = ", ".join(group_cols) if group_cols else 'Upgrade'
-        for upgrade in upgrades_to_plot:
-            yvals = []
-            xvals = []
-            sample_counts = []
-            hovervals = []
-            all_building_ids = []
-            for indx, sub_df in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
-                                              filter_bldg, upgrade, group_cols):
-                building_ids = list(sub_df.index)
-                count = sum(sub_df < float('inf'))
-                if counter >= 200:
-                    sub_df = pd.DataFrame()
-                    fig.add_trace(go.Box(
-                        y=[],
-                        name="Too many groups"
-                    ))
-                    break
-                else:
-                    xvals.extend([indx]*len(sub_df))
-                    yvals.extend(sub_df.values)
-                    all_building_ids.extend(building_ids)
-                    sample_counts.extend([count] * len(sub_df))
-                    hovertext = [f'{upgrade2name.get(upgrade)}<br>{indx}<br> Building: {bid}<br>Sample Count: {count}'
-                                 for bid in building_ids]
-                    hovervals.extend(hovertext)
-                counter += 1
-
-            fig.add_trace(go.Box(
-                y=yvals,
-                x=xvals,
-                name=f'Upgrade {upgrade}',
-                boxpoints=points,
-                boxmean=True,  # represent mean
-                hovertext=hovervals,
-                hoverinfo="all"
-            ))
-            try:
-                df = pd.DataFrame({'building_ids': all_building_ids, xtitle: xvals, ytitle: yvals,
-                                   'upgrade': f'Upgrade {upgrade}', 'sample_count': sample_counts, 'info': hovervals})
-            except Exception as exp:
-                print(exp)
-                continue
-            report_dfs.append(df)
-
-        fig.update_layout(yaxis_title=ytitle,
-                          boxmode="group",
-                          xaxis_title=xtitle,
-                          title=f"Distribution for {change_type} buildings" if change_type else 'Distribution',
-                          clickmode='event+select')
-        return fig, pd.concat(report_dfs)
-
-    def get_bars(end_use, value_type='mean', savings_type='', applied_only=False, change_type='',
-                 sync_upgrade=None, filter_bldg=None, group_cols=None):
-        fig = go.Figure()
-        counter = 0
-        report_dfs = []
-        xtitle = ", ".join(group_cols) if group_cols else 'Upgrade'
-        ytitle = f"{get_ylabel(end_use)}_{value_type}"
-        for upgrade in [0] + available_upgrades:
-            yvals = []
-            xvals = []
-            sample_counts = []
-            upgrades = []
-            hovervals = []
-            for indx, up_vals in csv_generator(end_use, savings_type, applied_only, change_type, sync_upgrade,
-                                               filter_bldg, upgrade, group_cols):
-
-                count = len(up_vals)
-                if value_type.lower() == 'total':
-                    val = up_vals.sum() * sample_weight
-                elif value_type.lower() == 'count':
-                    val = up_vals.count()
-                else:
-                    val = up_vals.mean()
-                if counter >= 200:
-                    yvals.append(0)
-                    xvals.append("Too many groups")
-                    sample_counts.append(0)
-                    upgrades.append(upgrade)
-                    hovervals.append("Too many groups")
-                    break
-                else:
-                    yvals.append(val)
-                    xvals.append(indx)
-                    sample_counts.append(count)
-                    upgrades.append(upgrade)
-                    hovertext = f"{upgrade2name.get(upgrade)}<br>{indx}<br>Average {val}. <br>Sample Count: {count}."
-                    f"<br>Units Count: {count * sample_weight}."
-                    hovervals.append(hovertext)
-                counter += 1
-
-            fig.add_trace(go.Bar(
-                y=yvals,
-                x=xvals,
-                hovertext=hovervals,
-                name=f'Upgrade {upgrade}',
-                hoverinfo="all"
-            )).update_traces(
-                marker={"line": {"width": 0.5, "color": "rgb(0,0,0)"}}
-            )
-            try:
-                df = pd.DataFrame({xtitle: xvals, ytitle: yvals, 'upgrade': [f'Upgrade {upgrade}'] * len(xvals),
-                                   'sample_count': sample_counts, 'info': hovervals})
-            except Exception:
-                continue
-            report_dfs.append(df)
-
-        fig.update_layout(yaxis_title=ytitle,
-                          barmode='group',
-                          xaxis_title=xtitle,
-                          title=f"{value_type} for {change_type} buildings" if change_type else f'{value_type}')
-
-        return fig, pd.concat(report_dfs)
-
-    def get_all_cols():
-        if resolution == "annual":
-            all_cols = [str(c.name) for c in upgrade_run.get_cols(table=upgrade_run.bs_table)]
-            all_cols = [col.split('.')[1] if '.' in col else col for col in all_cols]
-        else:
-            assert upgrade_run.ts_table is not None
-            all_cols = [str(c.name) for c in upgrade_run.get_cols(table=upgrade_run.ts_table)]
-        return all_cols
+        return upgrades_plot.get_plot(plot_df, params)
 
     def get_all_end_use_cols():
-        all_cols = get_all_cols()
+        all_cols = viz_data.get_all_cols(resolution=resolution)
         all_end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use_", "fuel_use_"])
         return all_end_use_cols
 
     def get_end_use_cols(fuel):
         cols = []
         all_end_use_cols = get_all_end_use_cols()
-        sep = "_" if resolution == "annual" else "__"
+        sep = "_"
         for c in all_end_use_cols:
             if fuel in c or fuel == 'All':
                 c = c.removeprefix(f"end_use{sep}{fuel}{sep}")
@@ -490,7 +152,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         return list(no_dup_cols.keys())
 
     def get_emissions_cols():
-        all_cols = get_all_cols()
+        all_cols = viz_data.get_all_cols(resolution=resolution)
         all_emissions_cols = filter_cols(all_cols, ["emissions_"])
         return all_emissions_cols
 
@@ -499,7 +161,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         if not end_use:
             return all_enduses[0]
         valid_cols = []
-        sep = "_" if resolution == "annual" else "__"
+        sep = "_"
         prefix = "fuel_use" if end_use.startswith("total") else "end_use"
         if fuel == 'All':
             valid_cols.extend(f"{prefix}{sep}{f}{sep}{end_use}" for f in fuels_types
@@ -508,29 +170,6 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         else:
             valid_cols.append(f"{prefix}{sep}{fuel}{sep}{end_use}")
         return valid_cols
-
-    def get_opt_report(upgrade, bldg_id):
-        applied_options = list(upgrade_run.report.get_applied_options(upgrade_id=int(upgrade), bldg_ids=[bldg_id])[0])
-        applied_options = [val for key, val in upgrade2res[upgrade].loc[bldg_id].items() if
-                           key.startswith("option_") and key.endswith("_name")
-                           and not (isinstance(val, float) and np.isnan(val))]
-
-        opt_vals = [(opt.split('|')[0], opt.split('|')[1]) for opt in applied_options]
-        char_cols = ['_'.join(opt.lower().split('|')[0].split()) for opt in applied_options]
-        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
-        option_report = [f"{opt}: {base_val} => {up_val}" for (opt, up_val), base_val in zip(opt_vals, baseline_vals)]
-        return option_report
-
-    def get_baseline_chars(bldg_id, char_types=None):
-        baseline_vals = upgrade2res[0].loc[bldg_id][char_cols]
-        char_types = char_types or []
-        return_list = []
-        for char_type in char_types:
-            return_val = [f'{k}: {v}' for k, v in baseline_vals.items()
-                          if char_type in k]
-            return_list += return_val
-
-        return return_list
 
     external_script = ["https://tailwindcss.com/", {"src": "https://cdn.tailwindcss.com"}]
 
@@ -549,18 +188,9 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                         id="radio_graph_type",
                                         inline=True,
                                         labelClassName="pr-2"), width='auto'),
-                #  dbc.Col(dbc.Collapse(children=[dcc.Checklist(['Show all points'], [],
-                 #                                               inline=True, id='check_all_points')
-                 #                                 ],
-                 #                       id="collapse_points", is_open=True), width='auto'),
-                 dbc.Col(children=[dcc.Checklist(['Show all points'], [],
-                                                 inline=True, id='check_all_points')
-                                   ],),
                  dbc.Col(dbc.Label("Value Type: "), width='auto'),
                  dbc.Col(dcc.RadioItems(["Absolute", "Savings", "Percent Savings"], "Absolute",  inline=True,
                                         id='radio_savings', labelClassName="pr-2"), width='auto'),
-                 dbc.Col(dcc.Checklist(options=['Applied Only'], value=['Applied Only'],
-                                       inline=True, id='chk_applied_only'), width='auto')
                  ]),
         dbc.Row([dbc.Col(html.Br())]),
         dbc.Row([dbc.Col(dcc.Loading(id='graph-loader', children=[html.Div(id='loader_label')]))]),
@@ -616,7 +246,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                                  width='auto', style={"padding-left": "0px", "padding-right": "0px"}),
                          dbc.Col(html.Div(" in "), style={"padding-right": "0px"}, width='auto'),
                          dbc.Col(dcc.Dropdown(id='report_upgrade', value='', placeholder="Upgrade ...",
-                                              options=upgrade2shortname), width=1),
+                                              options=viz_data.upgrade2shortname), width=1),
                          dbc.Col(html.Div("grouped by:"), style={"padding-right": "0px"}, width='auto'),
                          dbc.Col(dcc.Dropdown(id='drp-group-by', options=char_cols, value=None,
                                               multi=True, placeholder="Select characteristics..."),
@@ -691,7 +321,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         if not n_clicks:
             raise PreventUpdate()
         nonlocal download_csv_df
-        return dcc.send_data_frame(download_csv_df.to_csv, "graph_data.csv")
+        return dcc.send_bytes(download_csv_df.write_csv, "graph_data.csv")
 
     @app.callback(
         Output("download-chars-csv", "data"),
@@ -710,8 +340,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         else:
             bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
         bldg_ids = [int(b) for b in bldg_ids]
-        bdf = res_csv_df[char_cols].loc[bldg_ids]
-        return dcc.send_data_frame(bdf.to_csv, f"chars_{n_clicks}.csv")
+        bdf = viz_data.upgrade2res[0].filter(pl.col("building_id").is_in(set(bldg_ids))).select(char_cols)
+        return dcc.send_bytes(bdf.write_csv, f"chars_{n_clicks}.csv")
 
     def get_elligible_output_columns(category, fuel):
         if category == 'energy':
@@ -760,15 +390,6 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         enduse = current_enduse if current_enduse in elligible_cols else elligible_cols[0]
         return sorted(elligible_cols), enduse
 
-    # @app.callback(
-    #     Output("collapse_points", 'is_open'),
-    #     Input('radio_graph_type', "value")
-    # )
-    # def disable_showpoints(graph_type):
-    #     print(f"Graph type: {graph_type.lower() == 'distribution'}")
-    #     return True
-    #     # return graph_type.lower() == "distribution"
-
     @app.callback(
         Output("sync_upgrade", 'value'),
         Output("sync_upgrade", 'options'),
@@ -804,7 +425,6 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         Output('input_building', 'value'),
         Output('input_building', 'options'),
         Output('report_upgrade', 'value'),
-        Output('check_all_points', "value"),
         Input('graph', "selectedData"),
         State('input_building', 'options'),
         State('report_upgrade', 'value')
@@ -830,19 +450,9 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         selected_upgrade = selected_upgrades[0] or current_upgrade
         if len(selected_buildings) != 1:
             selected_buildings = list(set(selected_buildings))
-            return '', selected_buildings, selected_upgrade, ['Show all points']
+            return '', selected_buildings, selected_upgrade
         current_options = current_options or selected_buildings
-        return selected_buildings[0], current_options, selected_upgrade, ['Show all points']
-
-    @app.callback(
-        Output('check_all_points', 'value'),
-        Input('input_building', 'value'),
-        State('input_building', 'options'),
-        State('check_all_points', 'value'))
-    def uncheck_all_points(bldg_selection, bldg_options, current_val):
-        if not bldg_selection and bldg_options:
-            return [''] if len(bldg_options) > 30000 else current_val
-        raise PreventUpdate()
+        return selected_buildings[0], current_options, selected_upgrade
 
     @app.callback(
         Output('chk-graph', 'value'),
@@ -881,19 +491,19 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
                        reset_click):
 
         if sync_upgrade and change_type:
-            valid_bldgs = list(sorted(chng2bldg[(int(sync_upgrade), change_type)]))
+            valid_bldgs = set(viz_data.chng2bldg[(int(sync_upgrade), change_type)])
         elif report_upgrade and change_type:
-            valid_bldgs = list(sorted(chng2bldg[(int(report_upgrade), change_type)]))
-            buildings = get_buildings(report_upgrade, applied_only=True)
-            valid_bldgs = list(buildings.intersection(valid_bldgs))
+            valid_bldgs = set(viz_data.chng2bldg[(int(report_upgrade), change_type)])
+            buildings = get_buildings(report_upgrade)
+            valid_bldgs = set(buildings).intersection(valid_bldgs)
         elif report_upgrade:
-            buildings = get_buildings(report_upgrade, applied_only=True)
-            valid_bldgs = list(buildings)
+            buildings = get_buildings(report_upgrade)
+            valid_bldgs = set(buildings)
         else:
-            valid_bldgs = list(upgrade2res[0].index)
+            valid_bldgs = set(viz_data.upgrade2res[0]['building_id'].to_list())
 
-        base_res = upgrade2res[0].loc[valid_bldgs]
-        valid_bldgs = [str(b) for b in list(base_res.index)]
+        base_res = upgrade2res[0].filter(pl.col("building_id").is_in(valid_bldgs))
+        valid_bldgs = list(base_res['building_id'].to_list())
 
         if "btn-reset" != ctx.triggered_id and current_options and len(current_options) > 0 and chk_lock:
             current_options_set = set(current_options)
@@ -901,7 +511,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
         valid_bldgs2 = []
 
-        if current_bldg and current_bldg not in valid_bldgs:
+        if current_bldg and (int(current_bldg) not in valid_bldgs):
             current_bldg = valid_bldgs[0] if valid_bldgs else ''
         return current_bldg, valid_bldgs, valid_bldgs2
 
@@ -1047,9 +657,10 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
-
-        applied_options = upgrade_run.report.get_applied_options(upgrade_id=int(report_upgrade), bldg_ids=bldg_list,
-                                                                 include_base_opt=True)
+        run_obj = viz_data.run_obj(int(report_upgrade))
+        applied_options = run_obj.report.get_applied_options(upgrade_id=int(report_upgrade),
+                                                             bldg_ids=bldg_list,
+                                                             include_base_opt=True)
         opt_only = [{entry.split('|')[0] for entry in opt.keys()} for opt in applied_options]
         reduced_set = list(reduce(set.union, opt_only))
 
@@ -1116,9 +727,10 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
         # print(bldg_list)
-        dict_changed_enduses = upgrade_run.report.get_enduses_buildings_map_by_change(upgrade_id=int(report_upgrade),
-                                                                                      change_type=enduse_change_type,
-                                                                                      bldg_list=bldg_list)
+        run_obj = viz_data.run_obj(int(report_upgrade))
+        dict_changed_enduses = run_obj.report.get_enduses_buildings_map_by_change(upgrade_id=int(report_upgrade),
+                                                                                  change_type=enduse_change_type,
+                                                                                  bldg_list=bldg_list)
         # print(changed_enduses)
 
         all_changed_enduses = list(dict_changed_enduses.keys())
@@ -1174,7 +786,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         Input('drp-char-report', 'value'),
         Input('chk-chars', 'value'),
     )
-    def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char, chk_chars):
+    def show_char_report(bldg_id, bldg_options, bldg_options2, inp_char: list[str], chk_chars):
         if not (bldg_options or bldg_options2 or bldg_id):
             return [""], {}
         if not inp_char:
@@ -1187,15 +799,16 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
-
-        chars_df = res_csv_df.loc[bldg_list][inp_char].reset_index()
-        char2bldgs = chars_df.groupby(inp_char)['building_id'].agg(list).to_dict()
-        if (total_len := len(char2bldgs)) > 200:
+        chars_df = viz_data.bs_res_df.filter(pl.col('building_id').is_in(
+                    set(bldg_list))).select(inp_char + ['building_id'])
+        char2bldgs = chars_df.groupby(inp_char).agg('building_id')
+        if (total_len := len(char2bldgs)) > 250:
             return [f"Sorry, this would create more than 200 ({total_len}) rows."], {}
         char_dict = {}
         total_count = 0
         contents = []
-        for char_vals, bldglist in char2bldgs.items():
+        for char_vals, group_df in chars_df.groupby(inp_char):
+            bldglist = group_df['building_id'].to_list()
             but_ids = "+".join(char_vals) if isinstance(char_vals, tuple) else char_vals
             char_dict[but_ids] = [int(b) for b in bldglist]
             count = len(bldglist)
@@ -1208,6 +821,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
     @app.callback(
         Output('graph', 'figure'),
+        Output('graph', 'config'),
         Output('loader_label', "children"),
         State('tab_view_type', "value"),
         Input('drp-group-by', 'value'),
@@ -1215,9 +829,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         Input('dropdown_enduse', "value"),
         Input('radio_graph_type', "value"),
         Input('radio_savings', "value"),
-        Input('chk_applied_only', "value"),
         Input('dropdown_chng_type', "value"),
-        Input('check_all_points', "value"),
         Input('sync_upgrade', 'value'),
         Input('input_building', 'value'),
         Input('input_building', 'options'),
@@ -1226,8 +838,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         State("uirevision", "data"),
         State('report_upgrade', 'value')
     )
-    def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chk_applied_only, chng_type,
-                      show_all_points, sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision,
+    def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chng_type,
+                      sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision,
                       report_upgrade):
         nonlocal download_csv_df
         if dash.callback_context.triggered_id == 'input_building2' and "Graph" not in chk_graph:
@@ -1244,33 +856,21 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         else:
             full_name = [enduse]
 
-        applied_only = "Applied Only" in chk_applied_only
-
         if selected_bldg:
             filter_bldg = [int(selected_bldg)]
         else:
             filter_bldg = [int(b) for b in bldg_options]
 
-        # print(f"Sync upgrade is {sync_upgrade}. {sync_upgrade is None}")
-        if graph_type in ['Mean', 'Total', 'Count']:
-            new_figure, report_df = get_bars(full_name, graph_type, savings_type, applied_only,
-                                             chng_type, sync_upgrade, filter_bldg, grp_by)
-        elif graph_type in ["Distribution"]:
-            new_figure, report_df = get_distribution(full_name, savings_type, applied_only,
-                                                     chng_type, 'Show all points' in show_all_points, sync_upgrade,
-                                                     filter_bldg, grp_by, report_upgrade)
-        elif graph_type in ["Scatter"]:
-            new_figure, report_df = get_scatter(full_name, savings_type, applied_only,
-                                                chng_type, 'Show all points' in show_all_points, sync_upgrade,
-                                                filter_bldg, grp_by, report_upgrade)
-        else:
-            raise ValueError(f"Invalid graph type {graph_type}")
+        new_figure, report_df = get_plot(full_name, graph_type, savings_type,
+                                         chng_type, sync_upgrade, filter_bldg, grp_by, report_upgrade)
+
         uirevision = uirevision or "default"
         new_figure.update_layout(uirevision=uirevision)
-        download_csv_df = report_df.reset_index(drop=True)
-        return new_figure, ""
+        download_csv_df = report_df
+        config = {'edits': {"titleText": True, "axisTitleText": True}, 'displayModeBar': True,
+                  "modeBarButtonsToRemove": ["Zoom", "ZoomIn", "Pan", "ZoomOut", "AutoScale", "select2d"]}
+        return new_figure, config, ""
 
-    upgrade_run.save_cache()
     return app
 
 

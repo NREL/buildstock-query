@@ -395,8 +395,10 @@ class UpgradesAnalyzer:
             application_report_rows.append(record)
 
         assert cum_count_all <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
-        application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
-        return application_report_df
+        if application_report_rows:
+            application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
+            return application_report_df
+        return None
 
     def _get_left_out_report_all(self, upgrade_num):
         cfg = self.get_cfg()

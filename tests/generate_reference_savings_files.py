@@ -1,13 +1,6 @@
-import pathlib
 from sqlalchemy.exc import NoSuchTableError
-from buildstock_query.helpers import save_pickle
 from buildstock_query import BuildStockQuery
-
-
-def save_ref_pkl(name, obj):
-    folder_path = pathlib.Path(__file__).parent.resolve()
-    save_pickle(folder_path / f"reference_files/{name}.pkl", obj)
-    print(f"Saved {name}.pkl")
+from tests.utils import save_ref_pkl
 
 
 def generate_table_and_cache(table_name: str):

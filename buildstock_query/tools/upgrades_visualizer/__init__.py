@@ -1,0 +1,1 @@
+from .upgrades_visualizer import main

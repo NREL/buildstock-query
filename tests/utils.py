@@ -1,4 +1,4 @@
-from buildstock_query.helpers import load_pickle
+from buildstock_query.helpers import load_pickle, save_pickle
 import pathlib
 from sqlalchemy.exc import NoSuchTableError
 
@@ -32,3 +32,9 @@ def assert_query_equal(query1, query2):
     wrong_matches = [(indx, word, query2[indx]) for indx, word in enumerate(query1)
                      if word != query2[indx]]
     assert not wrong_matches
+
+
+def save_ref_pkl(name, obj):
+    folder_path = pathlib.Path(__file__).parent.resolve()
+    save_pickle(folder_path / f"reference_files/{name}.pkl", obj)
+    print(f"Saved {name}.pkl")

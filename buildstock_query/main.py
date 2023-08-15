@@ -256,15 +256,14 @@ class BuildStockQuery(QueryCore):
         result = self.execute(query)
         return result.set_index(self.bs_bldgid_column.name)
 
-    def get_results_csv_full(self) -> pd.DataFrame:
-        """Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
-        the stored parquet files in s3 to download the results which is faster than querying athena.
+    def _download_results_csv(self) -> str:
+        """Downloads the results csv from s3 and returns the path to the downloaded file.
         Returns:
-            pd.DataFrame: The full results csv.
+            str: The path to the downloaded file.
         """
         local_copy_path = f"{self.db_name}_{self.bs_table.name}.parquet"
         if os.path.exists(local_copy_path):
-            return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
+            return local_copy_path
 
         baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
                                                  Name=self.bs_table.name)['Table']['StorageDescriptor']['Location']
@@ -279,7 +278,16 @@ class BuildStockQuery(QueryCore):
 
         baseline_parquet_path = s3_data['Contents'][0]['Key']
         self._aws_s3.download_file(bucket, baseline_parquet_path, local_copy_path)
-        return self.get_results_csv_full()
+        return local_copy_path
+
+    def get_results_csv_full(self) -> pd.DataFrame:
+        """Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+        the stored parquet files in s3 to download the results which is faster than querying athena.
+        Returns:
+            pd.DataFrame: The full results csv.
+        """
+        local_copy_path = self._download_results_csv()
+        return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
 
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
@@ -334,10 +342,8 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
-        """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
-        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
-        athena.
+    def _download_upgrades_csv(self, upgrade_id: int) -> str:
+        """ Downloads the upgrades csv from s3 and returns the path to the downloaded file.
         """
         if self.up_table is None:
             raise ValueError("This run has no upgrades")
@@ -349,9 +355,7 @@ class BuildStockQuery(QueryCore):
 
         local_copy_path = f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
         if os.path.exists(local_copy_path):
-            df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
-            df.insert(0, 'upgrade', upgrade_id)
-            return df
+            return local_copy_path
 
         upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
                                                  Name=self.up_table.name)['Table']['StorageDescriptor']['Location']
@@ -373,7 +377,17 @@ class BuildStockQuery(QueryCore):
                              f"Here are the files: {[content[0]['Key'] for content in s3_data['Contents']]}")
 
         self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
-        return self.get_upgrades_csv_full(upgrade_id)
+        return local_copy_path
+
+    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
+        """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+        athena.
+        """
+        local_copy_path = self._download_upgrades_csv(upgrade_id)
+        df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
+        df.insert(0, 'upgrade', upgrade_id)
+        return df
 
     @typing.overload
     def get_building_ids(self, *,
