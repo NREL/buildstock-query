@@ -24,7 +24,8 @@ def generate_table_and_cache(table_name: str):
         mya1.agg.aggregate_annual(upgrade_id='1', enduses=enduses)  # annual_up_consumption
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False)  # ts_savings_full
-        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False)  # ts_savings_applied
+        # ts_savings_applied
+        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False)
 
         enduses = ['fuel_use_electricity_total_m_btu']
         group_by = ["geometry_building_type_recs"]
@@ -35,7 +36,8 @@ def generate_table_and_cache(table_name: str):
         mya1.agg.aggregate_annual(upgrade_id='1', enduses=enduses, group_by=group_by, sort=True)
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False, group_by=group_by)
-        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by)
+        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False,
+                                   group_by=group_by)
         group_by = ["geometry_building_type_recs"]
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False, sort=True, group_by=group_by)
@@ -43,12 +45,14 @@ def generate_table_and_cache(table_name: str):
                                    annual_only=False, group_by=group_by, sort=True)
         mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, annual_only=False,
                                    group_by=group_by, sort=True, collapse_ts=True)
-        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by,
+        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False,
+                                   group_by=group_by,
                                    sort=True, collapse_ts=True)
         group_by = ["state", "geometry_building_type_recs"]
         ts_enduses = ["fuel_use__electricity__total__kwh"]
         restrict = [('state', ['CO'])]
-        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False, group_by=group_by,
+        mya1.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False,
+                                   group_by=group_by,
                                    sort=True, restrict=restrict)
 
         save_ref_pkl(f"{table_name}_query_cache", mya1._query_cache)

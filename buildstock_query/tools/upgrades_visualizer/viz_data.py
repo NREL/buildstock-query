@@ -5,8 +5,8 @@ from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams
 
 
 num2month = {1: "January", 2: "February", 3: "March", 4: "April",
-                         5: "May", 6: "June", 7: "July", 8: "August",
-                         9: "September", 10: "October", 11: "November", 12: "December"}
+             5: "May", 6: "June", 7: "July", 8: "August",
+             9: "September", 10: "October", 11: "November", 12: "December"}
 
 
 class VizData:
@@ -63,7 +63,8 @@ class VizData:
         for chng in change_types:
             for upgrade in self.available_upgrades:
                 print(f"Getting buildings for {upgrade} and {chng}")
-                chng2bldg[(upgrade, chng)] = self.main_run.report.get_buildings_by_change(upgrade_id=int(upgrade), change_type=chng)
+                chng2bldg[(upgrade, chng)] = self.main_run.report.get_buildings_by_change(upgrade_id=int(upgrade),
+                                                                                          change_type=chng)
         return chng2bldg
 
     def _get_results_csv_clean(self, upgrade: int):

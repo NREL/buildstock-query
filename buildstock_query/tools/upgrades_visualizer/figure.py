@@ -1,4 +1,4 @@
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
+from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 import plotly.graph_objects as go
 import polars as pl
@@ -21,7 +21,7 @@ class UpgradesPlot:
         counter = 0
         counter2 = 0
         report_dfs = [pl.DataFrame()]
-        
+
         if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
             xtitle = ", ".join(params.group_by[1:]) if len(params.group_by) > 1 else params.group_by[0]
             ytitle = f"{self.get_ylabel(params.enduses)}_{params.value_type.value}_{params.savings_type.value}"
@@ -75,7 +75,8 @@ class UpgradesPlot:
                     hovervals.append(hovertext)
                     second_groups.append(name)
                 elif params.value_type in [ValueTypes.distribution, ValueTypes.scatter]:
-                    hovertext = [f'{self.viz_data.upgrade2name.get(upgrade)}<br>{grp0}<br>{name}<br>Building: {bid}<br>Sample Count: {count}'
+                    hovertext = [f'{self.viz_data.upgrade2name.get(upgrade)}<br>{grp0}<br>{name}<br>Building:'
+                                 f'{bid}<br>Sample Count: {count}'
                                  for bid in second_df['building_id'].to_list()]
                     if params.value_type == ValueTypes.distribution:
                         xvals.extend([name] * count)

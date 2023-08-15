@@ -6,8 +6,6 @@ Experimental Stage.
 """
 
 from functools import reduce
-from buildstock_query import BuildStockQuery, KWH2MBTU
-import numpy as np
 import re
 from collections import defaultdict, Counter
 import dash_bootstrap_components as dbc
@@ -15,14 +13,10 @@ from dash import html, ALL, dcc, ctx
 import dash
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-import plotly.graph_objects as go
 from dash_extensions.enrich import MultiplexerTransform, DashProxy
-# import os
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
-import pandas as pd
 from InquirerPy import inquirer
-import plotly.express as px
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
 from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
