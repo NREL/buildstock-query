@@ -2,6 +2,7 @@ from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, Va
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 import plotly.graph_objects as go
 import polars as pl
+import re
 
 
 class UpgradesPlot:
@@ -16,7 +17,32 @@ class UpgradesPlot:
         pure_end_use_name = "_".join(pure_end_use_name.split("_")[1:])
         return f"{len(end_use)}_fuels_{pure_end_use_name}"
 
-    def get_plot(self, df, params: PlotParams):
+    def explode_str(self, input_str):
+        input_str = str(input_str).lower()
+        month2num = {"january": 1, "february": 2, "march": 3, "april": 4,
+                     "may": 5, "june": 6, "july": 7, "august": 8,
+                     "september": 9, "october": 10, "november": 11, "december": 12}
+        input_str = str(month2num[input_str] if input_str in month2num else input_str)
+        input_str = [
+            int(x) if x and x[0] in "0123456789" else x
+            for x in re.split(r"([\<\-])|([0-9]+)", input_str)
+        ]
+
+        return tuple("X" if x is None else x for x in input_str)
+
+    def get_plot(self, params: PlotParams):
+        if len(params.group_by) >= 2 or params.upgrade is not None or \
+           (params.value_type in [ValueTypes.distribution, ValueTypes.scatter] and len(params.group_by) >= 1):
+            params.upgrade = params.upgrade if params.upgrade else 0
+            params.group_by = ['upgrade'] if not params.group_by else params.group_by
+            plot_df = self.viz_data.get_plotting_df(upgrade=params.upgrade, params=params)
+        else:
+            params.group_by = ['upgrade'] + params.group_by
+            plot_df = self.viz_data.get_plotting_df_all_upgrades(params=params)
+
+        return self._get_plot(plot_df, params)
+
+    def _get_plot(self, df, params: PlotParams):
         fig = go.Figure()
         counter = 0
         counter2 = 0
@@ -33,7 +59,8 @@ class UpgradesPlot:
             xtitle = "baseline_value"
             ytitle = f"{self.get_ylabel(params.enduses)}_{params.savings_type.value}"
         for grp0, sub_df in df.groupby(params.group_by[0], maintain_order=True):
-            upgrade = grp0 if params.group_by[0] == 'upgrade' else params.upgrades_to_plot[0]
+            upgrade = int(grp0) if params.group_by[0] == 'upgrade' else params.upgrade
+            upgrade = upgrade or 0
             yvals = []
             xvals = []
             second_groups = []
@@ -110,7 +137,7 @@ class UpgradesPlot:
             title = f'{params.value_type} - {params.savings_type} value'
 
         if params.group_by[0] != "upgrade":
-            title = f"Upgrade {params.upgrades_to_plot[0]} - {title}"
+            title = f"Upgrade {params.upgrade} - {title}"
         self._update_layout(params, fig, xtitle, ytitle, title, len(params.group_by) > 1)
 
         return fig, pl.concat(report_dfs)

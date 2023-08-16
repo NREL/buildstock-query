@@ -87,83 +87,19 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
     def get_buildings(upgrade):
         return upgrade2res[int(upgrade)]['building_id'].to_list()
 
-    def explode_str(input_str):
-        input_str = str(input_str).lower()
-        month2num = {"january": 1, "february": 2, "march": 3, "april": 4,
-                     "may": 5, "june": 6, "july": 7, "august": 8,
-                     "september": 9, "october": 10, "november": 11, "december": 12}
-        input_str = str(month2num[input_str] if input_str in month2num else input_str)
-        input_str = [
-            int(x) if x and x[0] in "0123456789" else x
-            for x in re.split(r"([\<\-])|([0-9]+)", input_str)
-        ]
-
-        return tuple("X" if x is None else x for x in input_str)
-
     def get_plot(end_use, value_type='mean', savings_type='', change_type='',
                  sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=None):
         filter_bldg = filter_bldg or []
         group_cols = group_cols or []
         sync_upgrade = sync_upgrade or 0
+        report_upgrade = int(report_upgrade) if report_upgrade else None
 
         params = PlotParams(enduses=end_use, value_type=ValueTypes[value_type.lower()],
                             savings_type=SavingsTypes[savings_type.lower().replace(' ', '_')],
                             change_type=change_type, sync_upgrade=sync_upgrade,
-                            filter_bldgs=filter_bldg, group_by=group_cols, upgrades_to_plot=[],
+                            filter_bldgs=filter_bldg, group_by=group_cols, upgrade=report_upgrade,
                             resolution=resolution)
-
-        if len(group_cols) >= 2 or report_upgrade not in [None, ''] or \
-           (value_type in ['Distribution', 'Scatter'] and len(group_cols) >= 1):
-            report_upgrade = report_upgrade or 0
-            params.upgrades_to_plot = [report_upgrade]
-            params.group_by = ['upgrade'] if not params.group_by else params.group_by
-            plot_df = viz_data.get_plotting_df(upgrade=int(report_upgrade), params=params)
-        else:
-            params.group_by = ['upgrade'] + params.group_by
-            plot_df = viz_data.get_plotting_df_all_upgrades(params=params)
-
-        return upgrades_plot.get_plot(plot_df, params)
-
-    def get_all_end_use_cols():
-        all_cols = viz_data.get_all_cols(resolution=resolution)
-        all_end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use_", "fuel_use_"])
-        return all_end_use_cols
-
-    def get_end_use_cols(fuel):
-        cols = []
-        all_end_use_cols = get_all_end_use_cols()
-        sep = "_"
-        for c in all_end_use_cols:
-            if fuel in c or fuel == 'All':
-                c = c.removeprefix(f"end_use{sep}{fuel}{sep}")
-                c = c.removeprefix(f"fuel_use{sep}{fuel}{sep}")
-                if fuel == 'All':
-                    for f in sorted(fuels_types):
-                        c = c.removeprefix(f"end_use{sep}{f}{sep}")
-                        c = c.removeprefix(f"fuel_use{sep}{f}{sep}")
-                cols.append(c)
-        no_dup_cols = {c: None for c in cols}
-        return list(no_dup_cols.keys())
-
-    def get_emissions_cols():
-        all_cols = viz_data.get_all_cols(resolution=resolution)
-        all_emissions_cols = filter_cols(all_cols, ["emissions_"])
-        return all_emissions_cols
-
-    def get_energy_db_cols(fuel, end_use):
-        all_enduses = get_all_end_use_cols()
-        if not end_use:
-            return all_enduses[0]
-        valid_cols = []
-        sep = "_"
-        prefix = "fuel_use" if end_use.startswith("total") else "end_use"
-        if fuel == 'All':
-            valid_cols.extend(f"{prefix}{sep}{f}{sep}{end_use}" for f in fuels_types
-                              if f"{prefix}{sep}{f}{sep}{end_use}" in all_enduses)
-
-        else:
-            valid_cols.append(f"{prefix}{sep}{fuel}{sep}{end_use}")
-        return valid_cols
+        return upgrades_plot.get_plot(params)
 
     external_script = ["https://tailwindcss.com/", {"src": "https://cdn.tailwindcss.com"}]
 
@@ -339,7 +275,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
 
     def get_elligible_output_columns(category, fuel):
         if category == 'energy':
-            elligible_cols = get_end_use_cols(fuel)
+            elligible_cols = viz_data.get_cleaned_up_end_use_cols(resolution, fuel)
         elif category == 'water':
             elligible_cols = water_usage_cols if resolution == 'annual' else []
         elif category == 'load':
@@ -355,7 +291,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         elif category == 'qoi':
             elligible_cols = qoi_cols if resolution == 'annual' else []
         elif category == 'emissions':
-            elligible_cols = emissions_cols if resolution == 'annual' else get_emissions_cols()
+            elligible_cols = emissions_cols if resolution == 'annual' else viz_data.get_emissions_cols(resolution=resolution)
         elif category == 'upgrade_cost':
             elligible_cols = cost_cols if resolution == 'annual' else []
         else:
@@ -846,7 +782,7 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         if not enduse:
             full_name = []
         if view_tab == 'energy':
-            full_name = get_energy_db_cols(fuel, enduse)
+            full_name = viz_data.get_end_use_db_cols(resolution, fuel, enduse)
         else:
             full_name = [enduse]
 

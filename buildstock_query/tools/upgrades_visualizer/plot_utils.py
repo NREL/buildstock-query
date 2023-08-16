@@ -20,7 +20,7 @@ class PlotParams(BaseModel):
     enduses: list[str]
     savings_type: SavingsTypes
     change_type: str | None
-    upgrades_to_plot: list[int]
+    upgrade: int | None
     group_by: list[str] = Field(default_factory=list)
     filter_bldgs: list[int] = Field(default_factory=list)
     sync_upgrade: int | None = None

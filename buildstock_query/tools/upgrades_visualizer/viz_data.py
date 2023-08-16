@@ -7,6 +7,7 @@ from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams
 num2month = {1: "January", 2: "February", 3: "March", 4: "April",
              5: "May", 6: "June", 7: "July", 8: "August",
              9: "September", 10: "October", 11: "November", 12: "December"}
+fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
 
 
 class VizData:
@@ -188,11 +189,52 @@ class VizData:
                 )
         return up_df
 
-    def get_all_cols(self, resolution):
+    def get_all_cols(self, resolution: str) -> list[str]:
         if resolution == 'annual':
             return self.bs_res_df.columns
         else:
             return self.upgrade2res_monthly[0].columns
+
+    def get_all_end_use_cols(self, resolution: str) -> list[str]:
+        all_cols = self.get_all_cols(resolution=resolution)
+        all_end_use_cols = filter(lambda col: col.startswith(("end_use_", "energy_use_", "fuel_use_")), all_cols)
+        return list(all_end_use_cols)
+
+    def get_emissions_cols(self, resolution: str) -> list[str]:
+        all_cols = self.get_all_cols(resolution=resolution)
+        all_emissions_cols = filter(lambda c: c.startswith("emissions_"), all_cols)
+        return list(all_emissions_cols)
+
+    def get_cleaned_up_end_use_cols(self, resolution: str, fuel) -> list[str]:
+        cols = []
+        all_end_use_cols = self.get_all_end_use_cols(resolution=resolution)
+        sep = "_"
+        for c in all_end_use_cols:
+            if fuel in c or fuel == 'All':
+                c = c.removeprefix(f"end_use{sep}{fuel}{sep}")
+                c = c.removeprefix(f"fuel_use{sep}{fuel}{sep}")
+                if fuel == 'All':
+                    for f in sorted(fuels_types):
+                        c = c.removeprefix(f"end_use{sep}{f}{sep}")
+                        c = c.removeprefix(f"fuel_use{sep}{f}{sep}")
+                cols.append(c)
+        no_dup_cols = {c: None for c in cols}
+        return list(no_dup_cols.keys())
+
+    def get_end_use_db_cols(self, resolution, fuel, end_use):
+        all_enduses = self.get_all_end_use_cols(resolution=resolution)
+        if not end_use:
+            return all_enduses[0]
+        valid_cols = []
+        sep = "_"
+        prefix = "fuel_use" if end_use.startswith("total") else "end_use"
+        if fuel == 'All':
+            valid_cols.extend(f"{prefix}{sep}{f}{sep}{end_use}" for f in fuels_types
+                              if f"{prefix}{sep}{f}{sep}{end_use}" in all_enduses)
+
+        else:
+            valid_cols.append(f"{prefix}{sep}{fuel}{sep}{end_use}")
+        return valid_cols
 
     def get_plotting_df_all_upgrades(self,
                                      params: PlotParams,
