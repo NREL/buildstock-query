@@ -32,12 +32,12 @@ def save_viz_data_reference_data():
     for resolution, value_type, savings_type in it.product(["annual", "monthly"], ValueTypes, SavingsTypes):
         params = PlotParams(enduses=all_cols, savings_type=savings_type, value_type=value_type,
                             change_type=None, resolution=resolution,
-                            upgrade=[0] + viz_data.available_upgrades,
+                            upgrade=0,
                             )
         print(f"Generating table for {resolution, value_type, savings_type}")
         viz_data.get_plotting_df_all_upgrades(params)
-    save_bsq_obj(viz_data.baseline_run, cache_name="small_run_baseline_20230810_100")
-    save_bsq_obj(viz_data.main_run, cache_name="small_run_category_1_20230616")
+    save_bsq_obj(viz_data.baseline_run)
+    save_bsq_obj(viz_data.main_run)
 
 
 if __name__ == "__main__":
