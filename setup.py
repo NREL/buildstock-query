@@ -20,7 +20,7 @@ setup(
         "colorama >= 0.4.5",
         "inquirerpy >= 0.3.4",
         "types-PyYAML >= 6.0.12.2",
-        "pydantic",
+        "pydantic<2",
         "PyYAML",
         "tabulate"
     ],
