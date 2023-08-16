@@ -16,7 +16,8 @@ class VizData:
                  db_name: str,
                  run: str | tuple[str, str],
                  workgroup: str = 'largeee',
-                 buildstock_type: str = 'resstock'):
+                 buildstock_type: str = 'resstock',
+                 skip_init: bool = False):
         if isinstance(run, tuple):
             # Allows for separate baseline and upgrade runs
             # In this case, run[0] is the baseline run and run[1] is the upgrade run
@@ -24,7 +25,7 @@ class VizData:
                                                 db_name=db_name,
                                                 buildstock_type=buildstock_type,
                                                 table_name=run[0],
-                                                skip_reports=False)
+                                                skip_reports=skip_init)
             baseline_table_name = run[0] + "_baseline"
             upgrade_table_name = run[1] + "_upgrades"
             ts_table_name = run[1] + "_timeseries"
@@ -37,9 +38,13 @@ class VizData:
                                         db_name=db_name,
                                         buildstock_type=buildstock_type,
                                         table_name=table,
-                                        skip_reports=False)
+                                        skip_reports=skip_init)
         self.yaml_path = yaml_path
         self.opt_sat_path = opt_sat_path
+        if not skip_init:
+            self.initialize()
+
+    def initialize(self):
         self.ua = self.main_run.get_upgrades_analyzer(self.yaml_path, self.opt_sat_path)
         self.report = pl.from_pandas(self.main_run.report.get_success_report(), include_index=True)
         self.available_upgrades = list(sorted(set(self.report["upgrade"].unique()) - {0}))

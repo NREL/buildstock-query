@@ -261,7 +261,7 @@ class BuildStockQuery(QueryCore):
         Returns:
             str: The path to the downloaded file.
         """
-        local_copy_path = f"{self.db_name}_{self.bs_table.name}.parquet"
+        local_copy_path = self.cache_folder / f"{self.db_name}_{self.bs_table.name}.parquet"
         if os.path.exists(local_copy_path):
             return local_copy_path
 
@@ -353,7 +353,7 @@ class BuildStockQuery(QueryCore):
         if str(upgrade_id) not in available_upgrades:
             raise ValueError(f"Upgrade {upgrade_id} not found")
 
-        local_copy_path = f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
+        local_copy_path = self.cache_folder / f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
         if os.path.exists(local_copy_path):
             return local_copy_path
 

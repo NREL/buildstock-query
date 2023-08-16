@@ -291,7 +291,8 @@ def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
         elif category == 'qoi':
             elligible_cols = qoi_cols if resolution == 'annual' else []
         elif category == 'emissions':
-            elligible_cols = emissions_cols if resolution == 'annual' else viz_data.get_emissions_cols(resolution=resolution)
+            elligible_cols = emissions_cols if resolution == 'annual' else\
+                             viz_data.get_emissions_cols(resolution=resolution)
         elif category == 'upgrade_cost':
             elligible_cols = cost_cols if resolution == 'annual' else []
         else:

@@ -1,4 +1,3 @@
-from tests.utils import save_ref_pkl
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
@@ -6,7 +5,7 @@ import pathlib
 import itertools as it
 import pytest
 import buildstock_query.query_core as query_core
-from tests.utils import load_tbl_from_pkl, load_cache_from_pkl
+from tests.utils import load_tbl_from_pkl
 from unittest.mock import MagicMock
 
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
@@ -29,10 +28,14 @@ class TestViz:
             db_name='largeee_test_runs',
             run=('small_run_baseline_20230810_100', 'small_run_category_1_20230616'),
             buildstock_type='resstock',
+            skip_init=True,
         )
         assert mydata.baseline_run is not None
-        mydata.baseline_run._query_cache = load_cache_from_pkl('small_run_baseline_20230810_100')
-        mydata.main_run._query_cache = load_cache_from_pkl('small_run_category_1_20230616')
+        mydata.baseline_run.cache_folder = folder_path / "reference_files"
+        mydata.main_run.cache_folder = folder_path / "reference_files"
+        mydata.baseline_run.load_cache()
+        mydata.main_run.load_cache()
+        mydata.initialize()
         return mydata
 
     @pytest.fixture(scope='class')
