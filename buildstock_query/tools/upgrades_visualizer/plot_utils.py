@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Optional
 
 
 class SavingsTypes(str, Enum):
@@ -19,10 +20,10 @@ class ValueTypes(str, Enum):
 class PlotParams(BaseModel):
     enduses: list[str]
     savings_type: SavingsTypes
-    change_type: str | None
-    upgrade: int | None
+    change_type: Optional[str]
+    upgrade: Optional[int]
     group_by: list[str] = Field(default_factory=list)
     filter_bldgs: list[int] = Field(default_factory=list)
-    sync_upgrade: int | None = None
+    sync_upgrade: Optional[int] = None
     resolution: str = "annual"
     value_type: ValueTypes
