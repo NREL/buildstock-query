@@ -55,12 +55,16 @@ def filter_cols(all_columns, prefixes=[], suffixes=[]):
     return cols
 
 
-def get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
-            table_name: str = 'res_test_03_2018_10k_20220607',
-            workgroup: str = 'largeee',
-            buildstock_type: str = 'resstock'):
+def _get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
+             table_name: str = 'res_test_03_2018_10k_20220607',
+             workgroup: str = 'largeee',
+             buildstock_type: str = 'resstock'):
     viz_data = VizData(yaml_path=yaml_path, opt_sat_path=opt_sat_path, db_name=db_name,
                        run=table_name, workgroup=workgroup, buildstock_type=buildstock_type)
+    return get_app(viz_data)
+
+
+def get_app(viz_data: VizData):
     upgrades_plot = UpgradesPlot(viz_data)
     upgrade2res = viz_data.upgrade2res
     # upgrade2res_monthly = viz_data.upgrade2res_monthly
@@ -811,17 +815,24 @@ def main():
                               default="/Users/radhikar/Downloads/fact_sheets_category_6.yml").execute()
     opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
                                  default="/Users/radhikar/Downloads/options_saturations.csv").execute()
+    workgroup = inquirer.text(message="Please Athena workgroup name: ",
+                              default="largeee").execute()
     db_name = inquirer.text(message="Please enter database_name "
-                            "(found in postprocessing:aws:athena in the buildstock configuration file)",
+                            "(found in postprocessing:aws:athena in the buildstock configuration file): ",
                             default='largeee_test_runs').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
-                               "output_directory in the buildstock configuration file)",
+                               "output_directory in the buildstock configuration file). [Enter two names "
+                               "separated by comma if baseline and upgrades are in different run] :",
                                default="medium_run_baseline_20230622,medium_run_category_6_20230707"
                                ).execute()
 
     if ',' in table_name:
         table_name = table_name.split(',')
-    app = get_app(yaml_path, opt_sat_path, db_name=db_name, table_name=table_name)
+    app = _get_app(yaml_path=yaml_path,
+                   opt_sat_path=opt_sat_path,
+                   workgroup=workgroup,
+                   db_name=db_name,
+                   table_name=table_name)
     app.run_server(debug=False, port=8005)
 
 

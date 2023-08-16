@@ -1,6 +1,7 @@
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
+from buildstock_query.tools.upgrades_visualizer.upgrades_visualizer import get_app
 import pathlib
 import itertools as it
 import pytest
@@ -43,6 +44,11 @@ class TestViz:
         upgrades_plot = UpgradesPlot(viz_data=viz_data)
         return upgrades_plot
 
+    @pytest.fixture(scope='class')
+    def dash_app(self, viz_data):
+        dash_app = get_app(viz_data)
+        return dash_app
+
     @pytest.mark.parametrize("resolution, value_type, savings_type, upgrade, group_by",
                              it.product(["annual", "monthly"], ValueTypes, SavingsTypes,
                                         [None, 0, 1],
@@ -73,3 +79,6 @@ class TestViz:
         fig, report_df = upgrades_plot.get_plot(params=params)
         assert len(report_df) > 0
         assert len(fig.data) > 0
+
+    def test_dash_app(self, dash_app):
+        assert dash_app is not None
