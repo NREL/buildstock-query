@@ -360,23 +360,28 @@ class BuildStockUtility:
         if self._bsq.ts_table is None:
             raise ValueError("No timeseries table found")
 
+        TOU_enduse = {}
         if meter_col is None:
-            total_col = self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
+            TOU_enduse["fuel_use__electricity__net__kwh__TOU"] =\
+                self._bsq.ts_table.c['fuel_use__electricity__total__kwh'] +\
                 safunc.coalesce(self._bsq.ts_table.c['end_use__electricity__pv__kwh'], 0)
         else:
             if isinstance(meter_col, tuple):
-                total_col = self._bsq.get_column(meter_col[0])
-                for other_col in meter_col[1:]:
-                    total_col += self._bsq.get_column(other_col)
+                for col in meter_col:
+                    TOU_enduse[f"{col}__TOU"] = self._bsq.get_column(col)
             else:
-                total_col = self._bsq.get_column(meter_col)
+                TOU_enduse[f"{meter_col}__TOU"] = self._bsq.get_column(meter_col)
 
         month_col, is_weekend_col, hour_col = (self._bsq.get_special_column(col) for col in
                                                ("month", "is_weekend", "hour"))
         rate_col = MappedColumn(bsq=self._bsq, name="tou_rate", mapping_dict=user_rate.raw_dict,
                                 key=(month_col, is_weekend_col, hour_col))
 
-        ts_query = TSQuery(enduses=[(total_col * rate_col / 100).label("total_cost_dollars")],
+        enduses_list = []
+        for col in TOU_enduse:
+            enduses_list.append((TOU_enduse[col] * rate_col / 100).label(f"{col}__dollars"))
+
+        ts_query = TSQuery(enduses=enduses_list,
                            group_by=group_by,
                            upgrade_id=str(upgrade_id),
                            sort=sort,
