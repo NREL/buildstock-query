@@ -13,6 +13,7 @@ class RunParams(BaseModel):
     sample_weight: Union[str, int, float] = "build_existing_model.sample_weight"
     region_name: str = 'us-west-2'
     execution_history: Optional[str] = None
+    cache_folder: Optional[str] = '.bsq_cache'
 
     class Config:
         arbitrary_types_allowed = True

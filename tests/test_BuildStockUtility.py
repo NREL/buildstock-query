@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 import tempfile
 import pytest
 import buildstock_query.query_core as query_core
-from buildstock_query.main import BuildStockQuery
+from buildstock_query.main import BuildStockQuery, SimInfo
 import pandas as pd
 from tests.utils import assert_query_equal, load_tbl_from_pkl
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
@@ -227,7 +227,7 @@ def test_calc_tou_bill(temp_history_file: str):
             for hour in range(0, 2):
                 rate_map[(month, is_weekend, hour)] = 0.1
 
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 15 * 60)  # type: ignore
+    my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 15 * 60, 'second')  # type: ignore
     my_athena._get_rows_per_building = lambda: 8760  # type: ignore
     query = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
                                                  meter_col="fuel use: electricity: total",
@@ -252,7 +252,7 @@ SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_exist
 
     assert_query_equal(query2, expected_query2)
 
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+    my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
     my_athena._get_rows_per_building = lambda: 8760  # type: ignore
     query3 = my_athena.utility.calculate_tou_bill(rate_map=rate_map,
                                                   meter_col="fuel use: electricity: total",

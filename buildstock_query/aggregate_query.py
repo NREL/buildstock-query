@@ -161,12 +161,12 @@ class BuildStockAggregate:
                                           (safunc.sum(1) / safunc.count(safunc.distinct(self._bsq.ts_bldgid_column))).
                                           label("rows_per_sample"), ]
             indx = group_by.index(colname)
-            _, _, start_offset = self._bsq._get_simulation_info()
-            if start_offset > 0:
+            sim_info = self._bsq._get_simulation_info()
+            if sim_info.offset > 0:
                 # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func,
-                                             sa.func.date_add('second',
-                                                              -start_offset, self._bsq.timestamp_column)).label(colname)
+                                             sa.func.date_add(sim_info.unit, -sim_info.offset,
+                                                              self._bsq.timestamp_column)).label(colname)
             else:
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func, self._bsq.timestamp_column).label(colname)
             group_by[indx] = new_col
@@ -241,7 +241,8 @@ class BuildStockAggregate:
         enduse_cols = self._bsq._get_enduse_cols(enduses, table='timeseries')
         total_weight = self._bsq._get_weight([])
 
-        sim_year, sim_interval_seconds, _ = self._bsq._get_simulation_info()
+        sim_info = self._bsq._get_simulation_info()
+        sim_year, sim_interval_seconds = sim_info.year, sim_info.interval
         kw_factor = 3600.0 / sim_interval_seconds
 
         enduse_selection = [safunc.avg(enduse * total_weight * kw_factor).label(self._bsq._simple_label(enduse.name))

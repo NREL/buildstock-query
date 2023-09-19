@@ -21,6 +21,6 @@ jobs:
       - name: Install buildstock_query
         run: pip install -e .[dev]
       - name: Pytest
-        run: pytest -vv
+        run: python -m pytest -vv
       - name: Lint
         run: flake8 buildstock_query

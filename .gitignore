@@ -8,3 +8,7 @@ poetry.lock
 .history/
 build/
 *.egg-info
+*.parquet
+*.txt
+*.csv
+*.yml

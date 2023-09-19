@@ -6,7 +6,7 @@ import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl
 from buildstock_query.helpers import CachedFutureDf
 import buildstock_query.query_core as query_core
-from buildstock_query.main import BuildStockQuery
+from buildstock_query.main import BuildStockQuery, SimInfo
 import pandas as pd
 import uuid
 import time
@@ -410,7 +410,7 @@ def test_aggregate_ts(temp_history_file):
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
-    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 900)  # type: ignore
+    my_athena2._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 900, 'second')  # type: ignore
     query7 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=False,
                                                  timestamp_grouping_func='month',
@@ -427,7 +427,7 @@ def test_aggregate_ts(temp_history_file):
             as "end use: electricity: cooling" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
             res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
             """  # noqa: E501
-    my_athena2._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+    my_athena2._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
     query9 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
                                                  collapse_ts=False,
                                                  timestamp_grouping_func='month',
@@ -503,7 +503,7 @@ def test_get_building_average_kws_at(temp_history_file):
         skip_reports=True
     )
     enduses = ["fuel use: electricity: total", "end use: electricity: cooling"]
-    my_athena._get_simulation_info = lambda: (2012, 10 * 60, 0)  # type: ignore
+    my_athena._get_simulation_info = lambda: SimInfo(2012, 10 * 60, 0, 'second')  # type: ignore
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=12.3,
                                                                enduses=enduses, get_query_only=True)
     valid_query_string1 = """
@@ -545,7 +545,7 @@ def test_get_building_average_kws_at(temp_history_file):
     pd.testing.assert_frame_equal(res, true_weighted_sum)
 
     # Test at_hour as a list of hours that exactly coincide with timestamps. Single query must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+    my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
     query1, = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.5, 12.75],
                                                         enduses=enduses, get_query_only=True)
     valid_query_string1 = """
@@ -563,7 +563,7 @@ def test_get_building_average_kws_at(temp_history_file):
 
     # Test at_hour as a list of hours which have only a few hours that coincide with timestamps.
     # Two queries must be returned
-    my_athena._get_simulation_info = lambda: (2012, 15 * 60, 0)  # type: ignore
+    my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
     query1, query2 = my_athena.agg.get_building_average_kws_at(at_days=[1, 2, 3, 4], at_hour=[12.25, 12.5, 12.625,
                                                                                               12.75],
                                                                enduses=enduses, get_query_only=True)

@@ -152,13 +152,12 @@ class BuildStockSavings:
                                            safunc.sum(total_weight) / safunc.sum(1)).label("units_count"),
                                           (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))).
                                           label("rows_per_sample"), ]
-            _, _, start_offset = self._bsq._get_simulation_info()
+            sim_info = self._bsq._get_simulation_info()
             time_col = ts_b.c[self._bsq.timestamp_column_name]
-            if start_offset > 0:
+            if sim_info.offset > 0:
                 # If timestamps are not period begining we should make them so for timestamp_grouping_func aggregation.
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func,
-                                             sa.func.date_add('second',
-                                                              -start_offset, time_col)).label(colname)
+                                             sa.func.date_add(sim_info.unit, -sim_info.offset, time_col)).label(colname)
             else:
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func, time_col).label(colname)
             grouping_metrics_selection.insert(0, new_col)

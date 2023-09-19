@@ -3,7 +3,7 @@ import contextlib
 import pathlib
 from pyathena.connection import Connection
 from pyathena.error import OperationalError
-from pyathena.sqlalchemy_athena import AthenaDialect
+from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
@@ -105,6 +105,8 @@ class QueryCore:
         self.building_id_column_name = params.building_id_column_name
         self.sample_weight = params.sample_weight
         self.table_name = params.table_name
+        self.cache_folder = pathlib.Path(params.cache_folder)
+        os.makedirs(self.cache_folder, exist_ok=True)
         self._initialize_tables()
         self._initialize_book_keeping(params.execution_history)
 
@@ -118,7 +120,7 @@ class QueryCore:
         Args:
             path (str, optional): The path to the pickle file. If not provided, reads from current directory.
         """
-        path = path or f"{self.table_name}_query_cache.pkl"
+        path = path or self.cache_folder / f"{self.table_name}_query_cache.pkl"
         before_count = len(self._query_cache)
         saved_cache = load_pickle(path)
         logger.info(f"{len(saved_cache)} queries cache read from {path}.")
@@ -141,12 +143,18 @@ class QueryCore:
             remved before saving it to file. This is useful if the cache has accumulated a bunch of stray queries over
             several sessions that are no longer used. Defaults to False.
         """
-        path = path or f"{self.table_name}_query_cache.pkl"
+        cached_queries = set(self._query_cache)
+        if self.last_saved_queries == cached_queries:
+            logger.info("No new queries to save.")
+            return
+
+        path = path or self.cache_folder / f"{self.table_name}_query_cache.pkl"
         if trim_excess:
             if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
                 for query in excess_queries:
                     del self._query_cache[query]
                 logger.info(f"{len(excess_queries)} excess queries removed from cache.")
+        self.last_saved_queries = cached_queries
         save_pickle(path, self._query_cache)
         logger.info(f"{len(self._query_cache)} queries cache saved to {path}")
 
@@ -233,10 +241,10 @@ class QueryCore:
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
-        self._execution_history_file = execution_history or '.execution_history'
+        self._execution_history_file = execution_history or self.cache_folder / '.execution_history'
         self.execution_cost = {'GB': 0, 'Dollars': 0}  # Tracks the cost of current session. Only used for Athena query
         self.seen_execution_ids = set()  # set to prevent double counting same execution id
-
+        self.last_saved_queries = set()
         if os.path.exists(self._execution_history_file):
             with open(self._execution_history_file, 'r') as f:
                 existing_entries = f.readlines()

@@ -15,10 +15,19 @@ from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
 from buildstock_query.schema.utilities import MappedColumn
 import os
+from dataclasses import dataclass
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
+
+
+@dataclass
+class SimInfo:
+    year: int
+    interval: int
+    offset: int
+    unit: str
 
 
 class BuildStockQuery(QueryCore):
@@ -247,15 +256,14 @@ class BuildStockQuery(QueryCore):
         result = self.execute(query)
         return result.set_index(self.bs_bldgid_column.name)
 
-    def get_results_csv_full(self) -> pd.DataFrame:
-        """Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
-        the stored parquet files in s3 to download the results which is faster than querying athena.
+    def _download_results_csv(self) -> str:
+        """Downloads the results csv from s3 and returns the path to the downloaded file.
         Returns:
-            pd.DataFrame: The full results csv.
+            str: The path to the downloaded file.
         """
-        local_copy_path = f"{self.db_name}_{self.bs_table.name}.parquet"
+        local_copy_path = self.cache_folder / f"{self.db_name}_{self.bs_table.name}.parquet"
         if os.path.exists(local_copy_path):
-            return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
+            return local_copy_path
 
         baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
                                                  Name=self.bs_table.name)['Table']['StorageDescriptor']['Location']
@@ -270,7 +278,16 @@ class BuildStockQuery(QueryCore):
 
         baseline_parquet_path = s3_data['Contents'][0]['Key']
         self._aws_s3.download_file(bucket, baseline_parquet_path, local_copy_path)
-        return self.get_results_csv_full()
+        return local_copy_path
+
+    def get_results_csv_full(self) -> pd.DataFrame:
+        """Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+        the stored parquet files in s3 to download the results which is faster than querying athena.
+        Returns:
+            pd.DataFrame: The full results csv.
+        """
+        local_copy_path = self._download_results_csv()
+        return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
 
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
@@ -325,10 +342,8 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
-        """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
-        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
-        athena.
+    def _download_upgrades_csv(self, upgrade_id: int) -> str:
+        """ Downloads the upgrades csv from s3 and returns the path to the downloaded file.
         """
         if self.up_table is None:
             raise ValueError("This run has no upgrades")
@@ -338,11 +353,9 @@ class BuildStockQuery(QueryCore):
         if str(upgrade_id) not in available_upgrades:
             raise ValueError(f"Upgrade {upgrade_id} not found")
 
-        local_copy_path = f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
+        local_copy_path = self.cache_folder / f"{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet"
         if os.path.exists(local_copy_path):
-            df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
-            df.insert(0, 'upgrade', upgrade_id)
-            return df
+            return local_copy_path
 
         upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
                                                  Name=self.up_table.name)['Table']['StorageDescriptor']['Location']
@@ -364,7 +377,17 @@ class BuildStockQuery(QueryCore):
                              f"Here are the files: {[content[0]['Key'] for content in s3_data['Contents']]}")
 
         self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
-        return self.get_upgrades_csv_full(upgrade_id)
+        return local_copy_path
+
+    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
+        """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+        athena.
+        """
+        local_copy_path = self._download_upgrades_csv(upgrade_id)
+        df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
+        df.insert(0, 'upgrade', upgrade_id)
+        return df
 
     @typing.overload
     def get_building_ids(self, *,
@@ -416,7 +439,7 @@ class BuildStockQuery(QueryCore):
         return self.execute(query)
 
     @typing.overload
-    def _get_simulation_info(self, get_query_only: Literal[False] = False) -> tuple[int, int, int]:
+    def _get_simulation_info(self, get_query_only: Literal[False] = False) -> SimInfo:
         ...
 
     @typing.overload
@@ -424,7 +447,7 @@ class BuildStockQuery(QueryCore):
         ...
 
     @validate_arguments(config=dict(smart_union=True))
-    def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, tuple[int, int, int]]:
+    def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, SimInfo]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
         bldg_df = self.execute(query0)
@@ -439,16 +462,26 @@ class BuildStockQuery(QueryCore):
         time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
         reference_time = datetime(year=sim_year, month=1, day=1)
-        sim_interval_seconds = (time2 - time1).total_seconds()
+        sim_interval_seconds = int((time2 - time1).total_seconds())
         start_offset_seconds = int((time1 - reference_time).total_seconds())
-        return sim_year, sim_interval_seconds, start_offset_seconds
+        if sim_interval_seconds >= 28 * 24 * 60 * 60:  # 28 days or more means monthly resoultion
+            assert start_offset_seconds in [0, 31 * 24 * 60 * 60]
+            interval = 1
+            offset = start_offset_seconds // (31 * 24 * 60 * 60)
+            unit = "month"
+        else:
+            interval = sim_interval_seconds
+            offset = start_offset_seconds
+            unit = "second"
+        assert offset in [0, interval]
+        return SimInfo(sim_year, interval, offset, unit)
 
     def get_special_column(self,
                            column_type: Literal['month', 'day', 'hour', 'is_weekend', 'day_of_week']) -> DBColType:
-        _, _, start_offset = self._get_simulation_info()
-        if start_offset > 0:
+        sim_info = self._get_simulation_info()
+        if sim_info.offset > 0:
             # If timestamps are not period begining we should make them so we get proper values of special columns.
-            time_col = sa.func.date_add('second', -start_offset, self.timestamp_column)
+            time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
         else:
             time_col = self.timestamp_column
 
