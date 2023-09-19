@@ -155,7 +155,7 @@ class VizData:
 
         missing_cols = (pl.lit(0).alias(c) for c in params.enduses if c not in df.columns)
         df = df.with_columns(missing_cols)  # add missing cols as zero
-        value_cols = [pl.sum([pl.col(c).fill_null(0) for c in params.enduses]).alias("value")]
+        value_cols = [pl.sum_horizontal([pl.col(c).fill_null(0) for c in params.enduses]).alias("value")]
         other_cols = ['building_id'] + params.group_by
         if 'month' not in params.group_by:
             other_cols += ['month']

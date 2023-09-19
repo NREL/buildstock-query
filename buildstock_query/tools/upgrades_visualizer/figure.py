@@ -86,7 +86,7 @@ class UpgradesPlot:
                     break
                 if params.value_type in [ValueTypes.total, ValueTypes.mean, ValueTypes.count]:
                     if params.value_type == ValueTypes.total:
-                        val = pl.sum(second_df['value'])
+                        val = second_df['value'].sum()
                     elif params.value_type == ValueTypes.count:
                         val = second_df['building_id'].n_unique()
                     else:
