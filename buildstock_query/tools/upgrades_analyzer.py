@@ -13,6 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 from .logic_parser import LogicParser
 from tabulate import tabulate
+from buildstock_query.helpers import read_csv
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class UpgradesAnalyzer:
         self.parser = LogicParser(opt_sat_file, yaml_file)
         self.yaml_file = yaml_file
         if isinstance(buildstock, str):
-            self.buildstock_df_original = pd.read_csv(buildstock, dtype=str)
+            self.buildstock_df_original = read_csv(buildstock, dtype=str)
             self.buildstock_df = self.buildstock_df_original.copy()
             self.buildstock_df.columns = [c.lower() for c in self.buildstock_df.columns]
             self.buildstock_df.rename(columns={"building": "building_id"}, inplace=True)

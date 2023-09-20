@@ -145,3 +145,9 @@ def load_pickle(path):
         raise FileNotFoundError(f"File {path} not found for loading table")
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+def read_csv(csv_file_path, **kwargs) -> pd.DataFrame:
+    default_na_values = pd._libs.parsers.STR_NA_VALUES
+    df = pd.read_csv(csv_file_path, na_values=list(default_na_values - {"None"}), keep_default_na=False, **kwargs)
+    return df

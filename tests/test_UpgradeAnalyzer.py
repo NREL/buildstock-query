@@ -20,6 +20,9 @@ class TestUpgradesAnalyzer:
         assert "upgrades" in cfg
         assert "postprocessing" in cfg
 
+    def test_parse_none(self, ua):
+        assert "None" in ua.buildstock_df["hvac secondary heating type and fuel"].unique()
+
     @pytest.mark.parametrize("test_case", [0, 1])
     def test_get_para_option(self, test_case):
         test_entries = [

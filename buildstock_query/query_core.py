@@ -20,7 +20,7 @@ import numpy as np
 from collections import OrderedDict
 import types
 from buildstock_query.helpers import CachedFutureDf, AthenaFutureDf, DataExistsException, CustomCompiler
-from buildstock_query.helpers import save_pickle, load_pickle
+from buildstock_query.helpers import save_pickle, load_pickle, read_csv
 from typing import TypedDict, NewType
 from botocore.config import Config
 import urllib3
@@ -340,7 +340,7 @@ class QueryCore:
         result, reason = self.execute_raw(table_create_query)
         if result.lower() == "failed" and 'alreadyexists' in reason.lower():
             if not override:
-                existing_data = pd.read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
+                existing_data = read_csv(f's3://{s3_location}/{table_name}/{table_name}.csv')
                 raise DataExistsException("Table already exists", existing_data)
             print(f"There was existing table {table_name} in Athena which was deleted and recreated.")
             delete_table_query = f"""
@@ -801,7 +801,7 @@ class QueryCore:
             bucket = path.split('/')[2]
             key = '/'.join(path.split('/')[3:])
             response = self._aws_s3.get_object(Bucket=bucket, Key=key)
-            df = pd.read_csv(response['Body'])
+            df = read_csv(response['Body'])
             return df
         # If failed, return error message
         elif query_status == 'FAILED':

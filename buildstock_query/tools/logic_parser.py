@@ -4,12 +4,12 @@ import pandas as pd
 import yaml
 from collections import defaultdict
 import json
-
+from buildstock_query.helpers import read_csv
 
 class LogicParser:
 
     def __init__(self, opt_sat_path, yaml_file) -> None:
-        opt_df = pd.read_csv(opt_sat_path)
+        opt_df = read_csv(opt_sat_path)
         opt_df = opt_df[opt_df["Saturation"] > 0]
         self.available_opts = opt_df.groupby("Parameter")['Option'].agg(set).to_dict()
         self.yaml_file = yaml_file

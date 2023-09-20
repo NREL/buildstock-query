@@ -578,7 +578,7 @@ class BuildStockQuery(QueryCore):
         Returns:
             list: List of upgrades
         """
-        return list([str(u) for u in self.report.get_success_report().query("Success>0").index])
+        return list([str(u) for u in self.report.get_success_report().index])
 
     def _validate_upgrade(self, upgrade_id: Union[int, str]) -> str:
         upgrade_id = '0' if upgrade_id in (None, '0') else str(upgrade_id)

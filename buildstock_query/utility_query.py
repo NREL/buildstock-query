@@ -8,6 +8,7 @@ from collections import defaultdict
 from buildstock_query.schema.query_params import UtilityTSQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
 from buildstock_query.schema.utilities import AnyColType, AnyTableType, MappedColumn
+from buildstock_query.helpers import read_csv
 from pydantic import Field, BaseModel, ValidationError, validate_arguments
 
 
@@ -313,7 +314,7 @@ class BuildStockUtility:
 
     def get_rate_map(self, weekend_csv_path: str, weekday_csv_path: str) -> dict[tuple[int, int, int], float]:
         def read_rate_file(file_path: str) -> pd.DataFrame:
-            df = pd.read_csv(file_path)
+            df = read_csv(file_path)
             if len(df) != 12:
                 raise ValueError(f"Invalid number of rows in {file_path}. Expected 12, got {len(df)}")
             if len(df.columns) != 25:
