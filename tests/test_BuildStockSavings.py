@@ -42,7 +42,7 @@ class TestResStockSavings:
 
     def test_get_available_upgrades(self, my_athena):
         available_upgrade = my_athena.get_available_upgrades()
-        assert available_upgrade == ['0', '1', '2', '3', '6', '8']
+        assert available_upgrade == ['0', '1', '2', '3', '4', '5', '6', '7', '8']
 
     def test_savings_shape(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
