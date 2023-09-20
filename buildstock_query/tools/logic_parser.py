@@ -1,13 +1,12 @@
 from functools import reduce
 import itertools as it
-import pandas as pd
 import yaml
 from collections import defaultdict
 import json
 from buildstock_query.helpers import read_csv
 
-class LogicParser:
 
+class LogicParser:
     def __init__(self, opt_sat_path, yaml_file) -> None:
         opt_df = read_csv(opt_sat_path)
         opt_df = opt_df[opt_df["Saturation"] > 0]
