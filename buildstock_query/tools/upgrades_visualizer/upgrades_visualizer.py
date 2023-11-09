@@ -812,18 +812,18 @@ def get_app(viz_data: VizData):
 def main():
     print("Welcome to Upgrades Visualizer.")
     yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default="/Users/radhikar/Downloads/fact_sheets_category_6.yml").execute()
+                              default="/Users/radhikar/Documents/resstock/project_national/national_baseline.yml").execute()
     opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
                                  default="/Users/radhikar/Downloads/options_saturations.csv").execute()
     workgroup = inquirer.text(message="Please Athena workgroup name: ",
-                              default="largeee").execute()
+                              default="rescore").execute()
     db_name = inquirer.text(message="Please enter database_name "
                             "(found in postprocessing:aws:athena in the buildstock configuration file): ",
-                            default='largeee_test_runs').execute()
+                            default='aris').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file). [Enter two names "
                                "separated by comma if baseline and upgrades are in different run] :",
-                               default="medium_run_baseline_20230622,medium_run_category_6_20230707"
+                               default="aris_1269_nov03"
                                ).execute()
 
     if ',' in table_name:

@@ -678,7 +678,7 @@ class QueryCore:
             raise ValueError("No query was submitted successfully")
         res_df_array: list[pd.DataFrame] = []
         for index, exe_id in enumerate(query_exe_ids):
-            df = query_futures[index].as_pandas()
+            df = query_futures[index].as_pandas().copy()
             if combine:
                 if len(df) == 0:
                     df = pd.DataFrame({'query_id': [index]})
