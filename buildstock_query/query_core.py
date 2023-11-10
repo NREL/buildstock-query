@@ -27,6 +27,8 @@ import urllib3
 from buildstock_query.schema.run_params import RunParams
 from buildstock_query.schema.utilities import DBColType, AnyColType, AnyTableType, SALabel
 from pydantic import validate_arguments
+import hashlib
+
 urllib3.disable_warnings()
 
 logging.basicConfig(level=logging.INFO)
@@ -113,6 +115,15 @@ class QueryCore:
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
 
+    def get_cache_file_path(self) -> pathlib.Path:
+        cache_file_name = str(self.table_name)
+        if len(cache_file_name) > 64:
+            shortened_name = hashlib.sha256(cache_file_name.encode()).hexdigest()
+            pickle_path = self.cache_folder / f"{shortened_name}_query_cache.pkl"
+        else:
+            pickle_path = self.cache_folder / f"{cache_file_name}_query_cache.pkl"
+        return pickle_path
+
     @validate_arguments
     def load_cache(self, path: Optional[str] = None):
         """Read and update query cache from pickle file.
@@ -120,9 +131,9 @@ class QueryCore:
         Args:
             path (str, optional): The path to the pickle file. If not provided, reads from current directory.
         """
-        path = path or self.cache_folder / f"{self.table_name}_query_cache.pkl"
+        pickle_path = pathlib.Path(path) if path else self.get_cache_file_path()
         before_count = len(self._query_cache)
-        saved_cache = load_pickle(path)
+        saved_cache = load_pickle(pickle_path)
         logger.info(f"{len(saved_cache)} queries cache read from {path}.")
         self._query_cache.update(saved_cache)
         after_count = len(self._query_cache)
@@ -148,15 +159,15 @@ class QueryCore:
             logger.info("No new queries to save.")
             return
 
-        path = path or self.cache_folder / f"{self.table_name}_query_cache.pkl"
+        pickle_path = pathlib.Path(path) if path else self.get_cache_file_path()
         if trim_excess:
             if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
                 for query in excess_queries:
                     del self._query_cache[query]
                 logger.info(f"{len(excess_queries)} excess queries removed from cache.")
         self.last_saved_queries = cached_queries
-        save_pickle(path, self._query_cache)
-        logger.info(f"{len(self._query_cache)} queries cache saved to {path}")
+        save_pickle(pickle_path, self._query_cache)
+        logger.info(f"{len(self._query_cache)} queries cache saved to {pickle_path}")
 
     def _initialize_tables(self):
         self.bs_table, self.ts_table, self.up_table = self._get_tables(self.table_name)
