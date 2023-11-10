@@ -296,7 +296,7 @@ def get_app(viz_data: VizData):
             elligible_cols = qoi_cols if resolution == 'annual' else []
         elif category == 'emissions':
             elligible_cols = emissions_cols if resolution == 'annual' else\
-                             viz_data.get_emissions_cols(resolution=resolution)
+                viz_data.get_emissions_cols(resolution=resolution)
         elif category == 'upgrade_cost':
             elligible_cols = cost_cols if resolution == 'annual' else []
         else:
@@ -304,8 +304,8 @@ def get_app(viz_data: VizData):
         return elligible_cols
 
     @app.callback(
-            Output('radio_resolution', 'options'),
-            Input('radio_resolution', 'value'),
+        Output('radio_resolution', 'options'),
+        Input('radio_resolution', 'value'),
     )
     def update_resolution(res):
         nonlocal resolution
@@ -735,7 +735,7 @@ def get_app(viz_data: VizData):
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
         chars_df = viz_data.bs_res_df.filter(pl.col('building_id').is_in(
-                    set(bldg_list))).select(inp_char + ['building_id'])
+            set(bldg_list))).select(inp_char + ['building_id'])
         char2bldgs = chars_df.groupby(inp_char).agg('building_id')
         if (total_len := len(char2bldgs)) > 250:
             return [f"Sorry, this would create more than 200 ({total_len}) rows."], {}
@@ -812,18 +812,18 @@ def get_app(viz_data: VizData):
 def main():
     print("Welcome to Upgrades Visualizer.")
     yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default="/Users/radhikar/Downloads/fact_sheets_category_6.yml").execute()
+                              default="").execute()
     opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
-                                 default="/Users/radhikar/Downloads/options_saturations.csv").execute()
+                                 default="").execute()
     workgroup = inquirer.text(message="Please Athena workgroup name: ",
-                              default="largeee").execute()
+                              default="rescore").execute()
     db_name = inquirer.text(message="Please enter database_name "
                             "(found in postprocessing:aws:athena in the buildstock configuration file): ",
-                            default='largeee_test_runs').execute()
+                            default='').execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file). [Enter two names "
                                "separated by comma if baseline and upgrades are in different run] :",
-                               default="medium_run_baseline_20230622,medium_run_category_6_20230707"
+                               default=""
                                ).execute()
 
     if ',' in table_name:

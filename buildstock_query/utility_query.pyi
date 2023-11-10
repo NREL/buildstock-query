@@ -234,11 +234,11 @@ class BuildStockUtility:
         ...
 
     @typing.overload
-    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: Literal[False] = False) -> pd.DataFrame:
+    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: Literal[False] = False) -> list[str]:
         ...
 
     @typing.overload
-    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool) -> Union[str, pd.DataFrame]:
+    def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool) -> Union[str, list[str]]:
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
         Args:

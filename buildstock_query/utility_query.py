@@ -70,20 +70,32 @@ class BuildStockUtility:
                              id_list: Sequence[Any],
                              params: UtilityTSQuery):
         new_table = self._bsq.get_table(map_table_name)
-        new_column = self._bsq.get_column(map_column_name, table_name=map_table_name)
+        new_column = self._bsq.get_column(map_column_name, table_name=new_table)
         baseline_column = self._bsq.get_column(baseline_column_name, self._bsq.bs_table)
-        params.group_by = [id_column] + list(params.group_by)
-        params.weights = list(params.weights) + ['weight']
+        params.group_by = [new_table.c[id_column]] + list(params.group_by)
+        params.weights = list(params.weights) + [new_table.c['weight']]
         params.join_list = [(new_table, baseline_column, new_column)] + list(params.join_list)
         logger.info(f"Will submit request for {id_list}")
         GS = params.query_group_size
         id_list_batches = [id_list[i:i + GS] for i in range(0, len(id_list), GS)]
         results_array = []
         for current_ids in id_list_batches:
-            new_params = params.copy(deep=True)
             if len(current_ids) == 1:
                 current_ids = current_ids[0]
-            new_params.restrict = [(id_column, current_ids)] + list(new_params.restrict)
+            new_params = TSQuery(enduses=params.enduses,
+                                 group_by=params.group_by,
+                                 upgrade_id=params.upgrade_id,
+                                 sort=params.sort,
+                                 join_list=params.join_list,
+                                 weights=params.weights,
+                                 restrict=[(new_table.c[id_column], current_ids)] + list(params.restrict),
+                                 collapse_ts=params.collapse_ts,
+                                 timestamp_grouping_func=params.timestamp_grouping_func,
+                                 limit=params.limit,
+                                 split_enduses=params.split_enduses,
+                                 get_quartiles=params.get_quartiles,
+                                 get_query_only=params.get_query_only,
+                                 )
             logger.info(f"Submitting query for {current_ids}")
             result = self._agg.aggregate_timeseries(params=new_params)
             results_array.append(result)
