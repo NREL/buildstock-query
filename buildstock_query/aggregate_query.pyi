@@ -22,6 +22,7 @@ class BuildStockAggregate:
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
+                         get_nonzero_count: bool = False,
                          ) -> str:
         ...
 
@@ -36,6 +37,7 @@ class BuildStockAggregate:
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
+                         get_nonzero_count: bool = False,
                          ) -> pd.DataFrame:
         ...
 
@@ -50,6 +52,7 @@ class BuildStockAggregate:
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
+                         get_nonzero_count: bool = False,
                          ) -> Union[pd.DataFrame, str]:
         """
         Aggregates the baseline annual result on select enduses.
@@ -79,6 +82,8 @@ class BuildStockAggregate:
             get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
                         [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
                         is the maximum.
+            get_nonzero_count: If true, return the number of non-zero rows for each enduses. Useful, for example, for
+                        finding the number of natural gas customers by using natural gas total fuel use as the enduse.
 
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging

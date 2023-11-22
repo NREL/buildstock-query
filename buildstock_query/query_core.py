@@ -80,6 +80,7 @@ class QueryCore:
                     use .execution_history if not supplied.
         """
         logger.info(f"Loading {params.table_name} ...")
+        self.run_params = params
         self.workgroup = params.workgroup
         self.buildstock_type = params.buildstock_type
         self._query_cache: dict[str, pd.DataFrame] = {}  # {"query": query_result_df} to cache queries
@@ -108,6 +109,7 @@ class QueryCore:
         self.sample_weight = params.sample_weight
         self.table_name = params.table_name
         self.cache_folder = pathlib.Path(params.cache_folder)
+        self.athena_query_reuse = params.athena_query_reuse
         os.makedirs(self.cache_folder, exist_ok=True)
         self._initialize_tables()
         self._initialize_book_keeping(params.execution_history)
@@ -460,7 +462,7 @@ class QueryCore:
                 return "CACHED", CachedFutureDf(self._query_cache[query].copy())
             # in case of asynchronous run, you get the execution id and futures object
             exe_id, result_future = self._async_conn.cursor().execute(query,
-                                                                      result_reuse_enable=True,
+                                                                      result_reuse_enable=self.athena_query_reuse,
                                                                       result_reuse_minutes=60 * 24 * 7,
                                                                       na_values=[''])  # type: ignore
             exe_id = ExeId(exe_id)
@@ -480,7 +482,7 @@ class QueryCore:
         else:
             if query not in self._query_cache:
                 self._query_cache[query] = self._conn.cursor().execute(query,
-                                                                       result_reuse_enable=True,
+                                                                       result_reuse_enable=self.athena_query_reuse,
                                                                        result_reuse_minutes=60 * 24 * 7,
                                                                        ).as_pandas()
             return self._query_cache[query].copy()
@@ -691,9 +693,7 @@ class QueryCore:
         for index, exe_id in enumerate(query_exe_ids):
             df = query_futures[index].as_pandas().copy()
             if combine:
-                if len(df) == 0:
-                    df = pd.DataFrame({'query_id': [index]})
-                else:
+                if len(df) > 0:
                     df['query_id'] = index
             logger.info(f"Got result from Query [{index}] ({exe_id})")
             self._log_execution_cost(exe_id)

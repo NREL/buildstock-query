@@ -42,6 +42,11 @@ class BuildStockAggregate:
             enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
                 f"{self._bsq._simple_label(enduse.name)}__quartiles") for enduse in enduse_cols]
 
+        if params.get_nonzero_count:
+            enduse_selection += [safunc.sum(sa.case((safunc.coalesce(enduse, 0) != 0, 1), else_=0)
+                                 * total_weight).label(f"{self._bsq._simple_label(enduse.name)}__nonzero_units_count")
+                                 for enduse in enduse_cols]
+
         grouping_metrics_selction = [safunc.sum(1).label("sample_count"),
                                      safunc.sum(total_weight).label("units_count")]
 
