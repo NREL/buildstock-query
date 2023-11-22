@@ -13,8 +13,6 @@ from typing import Optional, Union, Literal, Hashable, Sequence
 from buildstock_query.schema.utilities import AnyColType
 from pydantic import validate_arguments, Field
 from typing_extensions import assert_never
-from buildstock_query.schema.query_params import AnnualQuery
-from buildstock_query.schema.helpers import gather_params
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
