@@ -94,7 +94,7 @@ class BuildStockUtility:
                                  limit=params.limit,
                                  split_enduses=params.split_enduses,
                                  get_quartiles=params.get_quartiles,
-                                 get_query_only=params.get_query_only,
+                                 get_query_only=False if params.split_enduses else True,
                                  )
             logger.info(f"Submitting query for {current_ids}")
             result = self._agg.aggregate_timeseries(params=new_params)
@@ -196,8 +196,8 @@ class BuildStockUtility:
         return result
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def aggregate_annual_by_eiaid(self, enduses: List[str], group_by: Optional[List[str]] = None,
-                                  get_query_only: bool = False):
+    def aggregate_annual_by_eiaid(self, enduses: Sequence[AnyColType], group_by: Optional[List[str]] = None,
+                                  get_query_only: bool = False, get_nonzero_count: bool = False):
         """
         Aggregates the annual consumption in the baseline table, grouping by all the utilities
         Args:
@@ -218,7 +218,8 @@ class BuildStockUtility:
                                             join_list=join_list,
                                             weights=['weight'],
                                             sort=True,
-                                            get_query_only=get_query_only)
+                                            get_query_only=get_query_only,
+                                            get_nonzero_count=get_nonzero_count)
         return result
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))

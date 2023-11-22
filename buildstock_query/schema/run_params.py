@@ -14,6 +14,7 @@ class RunParams(BaseModel):
     region_name: str = 'us-west-2'
     execution_history: Optional[str] = None
     cache_folder: str = '.bsq_cache'
+    athena_query_reuse: bool = True
 
     class Config:
         arbitrary_types_allowed = True

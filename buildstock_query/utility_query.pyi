@@ -30,7 +30,7 @@ class BuildStockUtility:
 
     @typing.overload
     def aggregate_ts_by_eiaid(self, *,
-                              enduses: Sequence[str],
+                              enduses: Sequence[AnyColType],
                               eiaid_list: Sequence[str],
                               get_query_only: Literal[True],
                               group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
@@ -50,7 +50,7 @@ class BuildStockUtility:
 
     @typing.overload
     def aggregate_ts_by_eiaid(self, *,
-                              enduses: Sequence[str],
+                              enduses: Sequence[AnyColType],
                               eiaid_list: Sequence[str],
                               group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
                               upgrade_id: Union[int, str] = '0',
@@ -70,7 +70,7 @@ class BuildStockUtility:
 
     @typing.overload
     def aggregate_ts_by_eiaid(self, *,
-                              enduses: Sequence[str],
+                              enduses: Sequence[AnyColType],
                               eiaid_list: Sequence[str],
                               get_query_only: bool,
                               group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
@@ -144,22 +144,25 @@ class BuildStockUtility:
         ...
 
     @typing.overload
-    def aggregate_annual_by_eiaid(self, enduses: List[str],
+    def aggregate_annual_by_eiaid(self, enduses: Sequence[AnyColType],
                                   get_query_only: Literal[True],
                                   group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
+                                  get_nonzero_count: bool = False,
                                   ) -> str:
         ...
 
     @typing.overload
-    def aggregate_annual_by_eiaid(self, enduses: List[str],
+    def aggregate_annual_by_eiaid(self, enduses: Sequence[AnyColType],
                                   group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
+                                  get_nonzero_count: bool = False,
                                   get_query_only: Literal[False] = False) -> pd.DataFrame:
         ...
 
     @typing.overload
-    def aggregate_annual_by_eiaid(self, enduses: List[str],
+    def aggregate_annual_by_eiaid(self, enduses: Sequence[AnyColType],
                                   get_query_only: bool,
                                   group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
+                                  get_nonzero_count: bool = False,
                                   ) -> Union[str, pd.DataFrame]:
         ...
 

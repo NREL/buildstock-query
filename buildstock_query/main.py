@@ -44,6 +44,7 @@ class BuildStockQuery(QueryCore):
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
+                 athena_query_reuse: bool = True,
                  ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -64,6 +65,9 @@ class BuildStockQuery(QueryCore):
                 to help stop them. Will use .execution_history if not supplied.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+            athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
+                When false, it will not. Defaults to True. One use case to set this to False is when you have modified
+                the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         """
         self.params = BSQParams(
             workgroup=workgroup,
@@ -74,7 +78,8 @@ class BuildStockQuery(QueryCore):
             building_id_column_name=building_id_column_name,
             sample_weight=sample_weight,
             region_name=region_name,
-            execution_history=execution_history
+            execution_history=execution_history,
+            athena_query_reuse=athena_query_reuse
         )
         self.run_params = self.params.get_run_params()
         from buildstock_query.report_query import BuildStockReport
