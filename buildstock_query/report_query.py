@@ -149,9 +149,7 @@ class BuildStockReport:
             raise ValueError("No upgrade table is available .")
 
         threshold = 1e-3
-        fuel_cols = [col.name for col in self._bsq.up_table.columns if col.name.startswith('report_simulation_output')
-                     and col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
-        fuel_cols = list(c for c in self._bsq.db_schema.column_names.fuel_totals 
+        fuel_cols = list(c for c in self._bsq.db_schema.column_names.fuel_totals
                          if c in self._bsq.up_table.columns)  # Look at all fuel type totals
         all_cols = list(fuel_cols)
         if self._bsq.db_schema.column_names.unmet_hours_cooling_hr:

@@ -21,7 +21,8 @@ setup(
         "types-PyYAML >= 6.0.12.2",
         "pydantic<2",
         "PyYAML",
-        "tabulate"
+        "tabulate",
+        "toml"
     ],
 
     extras_require={
