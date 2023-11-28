@@ -38,6 +38,7 @@ class TestResStockSavings:
             skip_reports=True
         )
         my_athena._query_cache = load_cache_from_pkl('res_n250_15min_v19')
+        my_athena.last_saved_queries = set(my_athena._query_cache)
         return my_athena
 
     def test_get_available_upgrades(self, my_athena):
@@ -52,9 +53,9 @@ class TestResStockSavings:
         annual_bs_consumtion = my_athena.agg.aggregate_annual(enduses=enduses)
         annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses)
         assert len(annual_savings_full) == len(annual_savings_applied) == 1
-        assert annual_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
-        assert annual_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
-        assert annual_up_consumption['sample_count'].iloc[0] == success_report.loc[1].Success
+        assert annual_savings_full['sample_count'].iloc[0] == success_report.loc[0].success
+        assert annual_savings_applied['sample_count'].iloc[0] == success_report.loc[1].success
+        assert annual_up_consumption['sample_count'].iloc[0] == success_report.loc[1].success
         assert np.isclose(annual_savings_full[f"{enduses[0]}__baseline"],
                           annual_bs_consumtion[f"{enduses[0]}"],
                           rtol=1e-3)
@@ -69,8 +70,8 @@ class TestResStockSavings:
         ts_savings_applied = my_athena.savings.savings_shape(
             upgrade_id='1', enduses=ts_enduses, applied_only=True, annual_only=False)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040
-        assert ts_savings_full['sample_count'].iloc[0] == success_report.loc[0].Success
-        assert ts_savings_applied['sample_count'].iloc[0] == success_report.loc[1].Success
+        assert ts_savings_full['sample_count'].iloc[0] == success_report.loc[0].success
+        assert ts_savings_applied['sample_count'].iloc[0] == success_report.loc[1].success
         # Match with annual result
         ts_full_bsline = ts_savings_full[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
         assert np.isclose(ts_full_bsline, annual_savings_full[f"{enduses[0]}__baseline"], rtol=1e-3)
@@ -101,9 +102,9 @@ class TestResStockSavings:
         annual_up_consumption = my_athena.agg.aggregate_annual(upgrade_id='1', enduses=enduses, group_by=group_by,
                                                                sort=True)
         assert len(annual_savings_full) == len(annual_savings_applied) == n_groups
-        assert annual_savings_full['sample_count'].sum() == success_report.loc[0].Success
-        assert annual_savings_applied['sample_count'].sum() == success_report.loc[1].Success
-        assert annual_up_consumption['sample_count'].sum() == success_report.loc[1].Success
+        assert annual_savings_full['sample_count'].sum() == success_report.loc[0].success
+        assert annual_savings_applied['sample_count'].sum() == success_report.loc[1].success
+        assert annual_up_consumption['sample_count'].sum() == success_report.loc[1].success
         applied_units = annual_savings_applied['units_count'].iloc[0]
         assert np.isclose(annual_savings_full[f"{enduses[0]}__baseline"],
                           annual_bs_consumtion[f"{enduses[0]}"],
@@ -122,8 +123,8 @@ class TestResStockSavings:
         ts_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
                                                              annual_only=False, group_by=group_by)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040 * n_groups
-        assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[0].Success
-        assert ts_savings_applied.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[1].Success
+        assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[0].success
+        assert ts_savings_applied.groupby(group_by)['sample_count'].mean().sum() == success_report.loc[1].success
         # Match with annual result
         ts_full_bsline = ts_savings_full.groupby(group_by)[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
         assert np.isclose(ts_full_bsline, annual_savings_full[f"{enduses[0]}__baseline"],

@@ -25,9 +25,11 @@ from typing import TypedDict, NewType
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
+from buildstock_query.db_schema.db_schema_model import DBSchema
 from buildstock_query.schema.utilities import DBColType, AnyColType, AnyTableType, SALabel
 from pydantic import validate_arguments
 import hashlib
+import toml
 
 urllib3.disable_warnings()
 
@@ -103,10 +105,15 @@ class QueryCore:
 
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
-
-        self.timestamp_column_name = params.timestamp_column_name
-        self.building_id_column_name = params.building_id_column_name
-        self.sample_weight = params.sample_weight
+        db_schema_file = os.path.join(os.path.dirname(__file__), 'db_schema',
+                                      f'{params.db_schema}.toml')
+        db_schema_dict = toml.load(db_schema_file)
+        self.db_schema = DBSchema.parse_obj(db_schema_dict)
+        self.db_col_name = self.db_schema.column_names
+        self.timestamp_column_name = self.db_col_name.timestamp
+        self.building_id_column_name = self.db_col_name.building_id
+        self.sample_weight = params.sample_weight_override if params.sample_weight_override is not None else \
+            self.db_col_name.sample_weight
         self.table_name = params.table_name
         self.cache_folder = pathlib.Path(params.cache_folder)
         self.athena_query_reuse = params.athena_query_reuse
@@ -138,6 +145,7 @@ class QueryCore:
         saved_cache = load_pickle(pickle_path)
         logger.info(f"{len(saved_cache)} queries cache read from {path}.")
         self._query_cache.update(saved_cache)
+        self.last_saved_queries = set(saved_cache)
         after_count = len(self._query_cache)
         if diff := after_count - before_count:
             logger.info(f"{diff} queries cache is updated.")
@@ -244,13 +252,25 @@ class QueryCore:
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
-            baseline_table = self.get_table(f'{table_name}_baseline')
-            ts_table = self.get_table(f'{table_name}_timeseries', missing_ok=True)
-            upgrade_table = self.get_table(f'{table_name}_upgrades', missing_ok=True)
+            baseline_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
+            ts_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
+            if self.db_schema.table_suffix.upgrades == self.db_schema.table_suffix.baseline:
+                upgrade_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
+                baseline_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
+            else:
+                upgrade_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.upgrades}', missing_ok=True)
         else:
             baseline_table = self.get_table(f'{table_name[0]}')
             ts_table = self.get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
-            upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
+            if table_name[2] == table_name[0]:
+                upgrade_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
+                baseline_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
+            else:
+                upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):

@@ -1,5 +1,6 @@
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
+from sqlalchemy.sql import sqltypes
 from typing import List, Union, Sequence
 import logging
 import re
@@ -37,10 +38,9 @@ class BuildStockQuery(QueryCore):
                  workgroup: str,
                  db_name: str,
                  table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
+                 db_schema: Optional[str] = None,
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
-                 timestamp_column_name: str = 'time',
-                 building_id_column_name: str = 'building_id',
-                 sample_weight: Union[int, float, str] = "build_existing_model.sample_weight",
+                 sample_weight: Optional[Union[int, float]] = None,
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
@@ -69,14 +69,14 @@ class BuildStockQuery(QueryCore):
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         """
+        db_schema = db_schema or f"{buildstock_type}_default"
         self.params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
             table_name=table_name,
-            timestamp_column_name=timestamp_column_name,
-            building_id_column_name=building_id_column_name,
-            sample_weight=sample_weight,
+            db_schema=db_schema,
+            sample_weight_override=sample_weight,
             region_name=region_name,
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
@@ -111,7 +111,8 @@ class BuildStockQuery(QueryCore):
             pd.DataFrame: The buildstock.csv dataframe.
         """
         results_df = self.get_results_csv_full()
-        results_df = results_df[results_df["completed_status"] == "Success"]
+        results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str) ==
+                                self.db_schema.completion_values.success]
         buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [''.join(c.split(".")[1:]).replace("_", " ") for c in buildstock_df.columns
@@ -147,7 +148,7 @@ class BuildStockQuery(QueryCore):
     @validate_arguments
     def _get_rows_per_building(self, get_query_only: bool = False) -> Union[int, str]:
         select_cols = []
-        if self.up_table is not None:
+        if self.up_table is not None and self.ts_table is not None:
             select_cols.append(self.ts_table.c['upgrade'])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label("row_count")))
         ts_query = sa.select(select_cols)
@@ -706,3 +707,29 @@ class BuildStockQuery(QueryCore):
             return self._compile(query)
         res = self.execute(query)
         return res
+
+    @property
+    def bs_completed_status_col(self):
+        if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return self.bs_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def up_completed_status_col(self):
+        if self.up_table is None:
+            raise ValueError("No upgrades table")
+        if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return self.up_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def bs_successful_condition(self):
+        return self.bs_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def up_successful_condition(self):
+        return self.up_completed_status_col == self.db_schema.completion_values.success

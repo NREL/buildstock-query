@@ -26,6 +26,12 @@ class BuildStockReport:
     def __init__(self, bsq: 'main.BuildStockQuery') -> None:
         self._bsq = bsq
 
+    def _rename_completed_status_column(self, df: DataFrame) -> DataFrame:
+        df = df.rename(columns={self._bsq.db_schema.column_names.completed_status: "completed_status"})
+        rev_value_map = {db_val: normal_val for normal_val, db_val in self._bsq.db_schema.completion_values}
+        df["completed_status"] = df["completed_status"].map(rev_value_map)
+        return df
+
     @typing.overload
     def _get_bs_success_report(self, get_query_only: Literal[False] = False) -> DataFrame:
         ...
@@ -39,11 +45,12 @@ class BuildStockReport:
         ...
 
     def _get_bs_success_report(self, get_query_only: bool = False):
-        bs_query = sa.select([self._bsq.bs_table.c['completed_status'], safunc.count().label("count")])
+        bs_query = sa.select([self._bsq.bs_completed_status_col, safunc.count().label("count")])
         bs_query = bs_query.group_by(sa.text('1'))
         if get_query_only:
             return self._bsq._compile(bs_query)
         df = self._bsq.execute(bs_query)
+        df = self._rename_completed_status_column(df)
         df.insert(0, 'upgrade', 0)
         return self._process_report(df)
 
@@ -74,8 +81,8 @@ class BuildStockReport:
             up_query = sa.select([self._bsq.up_table.c['upgrade'], safunc.count().label("change")])
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
             conditions = self._get_change_conditions(change_type=ch_type)
-            up_query = up_query.where(sa.and_(self._bsq.bs_table.c['completed_status'] == 'Success',
-                                              self._bsq.up_table.c['completed_status'] == 'Success',
+            up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
+                                              self._bsq.up_successful_condition,
                                               conditions))  # type: ignore
             up_query = up_query.group_by(sa.text('1'))
             up_query = up_query.order_by(sa.text('1'))
@@ -125,13 +132,13 @@ class BuildStockReport:
         up_query = sa.select([self._bsq.up_bldgid_column])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            up_query = up_query.where(sa.and_(self._bsq.bs_table.c['completed_status'] == 'Success',
-                                              self._bsq.up_table.c['completed_status'] == 'Success',
+            up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
+                                              self._bsq.up_successful_condition,
                                               self._bsq.up_table.c['upgrade'] == str(upgrade_id),
                                               ))
         else:
             up_query = up_query.where(sa.and_(self._bsq.up_table.c['upgrade'] == str(upgrade_id),
-                                              self._bsq.up_table.c['completed_status'] == 'Success'))
+                                              self._bsq.up_successful_condition))
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
@@ -144,9 +151,13 @@ class BuildStockReport:
         threshold = 1e-3
         fuel_cols = [col.name for col in self._bsq.up_table.columns if col.name.startswith('report_simulation_output')
                      and col.name.endswith(('total_m_btu'))]  # Look at all fuel type totals
-        unmet_hours_cols = ['report_simulation_output.unmet_hours_cooling_hr',
-                            'report_simulation_output.unmet_hours_heating_hr']
-        all_cols = fuel_cols + unmet_hours_cols
+        fuel_cols = list(c for c in self._bsq.db_schema.column_names.fuel_totals 
+                         if c in self._bsq.up_table.columns)  # Look at all fuel type totals
+        all_cols = list(fuel_cols)
+        if self._bsq.db_schema.column_names.unmet_hours_cooling_hr:
+            all_cols += [self._bsq.db_schema.column_names.unmet_hours_cooling_hr]
+        if self._bsq.db_schema.column_names.unmet_hours_heating_hr:
+            all_cols += [self._bsq.db_schema.column_names.unmet_hours_heating_hr]
         null_chng_conditions = sa.and_(*[sa.or_(self._bsq.up_table.c[col] == sa.null(),
                                                 self._bsq.bs_table.c[col] == sa.null()
                                                 ) for col in fuel_cols])
@@ -209,13 +220,13 @@ class BuildStockReport:
 
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
-        up_query = sa.select([self._bsq.bs_bldgid_column, self._bsq.bs_table.c['completed_status'],
-                              self._bsq.up_table.c['completed_status']])
+        up_query = sa.select([self._bsq.bs_bldgid_column, self._bsq.bs_completed_status_col,
+                              self._bsq.up_completed_status_col])
         up_query = up_query.join(self._bsq.up_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
 
         conditions = self._get_change_conditions(change_type)
-        up_query = up_query.where(sa.and_(self._bsq.bs_table.c['completed_status'] == 'Success',
-                                          self._bsq.up_table.c['completed_status'] == 'Success',
+        up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
+                                          self._bsq.up_successful_condition,
                                           self._bsq.up_table.c['upgrade'] == str(upgrade_id),
                                           conditions))  # type: ignore
         if get_query_only:
@@ -251,25 +262,27 @@ class BuildStockReport:
         """
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
-        up_query = sa.select([self._bsq.up_table.c['upgrade'], self._bsq.up_table.c['completed_status'],
+        up_query = sa.select([self._bsq.up_table.c['upgrade'], self._bsq.up_completed_status_col,
                               safunc.count().label("count")])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            up_query = up_query.where(self._bsq.bs_table.c['completed_status'] == 'Success')
+            up_query = up_query.where(self._bsq.bs_successful_condition)
 
         up_query = up_query.group_by(sa.text('1'), sa.text('2'))
         up_query = up_query.order_by(sa.text('1'), sa.text('2'))
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
+        df = self._rename_completed_status_column(df)
         return self._process_report(df)
 
     def _process_report(self, df: DataFrame):
         df['upgrade'] = df['upgrade'].map(int)
-        pf = df.pivot(index=['upgrade'], columns=['completed_status'], values=['count'])
+        pf = df.pivot(index=['upgrade'], columns=['completed_status'],
+                      values=['count'])
         pf.columns = [c[1] for c in pf.columns]
         pf['Sum'] = pf.sum(axis=1)
-        for col in ['Fail', 'Invalid']:
+        for col in ['fail', 'unapplicable']:
             if col not in pf.columns:
                 pf.insert(1, col, 0)
         return pf
@@ -292,11 +305,11 @@ class BuildStockReport:
             raise ValueError("No upgrade table is available .")
         opt_name_cols = [c for c in self._bsq.up_table.columns if c.name.startswith("upgrade_costs.option_")
                          and c.name.endswith("name")]
-        query = sa.select([self._bsq.up_table.c['upgrade']] + opt_name_cols + [safunc.count().label("Success")]
+        query = sa.select([self._bsq.up_table.c['upgrade']] + opt_name_cols + [safunc.count().label('success')]
                           + [safunc.array_agg(self._bsq.up_bldgid_column)])
         if trim_missing_bs:
             query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            query = query.where(self._bsq.bs_table.c['completed_status'] == 'Success')
+            query = query.where(self._bsq.bs_successful_condition)
         grouping_texts = [sa.text(str(i+1)) for i in range(1+len(opt_name_cols))]
         query = query.group_by(*grouping_texts)
         query = query.order_by(*grouping_texts)
@@ -304,7 +317,7 @@ class BuildStockReport:
             return self._bsq._compile(query)
         df = self._bsq.execute(query)
         simple_names = [f"option{i+1}" for i in range(len(opt_name_cols))]
-        df.columns = ['upgrade'] + simple_names + ['Success', "applied_buildings"]
+        df.columns = ['upgrade'] + simple_names + ['success', "applied_buildings"]
         df['upgrade'] = df['upgrade'].map(int)
         df['applied_buildings'] = df['applied_buildings'].map(lambda x: literal_eval(x))
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
@@ -328,22 +341,22 @@ class BuildStockReport:
         total_counts: Counter = Counter()
         bldg_array: dict = defaultdict(list)
         for option in option_cols:
-            grouped_dict = full_report.groupby(['upgrade', option]).aggregate({'Success': 'sum',
+            grouped_dict = full_report.groupby(['upgrade', option]).aggregate({'success': 'sum',
                                                                                'applied_buildings': 'sum'}).to_dict()
-            total_counts += Counter(grouped_dict['Success'])
+            total_counts += Counter(grouped_dict['success'])
             for key, val in grouped_dict['applied_buildings'].items():
                 bldg_array[key] += val
 
-        option_df = pd.DataFrame.from_dict({'Success': total_counts,
+        option_df = pd.DataFrame.from_dict({'success': total_counts,
                                             'applied_buildings': bldg_array,
                                             }, orient='columns')
         option_df['applied_buildings'] = option_df['applied_buildings'].map(lambda x: set(x))
         option_df = option_df.reset_index()
-        option_df.columns = ['upgrade', 'option', 'Success', 'applied_buildings']
+        option_df.columns = ['upgrade', 'option', 'success', 'applied_buildings']
         # Aggregate for upgrade
         agg = option_df.groupby('upgrade').aggregate({'applied_buildings': lambda x: reduce(set.union, x)})
         agg = agg.reset_index()
-        agg.insert(1, 'Success', agg['applied_buildings'].map(lambda x: len(x)))
+        agg.insert(1, 'success', agg['applied_buildings'].map(lambda x: len(x)))
         agg.insert(0, 'option', 'All')
         full_df = pd.concat([option_df, agg])
         full_df = full_df.sort_values(['upgrade', 'option'])
@@ -373,8 +386,8 @@ class BuildStockReport:
         for col in diff_df.columns:
             diff_df[f"{col}_count"] = diff_df[col].map(lambda x: len(x) if isinstance(x, set) else 0)
         success_report_df = self.get_success_report()
-        fail_report = success_report_df[['Fail', 'Success']].rename(columns={'Fail': "Upgrade Failures",
-                                                                             'Success': "Upgrade Success"})
+        fail_report = success_report_df[['fail', 'success']].rename(columns={'fail': "Upgrade Failures",
+                                                                             'success': "Upgrade Success"})
         diff_df = diff_df.join(fail_report)
         return diff_df
 
@@ -470,7 +483,7 @@ class BuildStockReport:
         Returns:
             pd.DateFrame: The report dataframe. The meaning of the various columns are as follows:
                 **Fail**: Number of simulation that failed.  
-                **Unapplicaple**: Number of buildings to which the upgrade didn't apply (because of apply logic)  
+                **unapplicable**: Number of buildings to which the upgrade didn't apply (because of apply logic)  
                 **Success**: The number of buildings which completed simulation successfully. No simulation is run for
                     unapplicable buildings.  
                 **Sum**: Sum of the first three columns.  
@@ -498,7 +511,7 @@ class BuildStockReport:
             return baseline_result
 
         if trim_missing_bs == 'auto':
-            if 'Success' in baseline_result:
+            if 'success' in baseline_result:
                 trim = True
             else:
                 logger.warning("None of the simulation was successful in baseline. The counts for upgrade will be"
@@ -520,19 +533,18 @@ class BuildStockReport:
         change_result = self._get_change_report().fillna(0)
         if get_query_only:
             return baseline_result, upgrade_result, change_result
-        if 'Success' in upgrade_result.columns:
-            pa = round(100 * (upgrade_result['Fail'] + upgrade_result['Success']) /
+        if 'success' in upgrade_result.columns:
+            pa = round(100 * (upgrade_result['fail'] + upgrade_result['success']) /
                        upgrade_result['Sum'], 1)
             upgrade_result['Applied %'] = pa
 
         pf = pd.concat([baseline_result, upgrade_result])
-        pf = pf.rename(columns={'Invalid': 'Unapplicaple'})
         pf = pf.join(change_result).fillna(0)
-        pf['no-chng %'] = round(100 * pf['no-chng'] / pf['Success'], 1)
-        pf['bad-chng %'] = round(100 * pf['bad-chng'] / pf['Success'], 1)
-        pf['ok-chng %'] = round(100 * pf['ok-chng'] / pf['Success'], 1)
-        pf['true-ok-chng %'] = round(100 * pf['true-ok-chng'] / pf['Success'], 1)
-        pf['true-bad-chng %'] = round(100 * pf['true-bad-chng'] / pf['Success'], 1)
+        pf['no-chng %'] = round(100 * pf['no-chng'] / pf['success'], 1)
+        pf['bad-chng %'] = round(100 * pf['bad-chng'] / pf['success'], 1)
+        pf['ok-chng %'] = round(100 * pf['ok-chng'] / pf['success'], 1)
+        pf['true-ok-chng %'] = round(100 * pf['true-ok-chng'] / pf['success'], 1)
+        pf['true-bad-chng %'] = round(100 * pf['true-bad-chng'] / pf['success'], 1)
         return pf
 
     @typing.overload
@@ -560,7 +572,7 @@ class BuildStockReport:
         df = self._bsq.execute(ts_query)
         df['upgrade'] = df['upgrade'].map(int)
         df = df.set_index('upgrade')
-        df = df.rename(columns={'count': 'Success'})
+        df = df.rename(columns={'count': 'success'})
         return df
 
     def check_ts_bs_integrity(self) -> bool:
@@ -572,8 +584,11 @@ class BuildStockReport:
         logger.info("Checking integrity with ts_tables ...")
         raw_ts_report = self._get_ts_report()
         raw_success_report = self.get_success_report(trim_missing_bs=False)
-        bs_dict = raw_success_report['Success'].to_dict()
-        ts_dict = raw_ts_report.to_dict()['Success']
+        if self._bsq.db_schema.structure.unapplicables_have_ts:
+            bs_dict = raw_success_report[['unapplicable', 'success']].sum(axis=1).to_dict()
+        else:
+            bs_dict = raw_success_report['success'].to_dict()
+        ts_dict = raw_ts_report.to_dict()['success']
         check_pass = True
         for upgrade, count in ts_dict.items():
             if count != bs_dict.get(upgrade, 0):
@@ -609,7 +624,8 @@ class BuildStockReport:
         query = sa.select(safunc.count().label("count"))
 
         restrict = list(restrict) if restrict else []
-        restrict.insert(0, ('completed_status', ['Success']))
+        restrict.insert(0, (self._bsq.db_schema.column_names.completed_status,
+                            [self._bsq.db_schema.completion_values.success]))
         query = self._bsq._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._bsq._compile(query)

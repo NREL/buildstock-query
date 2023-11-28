@@ -70,7 +70,7 @@ class BuildStockSavings:
                     self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                                 self._bsq.up_table.c[self._bsq.building_id_column_name],
                                                 self._bsq.up_table.c["upgrade"] == upgrade_id,
-                                                self._bsq.up_table.c["completed_status"] == "Success"))
+                                                self._bsq.up_successful_condition))
             )
         else:
             tbljoin = (
@@ -78,7 +78,7 @@ class BuildStockSavings:
                     self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                                 self._bsq.up_table.c[self._bsq.building_id_column_name],
                                                 self._bsq.up_table.c["upgrade"] == upgrade_id,
-                                                self._bsq.up_table.c["completed_status"] == "Success")))
+                                                self._bsq.up_successful_condition)))
 
         return self._bsq.bs_table, self._bsq.up_table, tbljoin
 
@@ -113,7 +113,9 @@ class BuildStockSavings:
         for col in enduse_cols:
             if params.annual_only:
                 savings_col = (safunc.coalesce(ts_b.c[col.name], 0) -
-                               safunc.coalesce(sa.case((ts_u.c['completed_status'] == 'Success', ts_u.c[col.name]),
+                               safunc.coalesce(sa.case((ts_u.c[self._bsq.db_schema.column_names.completed_status]
+                                                        == self._bsq.db_schema.completion_values.success,
+                                                        ts_u.c[col.name]),
                                                else_=ts_b.c[col.name]), 0)
                                )
             else:
@@ -173,7 +175,7 @@ class BuildStockSavings:
         query = self._bsq._add_join(query, params.join_list)
         query = self._bsq._add_restrict(query, params.restrict)
         if params.annual_only:
-            query = query.where(self._bsq.bs_table.c["completed_status"] == "Success")
+            query = query.where(self._bsq.bs_successful_condition)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
 

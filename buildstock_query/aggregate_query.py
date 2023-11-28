@@ -65,10 +65,10 @@ class BuildStockAggregate:
                 self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                             self._bsq.up_table.c[self._bsq.building_id_column_name],
                                             self._bsq.up_table.c["upgrade"] == str(upgrade_id),
-                                            self._bsq.up_table.c["completed_status"] == "Success"))
+                                            self._bsq.up_successful_condition))
             query = query.select_from(tbljoin)
 
-        restrict = [(self._bsq.bs_table.c['completed_status'], ['Success'])] + restrict
+        restrict = [(self._bsq.bs_completed_status_col, [self._bsq.db_schema.completion_values.success])] + restrict
         query = self._bsq._add_join(query, join_list)
         query = self._bsq._add_restrict(query, restrict)
         query = self._bsq._add_group_by(query, group_by_selection)
