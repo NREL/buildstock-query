@@ -3,6 +3,7 @@ from typing import Union, Any, Sequence
 from pydantic import BaseModel
 import sqlalchemy as sa
 from sqlalchemy.sql.elements import Label
+from sqlalchemy.sql.selectable import Subquery
 
 # from buildstock_query import BuildStockQuery  # can't import due to circular import
 
@@ -11,7 +12,7 @@ SACol = sa.Column
 SALabel = Label
 DBColType = Union[SALabel,  SACol]
 DBTableType = sa.Table
-AnyTableType = Union[DBTableType, str]
+AnyTableType = Union[DBTableType, str, Subquery]
 
 
 class MappedColumn(BaseModel):

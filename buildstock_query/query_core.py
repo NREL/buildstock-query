@@ -124,14 +124,16 @@ class QueryCore:
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
 
-    def get_cache_file_path(self) -> pathlib.Path:
-        cache_file_name = str(self.table_name)
-        if len(cache_file_name) > 64:
-            shortened_name = hashlib.sha256(cache_file_name.encode()).hexdigest()
-            pickle_path = self.cache_folder / f"{shortened_name}_query_cache.pkl"
+    @staticmethod
+    def get_compact_cache_name(table_name: str) -> str:
+        table_name = str(table_name)
+        if len(table_name) > 64:
+            return hashlib.sha256(table_name.encode()).hexdigest()
         else:
-            pickle_path = self.cache_folder / f"{cache_file_name}_query_cache.pkl"
-        return pickle_path
+            return table_name
+
+    def get_cache_file_path(self) -> pathlib.Path:
+        return self.cache_folder / f"{self.get_compact_cache_name(self.table_name)}_query_cache.pkl"
 
     @validate_arguments
     def load_cache(self, path: Optional[str] = None):
@@ -195,7 +197,7 @@ class QueryCore:
             return sa.literal(1)
         elif isinstance(sample_weight, str):
             try:
-                return self.get_column(sample_weight)
+                return self.bs_table.c[sample_weight]
             except ValueError:
                 logger.error("Sample weight column not found. Using weight of 1.")
                 return sa.literal(1)
@@ -205,17 +207,17 @@ class QueryCore:
             raise ValueError("Invalid value for sample_weight")
 
     @typing.overload
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[True]) -> Optional[sa.Table]:
+    def get_table(self, table_name: AnyTableType, missing_ok: Literal[True]) -> Optional[sa.Table]:
         ...
 
     @typing.overload
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[False] = False) -> sa.Table:
+    def get_table(self, table_name: AnyTableType, missing_ok: Literal[False] = False) -> sa.Table:
         ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: bool = False) -> Optional[sa.Table]:
+    def get_table(self, table_name: AnyTableType, missing_ok: bool = False) -> Optional[sa.Table]:
 
-        if isinstance(table_name, sa.schema.Table):
+        if not isinstance(table_name, str):
             return table_name  # already a table
 
         try:
@@ -230,14 +232,19 @@ class QueryCore:
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_column(self, column_name: AnyColType,
                    table_name: Optional[AnyTableType] = None) -> DBColType:
-        if isinstance(column_name, (sa.Column, SALabel)):
+        if not isinstance(column_name, str):
             return column_name  # already a col
 
-        assert isinstance(column_name, str)
         if table_name is not None:
             valid_tables = [self.get_table(table_name)]
         else:
-            valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+            valid_tables = []
+            for tbl in [self.bs_table, self.up_table, self.ts_table]:
+                if tbl is not None and column_name in tbl.columns:
+                    valid_tables.append(tbl)
+            if not valid_tables:
+                valid_tables += [table for _, table in self._tables.items()
+                                 if column_name in table.columns]
 
         if not valid_tables:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
@@ -950,12 +957,10 @@ class QueryCore:
             tbl = self.get_table(table)
             return [col for col in tbl.columns]
 
-    @staticmethod
-    def _simple_label(label):
-        if '.' in label:
-            return ''.join(label.split('.')[1:])
-        else:
-            return label
+    def _simple_label(self, label: str):
+        label = label.removeprefix(self.db_schema.column_prefix.characteristics)
+        label = label.removeprefix(self.db_schema.column_prefix.output)
+        return label
 
     def _add_restrict(self, query, restrict, bs_only=False):
         if not restrict:

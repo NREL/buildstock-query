@@ -707,8 +707,9 @@ class BuildStockReport:
             bs_csv = bs_csv.loc[bldg_list]
 
         def clean_column(col: str):
-            col = col.removeprefix("report_simulation_output.end_use_")
-            col = col.removeprefix("report_simulation_output.fuel_use_")
+            col = col.removeprefix(self._bsq.out_prefix)
+            col = col.removeprefix("end_use_")
+            col = col.removeprefix("fuel_use_")
             return col
 
         def get_pure_enduse(col):

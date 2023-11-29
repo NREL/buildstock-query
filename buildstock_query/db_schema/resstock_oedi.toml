@@ -3,6 +3,10 @@ baseline = "_metadata"
 timeseries = "_by_state"
 upgrades = "_metadata"
 
+[column_prefix]
+characteristics = "in."
+output = "out."
+
 [column_names]  
 building_id = "bldg_id"
 sample_weight = "weight"

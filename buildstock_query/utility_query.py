@@ -116,15 +116,15 @@ class BuildStockUtility:
     def get_eiaid_map(self) -> tuple[str, str, str]:
         if self.eia_mapping_version == 1:
             map_table_name = 'eiaid_weights'
-            map_baseline_column = 'build_existing_model.county'
+            map_baseline_column = f'{self._bsq.char_prefix}county'
             map_eiaid_column = 'county'
         elif self.eia_mapping_version == 2:
             map_table_name = 'v2_eiaid_weights'
-            map_baseline_column = 'build_existing_model.county'
+            map_baseline_column = f'{self._bsq.char_prefix}county'
             map_eiaid_column = 'county'
         elif self.eia_mapping_version == 3:
             map_table_name = 'v3_eiaid_weights_%d' % (self.eia_mapping_year)
-            map_baseline_column = 'build_existing_model.county'
+            map_baseline_column = f'{self._bsq.char_prefix}county'
             map_eiaid_column = 'county'
         else:
             raise ValueError("Invalid mapping_version")

@@ -92,8 +92,8 @@ class VizData:
 
     def _get_metadata_df(self):
         bs_res_df = pl.read_parquet(self.run_obj(0)._download_results_csv())
-        metadata_cols = [c for c in bs_res_df.columns if c.startswith('build_existing_model.')]
-        metadata_df = bs_res_df.select(['building_id'] + metadata_cols)
+        metadata_cols = [c for c in bs_res_df.columns if c.startswith(self.main_run.char_prefix)]
+        metadata_df = bs_res_df.select([self.main_run.building_id_column_name] + metadata_cols)
         metadata_df = metadata_df.rename({x: x.split('.')[1] for x in metadata_df.columns if '.' in x})
         return metadata_df
 

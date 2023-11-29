@@ -187,7 +187,7 @@ class BuildStockAggregate:
         upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in params.restrict)
         if self._bsq.up_table is not None and not upgrade_in_restrict and 'upgrade' not in group_by_names:
             logger.info(f"Restricting query to Upgrade {upgrade_id}.")
-            params.restrict = list(params.restrict) + [(self._bsq.ts_table.c['upgrade'], [upgrade_id])]
+            params.restrict = list(params.restrict) + [(self._bsq.ts_upgrade_col, [upgrade_id])]
 
         query = self._bsq._add_restrict(query, params.restrict)
         query = self._bsq._add_group_by(query, group_by_selection)

@@ -3,10 +3,11 @@ from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
 import pathlib
 import itertools as it
+from buildstock_query import BuildStockQuery
 
 
-def save_bsq_obj(bsq_obj, cache_name=None):
-    cache_name = bsq_obj.table_name if cache_name is None else cache_name
+def save_bsq_obj(bsq_obj: BuildStockQuery, cache_name=None):
+    cache_name = bsq_obj.get_compact_cache_name(bsq_obj.table_name)
     save_ref_pkl(f"{cache_name}_query_cache", bsq_obj._query_cache)
     save_ref_pkl(bsq_obj.bs_table.name, bsq_obj.bs_table)
     if bsq_obj.up_table is not None:

@@ -3,6 +3,11 @@ baseline = "_baseline"
 timeseries = "_timeseries"
 upgrades = "_upgrades"
 
+[column_prefix]
+characteristics = "build_existing_model."
+output = "report_simulation_output."
+
+
 [column_names]  
 building_id = "building_id"
 sample_weight = "build_existing_model.sample_weight"

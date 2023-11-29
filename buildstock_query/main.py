@@ -13,7 +13,7 @@ from typing_extensions import assert_never
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
+from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType, AnyTableType
 from buildstock_query.schema.utilities import MappedColumn
 import os
 from dataclasses import dataclass
@@ -97,6 +97,9 @@ class BuildStockQuery(QueryCore):
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
+        self.char_prefix = self.db_schema.column_prefix.characteristics
+        self.out_prefix = self.db_schema.column_prefix.output
+
         if not skip_reports:
             logger.info("Getting Success counts...")
             print(self.report.get_success_report())
@@ -113,10 +116,10 @@ class BuildStockQuery(QueryCore):
         results_df = self.get_results_csv_full()
         results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str) ==
                                 self.db_schema.completion_values.success]
-        buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [''.join(c.split(".")[1:]).replace("_", " ") for c in buildstock_df.columns
-                           if c.startswith("build_existing_model.")]
+                           if c.startswith(self.char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
@@ -455,10 +458,14 @@ class BuildStockQuery(QueryCore):
     @validate_arguments(config=dict(smart_union=True))
     def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
-        bldg_id = bldg_df.iloc[0].values[0]
-        query1 = sa.select([self.timestamp_column.distinct().label('time')]).where(self.ts_bldgid_column == bldg_id)
+        bldg_id = bldg_df.values[0][0]
+        upgrade_id = bldg_df.values[0][1]
+        query1 = sa.select([self.timestamp_column.distinct().label(
+                            self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
+        if self.up_table is not None:
+            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -522,14 +529,14 @@ class BuildStockQuery(QueryCore):
             try:
                 return self.get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f"build_existing_model.{column[0]}"
+                new_name = f"{self.char_prefix}{column[0]}"
                 return self.get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
                 return self.get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith("build_existing_model."):
-                    new_name = f"build_existing_model.{column}"
+                if not column.startswith(self.char_prefix):
+                    new_name = f"{self.char_prefix}{column}"
                     return self.get_column(new_name).label(column)
                 raise ValueError(f"Invalid column name {column}") from e
         else:
@@ -550,7 +557,7 @@ class BuildStockQuery(QueryCore):
                     enduse_cols.append(tbl.c[enduse])
                 except KeyError as err:
                     if table in ['baseline', 'upgrade']:
-                        enduse_cols.append(tbl.c[f"report_simulation_output.{enduse}"])
+                        enduse_cols.append(tbl.c[f"{self.out_prefix}{enduse}"])
                     else:
                         raise ValueError(f"Invalid enduse column names for {table} table") from err
             elif isinstance(enduse, MappedColumn):
@@ -565,8 +572,8 @@ class BuildStockQuery(QueryCore):
         Returns:
             List[str]: List of building characteristics.
         """
-        cols = {y.removeprefix("build_existing_model.") for y in self.bs_table.c.keys()
-                if y.startswith("build_existing_model.")}
+        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self.char_prefix)}
         return list(cols)
 
     def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
@@ -649,10 +656,10 @@ class BuildStockQuery(QueryCore):
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith("build_existing_model."):
-                    new_group_by.append(f"build_existing_model.{entry}")
-                elif isinstance(entry, tuple) and not entry[0].startswith("build_existing_model."):
-                    new_group_by.append((f"build_existing_model.{entry[0]}", entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
+                    new_group_by.append(f"{self.char_prefix}{entry}")
+                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
+                    new_group_by.append((f"{self.char_prefix}{entry[0]}", entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -733,3 +740,29 @@ class BuildStockQuery(QueryCore):
     @property
     def up_successful_condition(self):
         return self.up_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def ts_upgrade_col(self):
+        if not isinstance(self.ts_table.c['upgrade'].type, sqltypes.String):
+            return sa.cast(self.ts_table.c['upgrade'], sa.String).label('upgrade')
+        else:
+            return self.ts_table.c['upgrade']
+
+    @property
+    def up_upgrade_col(self):
+        if self.up_table is None:
+            raise ValueError("No upgrades table")
+        if not isinstance(self.up_table.c['upgrade'].type, sqltypes.String):
+            return sa.cast(self.up_table.c['upgrade'], sa.String).label('upgrade')
+        else:
+            return self.up_table.c['upgrade']
+
+    def get_completed_status_col(self, table: AnyTableType):
+        if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return table.c[self.db_schema.column_names.completed_status]
+
+    def get_success_condition(self, table: AnyTableType):
+        return self.get_completed_status_col(table) == self.db_schema.completion_values.success

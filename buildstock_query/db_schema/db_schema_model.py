@@ -7,6 +7,11 @@ class TableSuffix(BaseModel):
     upgrades: str
 
 
+class ColumnPrefix(BaseModel):
+    characteristics: str
+    output: str
+
+
 class ColumnNames(BaseModel):
     building_id: str
     sample_weight: str
@@ -31,6 +36,7 @@ class Structure(BaseModel):
 
 class DBSchema(BaseModel):
     table_suffix: TableSuffix
+    column_prefix: ColumnPrefix
     column_names: ColumnNames
     completion_values: CompletionValues
     structure: Structure
