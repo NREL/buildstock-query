@@ -67,19 +67,29 @@ class QueryCore:
                  ) -> None:
         """
         Base class to run common Athena queries for BuildStock runs and download results as pandas dataFrame
+        Usually, you should just use BuildStockQuery. This class is useuful if you want to extend the functionality
+        for Athena tables that are not part of ResStock or ComStock runs.
         Args:
-            db_name: The athena database name
-            buildstock_type: 'resstock' or 'comstock' runs
-            table_name: If a single string is provided, say, 'mfm_run', then it must correspond to two tables in athena
-                        named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided as a tuple, (such
-                        as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and a
-                        timeseries table.
-            timestamp_column_name: The column name for the time column. Defaults to 'time'
-            sample_weight: The column name to be used to get the sample weight. Defaults to
-                           build_existing_model.sample_weight. Pass floats/integer to use constant sample weight.
-            region_name: The AWS region where the database exists. Defaults to 'us-west-2'.
-            execution_history: A temporary files to record which execution is run by the user, to help stop them. Will
-                    use .execution_history if not supplied.
+            workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
+            db_name (str): The athena database name
+            buildstock_type (str, optional): 'resstock' or 'comstock' runs. Defaults to 'resstock'
+            table_name (str or Union[str, tuple[str, Optional[str], Optional[str]]]): If a single string is provided,
+            say, 'mfm_run', then it must correspond to tables in athena named mfm_run_baseline and optionally
+            mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
+            for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
+            db_schema (str, optional): The database structure in Athena is different between ResStock and ComStock run.
+                It is also different between the version in OEDI and default version from BuildStockBatch. This argument
+                controls the assumed schema. Allowed values are 'resstock_default', 'resstock_oedi', 'comstock_default'
+                and 'comstock_oedi'. Defaults to 'resstock_default' for resstock and 'comstock_default' for comstock.
+            sample_weight (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
+                uses sample_weight in the run for ResStock.
+            region_name (str, optional): the AWS region where the database exists. Defaults to 'us-west-2'.
+            execution_history (str, optional): A temporary file to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
+                custom filename.
+            athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
+                When false, it will not. Defaults to True. One use case to set this to False is when you have modified
+                the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         """
         logger.info(f"Loading {params.table_name} ...")
         self.run_params = params
@@ -125,15 +135,15 @@ class QueryCore:
             self.load_cache()
 
     @staticmethod
-    def get_compact_cache_name(table_name: str) -> str:
+    def _get_compact_cache_name(table_name: str) -> str:
         table_name = str(table_name)
         if len(table_name) > 64:
             return hashlib.sha256(table_name.encode()).hexdigest()
         else:
             return table_name
 
-    def get_cache_file_path(self) -> pathlib.Path:
-        return self.cache_folder / f"{self.get_compact_cache_name(self.table_name)}_query_cache.pkl"
+    def _get_cache_file_path(self) -> pathlib.Path:
+        return self.cache_folder / f"{self._get_compact_cache_name(self.table_name)}_query_cache.pkl"
 
     @validate_arguments
     def load_cache(self, path: Optional[str] = None):
@@ -142,7 +152,7 @@ class QueryCore:
         Args:
             path (str, optional): The path to the pickle file. If not provided, reads from current directory.
         """
-        pickle_path = pathlib.Path(path) if path else self.get_cache_file_path()
+        pickle_path = pathlib.Path(path) if path else self._get_cache_file_path()
         before_count = len(self._query_cache)
         saved_cache = load_pickle(pickle_path)
         logger.info(f"{len(saved_cache)} queries cache read from {path}.")
@@ -171,7 +181,7 @@ class QueryCore:
             logger.info("No new queries to save.")
             return
 
-        pickle_path = pathlib.Path(path) if path else self.get_cache_file_path()
+        pickle_path = pathlib.Path(path) if path else self._get_cache_file_path()
         if trim_excess:
             if excess_queries := [key for key in self._query_cache if key not in self._session_queries]:
                 for query in excess_queries:
@@ -207,15 +217,15 @@ class QueryCore:
             raise ValueError("Invalid value for sample_weight")
 
     @typing.overload
-    def get_table(self, table_name: AnyTableType, missing_ok: Literal[True]) -> Optional[sa.Table]:
+    def _get_table(self, table_name: AnyTableType, missing_ok: Literal[True]) -> Optional[sa.Table]:
         ...
 
     @typing.overload
-    def get_table(self, table_name: AnyTableType, missing_ok: Literal[False] = False) -> sa.Table:
+    def _get_table(self, table_name: AnyTableType, missing_ok: Literal[False] = False) -> sa.Table:
         ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_table(self, table_name: AnyTableType, missing_ok: bool = False) -> Optional[sa.Table]:
+    def _get_table(self, table_name: AnyTableType, missing_ok: bool = False) -> Optional[sa.Table]:
 
         if not isinstance(table_name, str):
             return table_name  # already a table
@@ -230,13 +240,13 @@ class QueryCore:
                 raise
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_column(self, column_name: AnyColType,
-                   table_name: Optional[AnyTableType] = None) -> DBColType:
+    def _get_column(self, column_name: AnyColType,
+                    table_name: Optional[AnyTableType] = None) -> DBColType:
         if not isinstance(column_name, str):
             return column_name  # already a col
 
         if table_name is not None:
-            valid_tables = [self.get_table(table_name)]
+            valid_tables = [self._get_table(table_name)]
         else:
             valid_tables = []
             for tbl in [self.bs_table, self.up_table, self.ts_table]:
@@ -259,25 +269,25 @@ class QueryCore:
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
-            baseline_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
-            ts_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
+            baseline_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
+            ts_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
             if self.db_schema.table_suffix.upgrades == self.db_schema.table_suffix.baseline:
                 upgrade_table = sa.select(baseline_table).where(
                     sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
                 baseline_table = sa.select(baseline_table).where(
                     sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
             else:
-                upgrade_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.upgrades}', missing_ok=True)
+                upgrade_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.upgrades}', missing_ok=True)
         else:
-            baseline_table = self.get_table(f'{table_name[0]}')
-            ts_table = self.get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
+            baseline_table = self._get_table(f'{table_name[0]}')
+            ts_table = self._get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
             if table_name[2] == table_name[0]:
                 upgrade_table = sa.select(baseline_table).where(
                     sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
                 baseline_table = sa.select(baseline_table).where(
                     sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
             else:
-                upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
+                upgrade_table = self._get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
@@ -298,7 +308,7 @@ class QueryCore:
                 f.writelines(valid_entries)
 
     @property
-    def execution_ids_history(self):
+    def _execution_ids_history(self):
         exe_ids: list[ExeId] = []
         if os.path.exists(self._execution_history_file):
             with open(self._execution_history_file, 'r') as f:
@@ -899,7 +909,7 @@ class QueryCore:
         exe_ids = self._aws_athena.list_query_executions(WorkGroup=self.workgroup)['QueryExecutionIds']
         exe_ids = [ExeId(i) for i in exe_ids]
 
-        running_ids = [i for i in exe_ids if i in self.execution_ids_history and
+        running_ids = [i for i in exe_ids if i in self._execution_ids_history and
                        self.get_query_status(i) == "RUNNING"]
         return running_ids
 
@@ -940,7 +950,7 @@ class QueryCore:
         Returns:
             A list of column names as a list of strings.
         """
-        table = self.get_table(table)
+        table = self._get_table(table)
         if table == self.ts_table and self.ts_table is not None:
             cols = [c for c in self.ts_table.columns]
             if fuel_type:
@@ -954,7 +964,7 @@ class QueryCore:
                 cols = [c for c in cols if fuel_type in c.name]
             return cols
         else:
-            tbl = self.get_table(table)
+            tbl = self._get_table(table)
             return [col for col in tbl.columns]
 
     def _simple_label(self, label: str):
@@ -967,10 +977,10 @@ class QueryCore:
             return query
         where_clauses = []
         for col_str, criteria in restrict:
-            col = self.get_column(col_str, table_name=self.bs_table) if bs_only else self.get_column(col_str)
+            col = self._get_column(col_str, table_name=self.bs_table) if bs_only else self._get_column(col_str)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
-                    where_clauses.append(self.get_column(col).in_(criteria))
+                    where_clauses.append(self._get_column(col).in_(criteria))
                     continue
                 else:
                     criteria = criteria[0]
@@ -989,9 +999,9 @@ class QueryCore:
 
     def _add_join(self, query, join_list):
         for new_table_name, baseline_column_name, new_column_name in join_list:
-            new_tbl = self.get_table(new_table_name)
-            baseline_column = self.get_column(baseline_column_name, table_name=self.bs_table)
-            new_column = self.get_column(new_column_name, table_name=new_tbl)
+            new_tbl = self._get_table(new_table_name)
+            baseline_column = self._get_column(baseline_column_name, table_name=self.bs_table)
+            new_column = self._get_column(new_column_name, table_name=new_tbl)
             query = query.join(new_tbl, baseline_column == new_column)
         return query
 
@@ -1013,10 +1023,10 @@ class QueryCore:
         total_weight = self.sample_wt
         for weight_col in weights:
             if isinstance(weight_col, tuple):
-                tbl = self.get_table(weight_col[1])
+                tbl = self._get_table(weight_col[1])
                 total_weight *= tbl.c[weight_col[0]]
             else:
-                total_weight *= self.get_column(weight_col)
+                total_weight *= self._get_column(weight_col)
         return total_weight
 
     def delete_everything(self):

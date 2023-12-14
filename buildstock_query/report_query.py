@@ -45,7 +45,7 @@ class BuildStockReport:
         ...
 
     def _get_bs_success_report(self, get_query_only: bool = False):
-        bs_query = sa.select([self._bsq.bs_completed_status_col, safunc.count().label("count")])
+        bs_query = sa.select([self._bsq._bs_completed_status_col, safunc.count().label("count")])
         bs_query = bs_query.group_by(sa.text('1'))
         if get_query_only:
             return self._bsq._compile(bs_query)
@@ -81,8 +81,8 @@ class BuildStockReport:
             up_query = sa.select([self._bsq.up_table.c['upgrade'], safunc.count().label("change")])
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
             conditions = self._get_change_conditions(change_type=ch_type)
-            up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
-                                              self._bsq.up_successful_condition,
+            up_query = up_query.where(sa.and_(self._bsq._bs_successful_condition,
+                                              self._bsq._up_successful_condition,
                                               conditions))  # type: ignore
             up_query = up_query.group_by(sa.text('1'))
             up_query = up_query.order_by(sa.text('1'))
@@ -132,13 +132,13 @@ class BuildStockReport:
         up_query = sa.select([self._bsq.up_bldgid_column])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
-                                              self._bsq.up_successful_condition,
+            up_query = up_query.where(sa.and_(self._bsq._bs_successful_condition,
+                                              self._bsq._up_successful_condition,
                                               self._bsq.up_table.c['upgrade'] == str(upgrade_id),
                                               ))
         else:
             up_query = up_query.where(sa.and_(self._bsq.up_table.c['upgrade'] == str(upgrade_id),
-                                              self._bsq.up_successful_condition))
+                                              self._bsq._up_successful_condition))
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
@@ -218,13 +218,13 @@ class BuildStockReport:
 
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
-        up_query = sa.select([self._bsq.bs_bldgid_column, self._bsq.bs_completed_status_col,
-                              self._bsq.up_completed_status_col])
+        up_query = sa.select([self._bsq.bs_bldgid_column, self._bsq._bs_completed_status_col,
+                              self._bsq._up_completed_status_col])
         up_query = up_query.join(self._bsq.up_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
 
         conditions = self._get_change_conditions(change_type)
-        up_query = up_query.where(sa.and_(self._bsq.bs_successful_condition,
-                                          self._bsq.up_successful_condition,
+        up_query = up_query.where(sa.and_(self._bsq._bs_successful_condition,
+                                          self._bsq._up_successful_condition,
                                           self._bsq.up_table.c['upgrade'] == str(upgrade_id),
                                           conditions))  # type: ignore
         if get_query_only:
@@ -260,11 +260,11 @@ class BuildStockReport:
         """
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
-        up_query = sa.select([self._bsq.up_table.c['upgrade'], self._bsq.up_completed_status_col,
+        up_query = sa.select([self._bsq.up_table.c['upgrade'], self._bsq._up_completed_status_col,
                               safunc.count().label("count")])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            up_query = up_query.where(self._bsq.bs_successful_condition)
+            up_query = up_query.where(self._bsq._bs_successful_condition)
 
         up_query = up_query.group_by(sa.text('1'), sa.text('2'))
         up_query = up_query.order_by(sa.text('1'), sa.text('2'))
@@ -307,7 +307,7 @@ class BuildStockReport:
                           + [safunc.array_agg(self._bsq.up_bldgid_column)])
         if trim_missing_bs:
             query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
-            query = query.where(self._bsq.bs_successful_condition)
+            query = query.where(self._bsq._bs_successful_condition)
         grouping_texts = [sa.text(str(i+1)) for i in range(1+len(opt_name_cols))]
         query = query.group_by(*grouping_texts)
         query = query.order_by(*grouping_texts)
@@ -707,7 +707,7 @@ class BuildStockReport:
             bs_csv = bs_csv.loc[bldg_list]
 
         def clean_column(col: str):
-            col = col.removeprefix(self._bsq.out_prefix)
+            col = col.removeprefix(self._bsq._out_prefix)
             col = col.removeprefix("end_use_")
             col = col.removeprefix("fuel_use_")
             return col

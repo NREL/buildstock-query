@@ -186,7 +186,7 @@ def test_aggregate_annual(temp_history_file):
             order by 1, 2
             """  # noqa: E501
     assert_query_equal(query1_1, valid_query_string1_1)  # Test that proper query is formed for annual aggregation
-    eiaid_col = my_athena.get_column("eiaid", "eiaid_weights")
+    eiaid_col = my_athena._get_column("eiaid", "eiaid_weights")
     query2 = my_athena.agg.aggregate_annual(enduses=enduses,
                                             group_by=[eiaid_col, state_str, bldg_type],
                                             sort=True,

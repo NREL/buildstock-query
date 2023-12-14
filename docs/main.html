@@ -84,13 +84,16 @@ class BuildStockQuery(QueryCore):
             say, &#39;mfm_run&#39;, then it must correspond to tables in athena named mfm_run_baseline and optionally
             mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
             for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
-            timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
-            building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
-            sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
-                use constant sample weight.. Defaults to &#34;build_existing_model.sample_weight&#34;.
+            db_schema (str, optional): The database structure in Athena is different between ResStock and ComStock run.
+                It is also different between the version in OEDI and default version from BuildStockBatch. This argument
+                controls the assumed schema. Allowed values are &#39;resstock_default&#39;, &#39;resstock_oedi&#39;, &#39;comstock_default&#39;
+                and &#39;comstock_oedi&#39;. Defaults to &#39;resstock_default&#39; for resstock and &#39;comstock_default&#39; for comstock.
+            sample_weight (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
+                uses sample_weight in the run for ResStock.
             region_name (str, optional): the AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
-            execution_history (str, optional): A temporary files to record which execution is run by the user,
-                to help stop them. Will use .execution_history if not supplied.
+            execution_history (str, optional): A temporary file to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
+                custom filename.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
@@ -109,13 +112,13 @@ class BuildStockQuery(QueryCore):
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
         )
-        self.run_params = self.params.get_run_params()
+        self._run_params = self.params.get_run_params()
         from buildstock_query.report_query import BuildStockReport
         from buildstock_query.aggregate_query import BuildStockAggregate
         from buildstock_query.savings_query import BuildStockSavings
         from buildstock_query.utility_query import BuildStockUtility
 
-        super().__init__(params=self.run_params)
+        super().__init__(params=self._run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -125,8 +128,8 @@ class BuildStockQuery(QueryCore):
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
-        self.char_prefix = self.db_schema.column_prefix.characteristics
-        self.out_prefix = self.db_schema.column_prefix.output
+        self._char_prefix = self.db_schema.column_prefix.characteristics
+        self._out_prefix = self.db_schema.column_prefix.output
 
         if not skip_reports:
             logger.info(&#34;Getting Success counts...&#34;)
@@ -144,10 +147,10 @@ class BuildStockQuery(QueryCore):
         results_df = self.get_results_csv_full()
         results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
                                 self.db_schema.completion_values.success.lower()]
-        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self._char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                           if c.startswith(self.char_prefix)]
+                           if c.startswith(self._char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
@@ -210,7 +213,7 @@ class BuildStockQuery(QueryCore):
             pd.Series: The distinct vals.
         &#34;&#34;&#34;
         table_name = self.bs_table.name if table_name is None else table_name
-        tbl = self.get_table(table_name)
+        tbl = self._get_table(table_name)
         query = sa.select(tbl.c[column]).distinct()
         if get_query_only:
             return self._compile(query)
@@ -231,7 +234,7 @@ class BuildStockQuery(QueryCore):
         Returns:
             pd.Series: The distinct counts.
         &#34;&#34;&#34;
-        tbl = self.bs_table if table_name is None else self.get_table(table_name)
+        tbl = self.bs_table if table_name is None else self._get_table(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
                            safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
         query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
@@ -506,14 +509,14 @@ class BuildStockQuery(QueryCore):
     @validate_arguments(config=dict(smart_union=True))
     def _get_simulation_info(self, get_query_only: bool = False) -&gt; Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
+        query0 = sa.select([self.ts_bldgid_column, self._ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
         bldg_id = bldg_df.values[0][0]
         upgrade_id = bldg_df.values[0][1]
         query1 = sa.select([self.timestamp_column.distinct().label(
                             self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
         if self.up_table is not None:
-            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
+            query1 = query1.where(self._ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -537,8 +540,8 @@ class BuildStockQuery(QueryCore):
         assert offset in [0, interval]
         return SimInfo(sim_year, interval, offset, unit)
 
-    def get_special_column(self,
-                           column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
+    def _get_special_column(self,
+                            column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
         sim_info = self._get_simulation_info()
         if sim_info.offset &gt; 0:
             # If timestamps are not period begining we should make them so we get proper values of special columns.
@@ -575,17 +578,17 @@ class BuildStockQuery(QueryCore):
 
         if isinstance(column, tuple):
             try:
-                return self.get_column(column[0]).label(column[1])
+                return self._get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f&#34;{self.char_prefix}{column[0]}&#34;
-                return self.get_column(new_name).label(column[1])
+                new_name = f&#34;{self._char_prefix}{column[0]}&#34;
+                return self._get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
-                return self.get_column(column).label(self._simple_label(column))
+                return self._get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith(self.char_prefix):
-                    new_name = f&#34;{self.char_prefix}{column}&#34;
-                    return self.get_column(new_name).label(column)
+                if not column.startswith(self._char_prefix):
+                    new_name = f&#34;{self._char_prefix}{column}&#34;
+                    return self._get_column(new_name).label(column)
                 raise ValueError(f&#34;Invalid column name {column}&#34;) from e
         else:
             raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
@@ -605,7 +608,7 @@ class BuildStockQuery(QueryCore):
                     enduse_cols.append(tbl.c[enduse])
                 except KeyError as err:
                     if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
-                        enduse_cols.append(tbl.c[f&#34;{self.out_prefix}{enduse}&#34;])
+                        enduse_cols.append(tbl.c[f&#34;{self._out_prefix}{enduse}&#34;])
                     else:
                         raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from err
             elif isinstance(enduse, MappedColumn):
@@ -620,8 +623,8 @@ class BuildStockQuery(QueryCore):
         Returns:
             List[str]: List of building characteristics.
         &#34;&#34;&#34;
-        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
-                if y.startswith(self.char_prefix)}
+        cols = {y.removeprefix(self._char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self._char_prefix)}
         return list(cols)
 
     def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
@@ -704,10 +707,10 @@ class BuildStockQuery(QueryCore):
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
-                    new_group_by.append(f&#34;{self.char_prefix}{entry}&#34;)
-                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
-                    new_group_by.append((f&#34;{self.char_prefix}{entry[0]}&#34;, entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self._char_prefix):
+                    new_group_by.append(f&#34;{self._char_prefix}{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(self._char_prefix):
+                    new_group_by.append((f&#34;{self._char_prefix}{entry[0]}&#34;, entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -756,7 +759,7 @@ class BuildStockQuery(QueryCore):
 
         &#34;&#34;&#34;
         query = sa.select([self.bs_bldgid_column])
-        query = query.where(self.get_column(location_col).in_(locations))
+        query = query.where(self._get_column(location_col).in_(locations))
         query = self._add_order_by(query, [self.bs_bldgid_column])
         if get_query_only:
             return self._compile(query)
@@ -764,7 +767,7 @@ class BuildStockQuery(QueryCore):
         return res
 
     @property
-    def bs_completed_status_col(self):
+    def _bs_completed_status_col(self):
         if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
             return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
                            sa.String).label(&#39;completed_status&#39;)
@@ -772,7 +775,7 @@ class BuildStockQuery(QueryCore):
             return self.bs_table.c[self.db_schema.column_names.completed_status]
 
     @property
-    def up_completed_status_col(self):
+    def _up_completed_status_col(self):
         if self.up_table is None:
             raise ValueError(&#34;No upgrades table&#34;)
         if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
@@ -782,22 +785,22 @@ class BuildStockQuery(QueryCore):
             return self.up_table.c[self.db_schema.column_names.completed_status]
 
     @property
-    def bs_successful_condition(self):
-        return self.bs_completed_status_col == self.db_schema.completion_values.success
+    def _bs_successful_condition(self):
+        return self._bs_completed_status_col == self.db_schema.completion_values.success
 
     @property
-    def up_successful_condition(self):
-        return self.up_completed_status_col == self.db_schema.completion_values.success
+    def _up_successful_condition(self):
+        return self._up_completed_status_col == self.db_schema.completion_values.success
 
     @property
-    def ts_upgrade_col(self):
+    def _ts_upgrade_col(self):
         if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
             return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
         else:
             return self.ts_table.c[&#39;upgrade&#39;]
 
     @property
-    def up_upgrade_col(self):
+    def _up_upgrade_col(self):
         if self.up_table is None:
             raise ValueError(&#34;No upgrades table&#34;)
         if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
@@ -805,15 +808,15 @@ class BuildStockQuery(QueryCore):
         else:
             return self.up_table.c[&#39;upgrade&#39;]
 
-    def get_completed_status_col(self, table: AnyTableType):
+    def _get_completed_status_col(self, table: AnyTableType):
         if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
             return sa.cast(table.c[self.db_schema.column_names.completed_status],
                            sa.String).label(&#39;completed_status&#39;)
         else:
             return table.c[self.db_schema.column_names.completed_status]
 
-    def get_success_condition(self, table: AnyTableType):
-        return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
+    def _get_success_condition(self, table: AnyTableType):
+        return self._get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 </section>
 <section>
@@ -844,18 +847,20 @@ class BuildStockQuery(QueryCore):
 <dt>say, 'mfm_run', then it must correspond to tables in athena named mfm_run_baseline and optionally</dt>
 <dt>mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names</dt>
 <dt>for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.</dt>
-<dt><strong><code>timestamp_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
-<dd>The column name for the time column. Defaults to 'time'</dd>
-<dt><strong><code>building_id_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
-<dd>The column name for building_id. Defaults to 'building_id'</dd>
+<dt><strong><code>db_schema</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>The database structure in Athena is different between ResStock and ComStock run.
+It is also different between the version in OEDI and default version from BuildStockBatch. This argument
+controls the assumed schema. Allowed values are 'resstock_default', 'resstock_oedi', 'comstock_default'
+and 'comstock_oedi'. Defaults to 'resstock_default' for resstock and 'comstock_default' for comstock.</dd>
 <dt><strong><code>sample_weight</code></strong> :&ensp;<code>str</code>, optional</dt>
-<dd>The column name to be used to get the sample weight. Pass floats/integer to
-use constant sample weight.. Defaults to "build_existing_model.sample_weight".</dd>
+<dd>Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
+uses sample_weight in the run for ResStock.</dd>
 <dt><strong><code>region_name</code></strong> :&ensp;<code>str</code>, optional</dt>
 <dd>the AWS region where the database exists. Defaults to 'us-west-2'.</dd>
 <dt><strong><code>execution_history</code></strong> :&ensp;<code>str</code>, optional</dt>
-<dd>A temporary files to record which execution is run by the user,
-to help stop them. Will use .execution_history if not supplied.</dd>
+<dd>A temporary file to record which execution is run by the user,
+to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
+custom filename.</dd>
 <dt><strong><code>skip_reports</code></strong> :&ensp;<code>bool</code>, optional</dt>
 <dd>If true, skips report printing during initialization. If False (default),
 prints report from <code><a title="buildstock_query.report_query.BuildStockReport.get_success_report" href="report_query.html#buildstock_query.report_query.BuildStockReport.get_success_report">BuildStockReport.get_success_report()</a></code>.</dd>
@@ -893,13 +898,16 @@ the underlying s3 data or glue schema and want to make sure you are not using th
             say, &#39;mfm_run&#39;, then it must correspond to tables in athena named mfm_run_baseline and optionally
             mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
             for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
-            timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
-            building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
-            sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
-                use constant sample weight.. Defaults to &#34;build_existing_model.sample_weight&#34;.
+            db_schema (str, optional): The database structure in Athena is different between ResStock and ComStock run.
+                It is also different between the version in OEDI and default version from BuildStockBatch. This argument
+                controls the assumed schema. Allowed values are &#39;resstock_default&#39;, &#39;resstock_oedi&#39;, &#39;comstock_default&#39;
+                and &#39;comstock_oedi&#39;. Defaults to &#39;resstock_default&#39; for resstock and &#39;comstock_default&#39; for comstock.
+            sample_weight (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
+                uses sample_weight in the run for ResStock.
             region_name (str, optional): the AWS region where the database exists. Defaults to &#39;us-west-2&#39;.
-            execution_history (str, optional): A temporary files to record which execution is run by the user,
-                to help stop them. Will use .execution_history if not supplied.
+            execution_history (str, optional): A temporary file to record which execution is run by the user,
+                to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
+                custom filename.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
@@ -918,13 +926,13 @@ the underlying s3 data or glue schema and want to make sure you are not using th
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
         )
-        self.run_params = self.params.get_run_params()
+        self._run_params = self.params.get_run_params()
         from buildstock_query.report_query import BuildStockReport
         from buildstock_query.aggregate_query import BuildStockAggregate
         from buildstock_query.savings_query import BuildStockSavings
         from buildstock_query.utility_query import BuildStockUtility
 
-        super().__init__(params=self.run_params)
+        super().__init__(params=self._run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -934,8 +942,8 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
-        self.char_prefix = self.db_schema.column_prefix.characteristics
-        self.out_prefix = self.db_schema.column_prefix.output
+        self._char_prefix = self.db_schema.column_prefix.characteristics
+        self._out_prefix = self.db_schema.column_prefix.output
 
         if not skip_reports:
             logger.info(&#34;Getting Success counts...&#34;)
@@ -953,10 +961,10 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         results_df = self.get_results_csv_full()
         results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
                                 self.db_schema.completion_values.success.lower()]
-        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self._char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                           if c.startswith(self.char_prefix)]
+                           if c.startswith(self._char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
@@ -1019,7 +1027,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
             pd.Series: The distinct vals.
         &#34;&#34;&#34;
         table_name = self.bs_table.name if table_name is None else table_name
-        tbl = self.get_table(table_name)
+        tbl = self._get_table(table_name)
         query = sa.select(tbl.c[column]).distinct()
         if get_query_only:
             return self._compile(query)
@@ -1040,7 +1048,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         Returns:
             pd.Series: The distinct counts.
         &#34;&#34;&#34;
-        tbl = self.bs_table if table_name is None else self.get_table(table_name)
+        tbl = self.bs_table if table_name is None else self._get_table(table_name)
         query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
                            safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
         query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
@@ -1315,14 +1323,14 @@ the underlying s3 data or glue schema and want to make sure you are not using th
     @validate_arguments(config=dict(smart_union=True))
     def _get_simulation_info(self, get_query_only: bool = False) -&gt; Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
+        query0 = sa.select([self.ts_bldgid_column, self._ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
         bldg_id = bldg_df.values[0][0]
         upgrade_id = bldg_df.values[0][1]
         query1 = sa.select([self.timestamp_column.distinct().label(
                             self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
         if self.up_table is not None:
-            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
+            query1 = query1.where(self._ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -1346,8 +1354,8 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         assert offset in [0, interval]
         return SimInfo(sim_year, interval, offset, unit)
 
-    def get_special_column(self,
-                           column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
+    def _get_special_column(self,
+                            column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
         sim_info = self._get_simulation_info()
         if sim_info.offset &gt; 0:
             # If timestamps are not period begining we should make them so we get proper values of special columns.
@@ -1384,17 +1392,17 @@ the underlying s3 data or glue schema and want to make sure you are not using th
 
         if isinstance(column, tuple):
             try:
-                return self.get_column(column[0]).label(column[1])
+                return self._get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f&#34;{self.char_prefix}{column[0]}&#34;
-                return self.get_column(new_name).label(column[1])
+                new_name = f&#34;{self._char_prefix}{column[0]}&#34;
+                return self._get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
-                return self.get_column(column).label(self._simple_label(column))
+                return self._get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith(self.char_prefix):
-                    new_name = f&#34;{self.char_prefix}{column}&#34;
-                    return self.get_column(new_name).label(column)
+                if not column.startswith(self._char_prefix):
+                    new_name = f&#34;{self._char_prefix}{column}&#34;
+                    return self._get_column(new_name).label(column)
                 raise ValueError(f&#34;Invalid column name {column}&#34;) from e
         else:
             raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
@@ -1414,7 +1422,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
                     enduse_cols.append(tbl.c[enduse])
                 except KeyError as err:
                     if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
-                        enduse_cols.append(tbl.c[f&#34;{self.out_prefix}{enduse}&#34;])
+                        enduse_cols.append(tbl.c[f&#34;{self._out_prefix}{enduse}&#34;])
                     else:
                         raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from err
             elif isinstance(enduse, MappedColumn):
@@ -1429,8 +1437,8 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         Returns:
             List[str]: List of building characteristics.
         &#34;&#34;&#34;
-        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
-                if y.startswith(self.char_prefix)}
+        cols = {y.removeprefix(self._char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self._char_prefix)}
         return list(cols)
 
     def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
@@ -1513,10 +1521,10 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
-                    new_group_by.append(f&#34;{self.char_prefix}{entry}&#34;)
-                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
-                    new_group_by.append((f&#34;{self.char_prefix}{entry[0]}&#34;, entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self._char_prefix):
+                    new_group_by.append(f&#34;{self._char_prefix}{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(self._char_prefix):
+                    new_group_by.append((f&#34;{self._char_prefix}{entry[0]}&#34;, entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -1565,7 +1573,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
 
         &#34;&#34;&#34;
         query = sa.select([self.bs_bldgid_column])
-        query = query.where(self.get_column(location_col).in_(locations))
+        query = query.where(self._get_column(location_col).in_(locations))
         query = self._add_order_by(query, [self.bs_bldgid_column])
         if get_query_only:
             return self._compile(query)
@@ -1573,7 +1581,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         return res
 
     @property
-    def bs_completed_status_col(self):
+    def _bs_completed_status_col(self):
         if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
             return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
                            sa.String).label(&#39;completed_status&#39;)
@@ -1581,7 +1589,7 @@ the underlying s3 data or glue schema and want to make sure you are not using th
             return self.bs_table.c[self.db_schema.column_names.completed_status]
 
     @property
-    def up_completed_status_col(self):
+    def _up_completed_status_col(self):
         if self.up_table is None:
             raise ValueError(&#34;No upgrades table&#34;)
         if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
@@ -1591,22 +1599,22 @@ the underlying s3 data or glue schema and want to make sure you are not using th
             return self.up_table.c[self.db_schema.column_names.completed_status]
 
     @property
-    def bs_successful_condition(self):
-        return self.bs_completed_status_col == self.db_schema.completion_values.success
+    def _bs_successful_condition(self):
+        return self._bs_completed_status_col == self.db_schema.completion_values.success
 
     @property
-    def up_successful_condition(self):
-        return self.up_completed_status_col == self.db_schema.completion_values.success
+    def _up_successful_condition(self):
+        return self._up_completed_status_col == self.db_schema.completion_values.success
 
     @property
-    def ts_upgrade_col(self):
+    def _ts_upgrade_col(self):
         if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
             return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
         else:
             return self.ts_table.c[&#39;upgrade&#39;]
 
     @property
-    def up_upgrade_col(self):
+    def _up_upgrade_col(self):
         if self.up_table is None:
             raise ValueError(&#34;No upgrades table&#34;)
         if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
@@ -1614,15 +1622,15 @@ the underlying s3 data or glue schema and want to make sure you are not using th
         else:
             return self.up_table.c[&#39;upgrade&#39;]
 
-    def get_completed_status_col(self, table: AnyTableType):
+    def _get_completed_status_col(self, table: AnyTableType):
         if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
             return sa.cast(table.c[self.db_schema.column_names.completed_status],
                            sa.String).label(&#39;completed_status&#39;)
         else:
             return table.c[self.db_schema.column_names.completed_status]
 
-    def get_success_condition(self, table: AnyTableType):
-        return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
+    def _get_success_condition(self, table: AnyTableType):
+        return self._get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -1634,34 +1642,6 @@ the underlying s3 data or glue schema and want to make sure you are not using th
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.aggregate_query.BuildStockAggregate" href="aggregate_query.html#buildstock_query.aggregate_query.BuildStockAggregate">BuildStockAggregate</a></code> object to perform aggregate queries</p></div>
 </dd>
-<dt id="buildstock_query.main.BuildStockQuery.bs_completed_status_col"><code class="name">var <span class="ident">bs_completed_status_col</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def bs_completed_status_col(self):
-    if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
-        return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
-                       sa.String).label(&#39;completed_status&#39;)
-    else:
-        return self.bs_table.c[self.db_schema.column_names.completed_status]</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.bs_successful_condition"><code class="name">var <span class="ident">bs_successful_condition</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def bs_successful_condition(self):
-    return self.bs_completed_status_col == self.db_schema.completion_values.success</code></pre>
-</details>
-</dd>
 <dt id="buildstock_query.main.BuildStockQuery.report"><code class="name">var <span class="ident">report</span></code></dt>
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.report_query.BuildStockReport" href="report_query.html#buildstock_query.report_query.BuildStockReport">BuildStockReport</a></code> object to perform report queries</p></div>
@@ -1669,68 +1649,6 @@ def bs_successful_condition(self):
 <dt id="buildstock_query.main.BuildStockQuery.savings"><code class="name">var <span class="ident">savings</span></code></dt>
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.savings_query.BuildStockSavings" href="savings_query.html#buildstock_query.savings_query.BuildStockSavings">BuildStockSavings</a></code> object to perform savings queries</p></div>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.ts_upgrade_col"><code class="name">var <span class="ident">ts_upgrade_col</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def ts_upgrade_col(self):
-    if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
-        return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
-    else:
-        return self.ts_table.c[&#39;upgrade&#39;]</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.up_completed_status_col"><code class="name">var <span class="ident">up_completed_status_col</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def up_completed_status_col(self):
-    if self.up_table is None:
-        raise ValueError(&#34;No upgrades table&#34;)
-    if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
-        return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
-                       sa.String).label(&#39;completed_status&#39;)
-    else:
-        return self.up_table.c[self.db_schema.column_names.completed_status]</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.up_successful_condition"><code class="name">var <span class="ident">up_successful_condition</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def up_successful_condition(self):
-    return self.up_completed_status_col == self.db_schema.completion_values.success</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.up_upgrade_col"><code class="name">var <span class="ident">up_upgrade_col</span></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def up_upgrade_col(self):
-    if self.up_table is None:
-        raise ValueError(&#34;No upgrades table&#34;)
-    if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
-        return sa.cast(self.up_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
-    else:
-        return self.up_table.c[&#39;upgrade&#39;]</code></pre>
-</details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.utility"><code class="name">var <span class="ident">utility</span></code></dt>
 <dd>
@@ -1842,7 +1760,7 @@ def get_buildings_by_locations(self, location_col: str, locations: List[str],
 
     &#34;&#34;&#34;
     query = sa.select([self.bs_bldgid_column])
-    query = query.where(self.get_column(location_col).in_(locations))
+    query = query.where(self._get_column(location_col).in_(locations))
     query = self._add_order_by(query, [self.bs_bldgid_column])
     if get_query_only:
         return self._compile(query)
@@ -1874,29 +1792,12 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
     results_df = self.get_results_csv_full()
     results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
                             self.db_schema.completion_values.success.lower()]
-    buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
+    buildstock_cols = [c for c in results_df.columns if c.startswith(self._char_prefix)]
     buildstock_df = results_df[buildstock_cols]
     buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                       if c.startswith(self.char_prefix)]
+                       if c.startswith(self._char_prefix)]
     buildstock_df.columns = buildstock_cols
     return buildstock_df</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.get_completed_status_col"><code class="name flex">
-<span>def <span class="ident">get_completed_status_col</span></span>(<span>self, table: Union[sqlalchemy.sql.schema.Table, str, sqlalchemy.sql.selectable.Subquery])</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_completed_status_col(self, table: AnyTableType):
-    if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
-        return sa.cast(table.c[self.db_schema.column_names.completed_status],
-                       sa.String).label(&#39;completed_status&#39;)
-    else:
-        return table.c[self.db_schema.column_names.completed_status]</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_distinct_count"><code class="name flex">
@@ -1935,7 +1836,7 @@ def get_distinct_count(self, column: str, table_name: Optional[str] = None,
     Returns:
         pd.Series: The distinct counts.
     &#34;&#34;&#34;
-    tbl = self.bs_table if table_name is None else self.get_table(table_name)
+    tbl = self.bs_table if table_name is None else self._get_table(table_name)
     query = sa.select([tbl.c[column], safunc.sum(1).label(&#34;sample_count&#34;),
                        safunc.sum(self.sample_wt).label(&#34;weighted_count&#34;)])
     query = query.group_by(tbl.c[column]).order_by(tbl.c[column])
@@ -1983,7 +1884,7 @@ def get_distinct_vals(self, column: str, table_name: Optional[str],
         pd.Series: The distinct vals.
     &#34;&#34;&#34;
     table_name = self.bs_table.name if table_name is None else table_name
-    tbl = self.get_table(table_name)
+    tbl = self._get_table(table_name)
     query = sa.select(tbl.c[column]).distinct()
     if get_query_only:
         return self._compile(query)
@@ -2012,8 +1913,8 @@ def get_distinct_vals(self, column: str, table_name: Optional[str],
     Returns:
         List[str]: List of building characteristics.
     &#34;&#34;&#34;
-    cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
-            if y.startswith(self.char_prefix)}
+    cols = {y.removeprefix(self._char_prefix) for y in self.bs_table.c.keys()
+            if y.startswith(self._char_prefix)}
     return list(cols)</code></pre>
 </details>
 </dd>
@@ -2093,52 +1994,6 @@ the stored parquet files in s3 to download the results which is faster than quer
     if df.index.name != self.bs_bldgid_column.name:
         df = df.set_index(self.bs_bldgid_column.name)
     return df</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.get_special_column"><code class="name flex">
-<span>def <span class="ident">get_special_column</span></span>(<span>self, column_type: Literal['month', 'day', 'hour', 'is_weekend', 'day_of_week']) ‑> Union[sqlalchemy.sql.elements.Label, sqlalchemy.sql.schema.Column]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_special_column(self,
-                       column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
-    sim_info = self._get_simulation_info()
-    if sim_info.offset &gt; 0:
-        # If timestamps are not period begining we should make them so we get proper values of special columns.
-        time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
-    else:
-        time_col = self.timestamp_column
-
-    if column_type == &#39;month&#39;:
-        return sa.func.month(time_col).label(&#39;month&#39;)
-    elif column_type == &#39;day&#39;:
-        return sa.func.day(time_col).label(&#39;day&#39;)
-    elif column_type == &#39;hour&#39;:
-        return sa.func.hour(time_col).label(&#39;hour&#39;)
-    elif column_type == &#39;day_of_week&#39;:
-        return sa.func.day_of_week(time_col).label(&#39;day_of_week&#39;)
-    elif column_type == &#39;is_weekend&#39;:
-        return sa.cast(sa.func.day_of_week(time_col).in_([6, 7]), sa.Integer).label(&#39;is_weekend&#39;)
-    else:
-        assert_never(column_type)
-        raise ValueError(f&#34;Unknown special column type: {column_type}&#34;)</code></pre>
-</details>
-</dd>
-<dt id="buildstock_query.main.BuildStockQuery.get_success_condition"><code class="name flex">
-<span>def <span class="ident">get_success_condition</span></span>(<span>self, table: Union[sqlalchemy.sql.schema.Table, str, sqlalchemy.sql.selectable.Subquery])</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_success_condition(self, table: AnyTableType):
-    return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer"><code class="name flex">
@@ -2349,29 +2204,20 @@ class SimInfo:
 <h4><code><a title="buildstock_query.main.BuildStockQuery" href="#buildstock_query.main.BuildStockQuery">BuildStockQuery</a></code></h4>
 <ul class="">
 <li><code><a title="buildstock_query.main.BuildStockQuery.agg" href="#buildstock_query.main.BuildStockQuery.agg">agg</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.bs_completed_status_col" href="#buildstock_query.main.BuildStockQuery.bs_completed_status_col">bs_completed_status_col</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.bs_successful_condition" href="#buildstock_query.main.BuildStockQuery.bs_successful_condition">bs_successful_condition</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_available_upgrades" href="#buildstock_query.main.BuildStockQuery.get_available_upgrades">get_available_upgrades</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_building_ids" href="#buildstock_query.main.BuildStockQuery.get_building_ids">get_building_ids</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_buildings_by_locations" href="#buildstock_query.main.BuildStockQuery.get_buildings_by_locations">get_buildings_by_locations</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_buildstock_df" href="#buildstock_query.main.BuildStockQuery.get_buildstock_df">get_buildstock_df</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.get_completed_status_col" href="#buildstock_query.main.BuildStockQuery.get_completed_status_col">get_completed_status_col</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_count" href="#buildstock_query.main.BuildStockQuery.get_distinct_count">get_distinct_count</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_vals" href="#buildstock_query.main.BuildStockQuery.get_distinct_vals">get_distinct_vals</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_groupby_cols" href="#buildstock_query.main.BuildStockQuery.get_groupby_cols">get_groupby_cols</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_results_csv" href="#buildstock_query.main.BuildStockQuery.get_results_csv">get_results_csv</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_results_csv_full" href="#buildstock_query.main.BuildStockQuery.get_results_csv_full">get_results_csv_full</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.get_special_column" href="#buildstock_query.main.BuildStockQuery.get_special_column">get_special_column</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.get_success_condition" href="#buildstock_query.main.BuildStockQuery.get_success_condition">get_success_condition</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer" href="#buildstock_query.main.BuildStockQuery.get_upgrades_analyzer">get_upgrades_analyzer</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_csv" href="#buildstock_query.main.BuildStockQuery.get_upgrades_csv">get_upgrades_csv</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_csv_full" href="#buildstock_query.main.BuildStockQuery.get_upgrades_csv_full">get_upgrades_csv_full</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.report" href="#buildstock_query.main.BuildStockQuery.report">report</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.savings" href="#buildstock_query.main.BuildStockQuery.savings">savings</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.ts_upgrade_col" href="#buildstock_query.main.BuildStockQuery.ts_upgrade_col">ts_upgrade_col</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.up_completed_status_col" href="#buildstock_query.main.BuildStockQuery.up_completed_status_col">up_completed_status_col</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.up_successful_condition" href="#buildstock_query.main.BuildStockQuery.up_successful_condition">up_successful_condition</a></code></li>
-<li><code><a title="buildstock_query.main.BuildStockQuery.up_upgrade_col" href="#buildstock_query.main.BuildStockQuery.up_upgrade_col">up_upgrade_col</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.utility" href="#buildstock_query.main.BuildStockQuery.utility">utility</a></code></li>
 </ul>
 </li>
