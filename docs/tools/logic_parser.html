@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.tools.logic_parser API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.tools.logic_parser</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">from functools import reduce
+import itertools as it
+import yaml
+from collections import defaultdict
+import json
+from buildstock_query.helpers import read_csv
+
+
+class LogicParser:
+    def __init__(self, opt_sat_path, yaml_file) -&gt; None:
+        opt_df = read_csv(opt_sat_path)
+        opt_df = opt_df[opt_df[&#34;Saturation&#34;] &gt; 0]
+        self.available_opts = opt_df.groupby(&#34;Parameter&#34;)[&#39;Option&#39;].agg(set).to_dict()
+        self.yaml_file = yaml_file
+
+    def get_cfg(self) -&gt; dict:
+        &#34;&#34;&#34;Get the buildstock configuration file as a dictionary object.
+
+        Returns:
+            dict: The buildstock configuration file.
+        &#34;&#34;&#34;
+        with open(self.yaml_file) as f:
+            config = yaml.load(f, Loader=yaml.SafeLoader)
+        return config
+
+    def get_apply_logics(self, upgrade_num, option_name):
+        &#34;&#34;&#34;Get the apply logic for a given upgrade number and option.
+
+        Args:
+            upgrade_num (int): The upgrade number.
+            option_name (str): The option name.
+
+        Returns:
+            dict: The apply logic for the given upgrade number and option name.
+        &#34;&#34;&#34;
+        config = self.get_cfg()
+        upgrade = config[&#34;upgrades&#34;][upgrade_num - 1]
+        opt2logic = dict()
+        for opt in upgrade[&#34;options&#34;]:
+            para, _ = self._get_para_option(opt[&#34;option&#34;])
+            if para == option_name:
+                if &#34;apply_logic&#34; in opt and &#34;package_apply_logic&#34; in upgrade:
+                    logic = {&#34;and&#34;: [opt[&#34;apply_logic&#34;], upgrade[&#34;package_apply_logic&#34;]]}
+                elif &#34;apply_logic&#34; in opt:
+                    logic = opt[&#34;apply_logic&#34;]
+                else:
+                    logic = upgrade[&#34;package_apply_logic&#34;]
+                if opt[&#34;option&#34;] in opt2logic:
+                    opt2logic[opt[&#34;option&#34;]] = {&#34;or&#34;: [opt2logic[opt[&#34;option&#34;]], logic]}
+                else:
+                    opt2logic[opt[&#34;option&#34;]] = logic
+        return opt2logic
+
+    def get_upgrade_options_map(self):
+        &#34;&#34;&#34;Get list of all options for all upgrades&#34;&#34;&#34;
+        config = self.get_cfg()
+        upgrade_options_map = defaultdict(set)
+        for upgrade_num, upgrade in enumerate(config[&#34;upgrades&#34;], start=1):
+            for opt in upgrade[&#34;options&#34;]:
+                para, _ = self._get_para_option(opt[&#34;option&#34;])
+                upgrade_options_map[(upgrade_num, upgrade[&#39;upgrade_name&#39;])].add(para)
+        return upgrade_options_map
+
+    def get_overlap_report(self):
+        &#34;&#34;&#34;
+        For all the option in each upgrade, verify that there are no overlapping selection.
+        &#34;&#34;&#34;
+        upgrade_options_map = self.get_upgrade_options_map()
+        overlap_report = &#34;&#34;
+        for (upgrade_num, upgrade_name), options in upgrade_options_map.items():
+            for option in options:
+                print(f&#34;Verifying upgrade {upgrade_num} ({upgrade_name}), {option}&#34;)
+                opt2logic = self.get_apply_logics(upgrade_num, option)
+                for opt1, opt2 in it.combinations(opt2logic.keys(), 2):
+                    overlap = self.get_overlapping_selections(opt2logic[opt1], opt2logic[opt2])
+                    if overlap:
+                        overlap_report += f&#34;Upgrade {upgrade_num} ({upgrade_name}),\
+                                            has overlapping selections for {opt1} and {opt2}:\n&#34;
+                        overlap_report += json.dumps(overlap, indent=2) + &#34;\n&#34;
+        return overlap_report
+
+    @staticmethod
+    def _get_para_option(condition):
+        try:
+            para, option = condition.split(&#34;|&#34;)
+        except ValueError as e:
+            raise ValueError(f&#34;Condition {condition} is invalid&#34;) from e
+        return para, option
+
+    @staticmethod
+    def and_dicts(dict1: dict[str, set[str]], dict2: dict[str, set[str]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        # l1 = {&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}}
+        # l2 = {&#39;p1&#39;: {&#39;o3&#39;, &#39;o4&#39;}, &#39;p2&#39;: {&#39;o5&#39;, &#39;o6&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+        # l1 &amp; l2 = {&#39;p1&#39;: {&#39;o3&#39;}, &#39;p2&#39;: {&#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+        new_dict: dict[str, set[str]] = {}
+        for key in sorted(set(dict1.keys()) | set(dict2.keys())):
+            if key in dict1 and key in dict2:
+                new_dict[key] = dict1[key].intersection(dict2[key])
+            elif key in dict1:
+                new_dict[key] = dict1[key]
+            else:
+                new_dict[key] = dict2[key]
+        return new_dict
+
+    @staticmethod
+    def and_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        new_logic: list[dict[str, set[str]]] = []
+        for dict1, dict2 in it.product(selections1, selections2):
+            new_logic.append(LogicParser.and_dicts(dict1, dict2))
+        return new_logic
+
+    @staticmethod
+    def _trim_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Remove any selections that are subsets of another selection or contains
+        a key with no available values
+        &#34;&#34;&#34;
+        new_selections = []
+        keys2seen_selections: dict[tuple, list[dict[str, set[str]]]] = dict()
+
+        def is_subset(sel):
+            sel_keys = tuple(sorted(sel.keys()))
+            keys_combi = (keys for count in range(1, len(sel_keys) + 1) for keys in it.combinations(sel_keys, count))
+            for keys in keys_combi:
+                if keys in keys2seen_selections:
+                    for seen_selection in keys2seen_selections[keys]:
+                        if all(sel[key] &lt;= seen_selection[key] for key in keys):
+                            return True
+            return False
+
+        for selection in sorted(selections, key=lambda x: len(x)):
+            if any(len(selection[key]) == 0 for key in selection):
+                continue
+            if not is_subset(selection):
+                keys2seen_selections[tuple(sorted(selection.keys()))] = [selection]
+                new_selections.append(selection)
+        return new_selections
+
+    @staticmethod
+    def _compress_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        If there are multiple selections with the same keys, and same values except for one key,
+        merge them into one selection to reduce the number of selections.
+        For example: [{&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;}},
+                      {&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o6&#39;}}] will be merged into
+                     [{&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;, &#39;o6&#39;}}]
+        &#34;&#34;&#34;
+        keys2seen_selections: dict[tuple, list[dict[str, set[str]]]] = dict()
+        for sel_dict in selections:
+            keys = tuple(sorted(sel_dict.keys()))
+            if keys in keys2seen_selections:
+                for seen_selection in keys2seen_selections[keys]:
+                    matching_keys = {key for key in keys if seen_selection[key] == sel_dict[key]}
+                    if len(matching_keys) == len(keys):
+                        # If all keys match, we have a duplicate sel_dict
+                        break
+                    elif len(matching_keys) == len(keys) - 1:
+                        # sel_dict has one key with different value from before. Simply update the record
+                        key = tuple(set(keys) - matching_keys)[0]
+                        seen_selection[key] |= sel_dict[key]
+                        break
+                else:
+                    # If we did not break out of the loop, we have a new selection that can&#39;t be merged with
+                    # any of the previous selections
+                    keys2seen_selections[keys].append(sel_dict)
+            else:
+                keys2seen_selections[keys] = [sel_dict]
+        return list(selection for seen_selections in keys2seen_selections.values() for selection in seen_selections)
+
+    @staticmethod
+    def clean_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Repeatedly compress and trim selections until there is no change.
+        &#34;&#34;&#34;
+        while True:
+            new_selections = LogicParser._compress_selections(LogicParser._trim_selections(selections))
+            if len(new_selections) == len(selections):
+                return new_selections
+            selections = new_selections
+
+    @staticmethod
+    def or_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        return selections1 + selections2
+
+    def inverse_selection(self, selection: dict):
+        return list({k: self.available_opts[k] - v - {&#34;Void&#34;}} for k, v in selection.items())
+
+    def not_(self, logic1):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        prarsed_logic = self.prase_logic(logic1)
+        return_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in prarsed_logic]))
+        return return_val
+
+    def _normalize_lists(self, logic, parent=None):
+        &#34;&#34;&#34;Any list that is not in a or block is considered to be in an and block.
+            This block will normalize this pattern by adding &#34;and&#34; wherever required.
+        Args:
+            logic (_type_): Logic structure (dict, list etc)
+            parent (_type_, optional): The parent of the current logic block. If it is a list, and there is no parent,
+            the list will be wrapped in a and block.
+
+        Returns:
+            _type_: _description_
+        &#34;&#34;&#34;
+        if isinstance(logic, list):
+            # If it is a single element list, just unwrap and return
+            if len(logic) == 1:
+                return self._normalize_lists(logic[0])
+            new_logic = [self._normalize_lists(el) for el in logic]
+            return {&#34;and&#34;: new_logic} if parent is None else new_logic
+        elif isinstance(logic, dict):
+            new_dict = {key: self._normalize_lists(value, parent=key) for key, value in logic.items()}
+            return new_dict
+        else:
+            return logic
+
+    def prase_logic(self, logic):
+        &#34;&#34;&#34;
+        Convert the parameter|option logic in the yaml file into the format the apply upgrade measure understands.
+
+        :param logic: dict, list, or string with downselection logic in it
+        :returns: str of logic
+        &#34;&#34;&#34;
+        logic = self._normalize_lists(logic)
+        if isinstance(logic, dict):
+            assert (len(logic) == 1)
+            key = list(logic.keys())[0]
+            val = logic[key]
+            val = [val] if not isinstance(val, list) else val
+            if key == &#39;and&#39;:
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+                return self.clean_selections(and_result)
+            elif key == &#39;or&#39;:
+                or_result = list(reduce(self.or_, (self.prase_logic(block) for block in val)))
+                return self.clean_selections(or_result)
+            elif key == &#39;not&#39;:
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+                not_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in and_result]))
+                return self.clean_selections(not_val)
+        elif isinstance(logic, list):
+            list_val = list(reduce(self.and_, (self.prase_logic(block) for block in logic)))
+            return self.clean_selections(list_val)
+        elif isinstance(logic, str):
+            para, option = self._get_para_option(logic)
+            return [{para: {option}}]
+        raise ValueError(f&#34;Logic {logic} is invalid&#34;)
+
+    def retrieve_logic(self, selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        return back the logic from the selections
+        &#34;&#34;&#34;
+        outer_dict = {&#39;or&#39;: []}
+        for selection in selections:
+            inner_dict = {&#39;and&#39;: []}
+            for key, values in selection.items():
+                if len(values) &gt; 1:
+                    inner_dict[&#39;and&#39;].append({&#39;or&#39;: [f&#34;{key}|{value}&#34; for value in values]})
+                elif len(values) == 1:
+                    inner_dict[&#39;and&#39;].append(f&#34;{key}|{list(values)[0]}&#34;)
+                else:
+                    raise ValueError(f&#34;Selection {selection} has no valid value for {key}&#34;)
+            if len(inner_dict[&#39;and&#39;]) == 1:
+                outer_dict[&#39;or&#39;].append(inner_dict[&#39;and&#39;][0])
+            else:
+                outer_dict[&#39;or&#39;].append(inner_dict)
+        if len(outer_dict[&#39;or&#39;]) == 1:
+            return outer_dict[&#39;or&#39;][0]
+        return outer_dict
+
+    def normalize_logic(self, logic):
+        selections = self.prase_logic(logic)
+        return self.retrieve_logic(selections)
+
+    def get_overlapping_selections(self, logic1, logic2):
+        &#34;&#34;&#34;
+        Get the selections that are common to both logic1 and logic2
+        &#34;&#34;&#34;
+        selections = self.prase_logic({&#34;and&#34;: [logic1, logic2]})
+        if len(selections) == 0:
+            return None
+        selections = self.clean_selections(selections)
+        return self.retrieve_logic(selections)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.tools.logic_parser.LogicParser"><code class="flex name class">
+<span>class <span class="ident">LogicParser</span></span>
+<span>(</span><span>opt_sat_path, yaml_file)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class LogicParser:
+    def __init__(self, opt_sat_path, yaml_file) -&gt; None:
+        opt_df = read_csv(opt_sat_path)
+        opt_df = opt_df[opt_df[&#34;Saturation&#34;] &gt; 0]
+        self.available_opts = opt_df.groupby(&#34;Parameter&#34;)[&#39;Option&#39;].agg(set).to_dict()
+        self.yaml_file = yaml_file
+
+    def get_cfg(self) -&gt; dict:
+        &#34;&#34;&#34;Get the buildstock configuration file as a dictionary object.
+
+        Returns:
+            dict: The buildstock configuration file.
+        &#34;&#34;&#34;
+        with open(self.yaml_file) as f:
+            config = yaml.load(f, Loader=yaml.SafeLoader)
+        return config
+
+    def get_apply_logics(self, upgrade_num, option_name):
+        &#34;&#34;&#34;Get the apply logic for a given upgrade number and option.
+
+        Args:
+            upgrade_num (int): The upgrade number.
+            option_name (str): The option name.
+
+        Returns:
+            dict: The apply logic for the given upgrade number and option name.
+        &#34;&#34;&#34;
+        config = self.get_cfg()
+        upgrade = config[&#34;upgrades&#34;][upgrade_num - 1]
+        opt2logic = dict()
+        for opt in upgrade[&#34;options&#34;]:
+            para, _ = self._get_para_option(opt[&#34;option&#34;])
+            if para == option_name:
+                if &#34;apply_logic&#34; in opt and &#34;package_apply_logic&#34; in upgrade:
+                    logic = {&#34;and&#34;: [opt[&#34;apply_logic&#34;], upgrade[&#34;package_apply_logic&#34;]]}
+                elif &#34;apply_logic&#34; in opt:
+                    logic = opt[&#34;apply_logic&#34;]
+                else:
+                    logic = upgrade[&#34;package_apply_logic&#34;]
+                if opt[&#34;option&#34;] in opt2logic:
+                    opt2logic[opt[&#34;option&#34;]] = {&#34;or&#34;: [opt2logic[opt[&#34;option&#34;]], logic]}
+                else:
+                    opt2logic[opt[&#34;option&#34;]] = logic
+        return opt2logic
+
+    def get_upgrade_options_map(self):
+        &#34;&#34;&#34;Get list of all options for all upgrades&#34;&#34;&#34;
+        config = self.get_cfg()
+        upgrade_options_map = defaultdict(set)
+        for upgrade_num, upgrade in enumerate(config[&#34;upgrades&#34;], start=1):
+            for opt in upgrade[&#34;options&#34;]:
+                para, _ = self._get_para_option(opt[&#34;option&#34;])
+                upgrade_options_map[(upgrade_num, upgrade[&#39;upgrade_name&#39;])].add(para)
+        return upgrade_options_map
+
+    def get_overlap_report(self):
+        &#34;&#34;&#34;
+        For all the option in each upgrade, verify that there are no overlapping selection.
+        &#34;&#34;&#34;
+        upgrade_options_map = self.get_upgrade_options_map()
+        overlap_report = &#34;&#34;
+        for (upgrade_num, upgrade_name), options in upgrade_options_map.items():
+            for option in options:
+                print(f&#34;Verifying upgrade {upgrade_num} ({upgrade_name}), {option}&#34;)
+                opt2logic = self.get_apply_logics(upgrade_num, option)
+                for opt1, opt2 in it.combinations(opt2logic.keys(), 2):
+                    overlap = self.get_overlapping_selections(opt2logic[opt1], opt2logic[opt2])
+                    if overlap:
+                        overlap_report += f&#34;Upgrade {upgrade_num} ({upgrade_name}),\
+                                            has overlapping selections for {opt1} and {opt2}:\n&#34;
+                        overlap_report += json.dumps(overlap, indent=2) + &#34;\n&#34;
+        return overlap_report
+
+    @staticmethod
+    def _get_para_option(condition):
+        try:
+            para, option = condition.split(&#34;|&#34;)
+        except ValueError as e:
+            raise ValueError(f&#34;Condition {condition} is invalid&#34;) from e
+        return para, option
+
+    @staticmethod
+    def and_dicts(dict1: dict[str, set[str]], dict2: dict[str, set[str]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        # l1 = {&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}}
+        # l2 = {&#39;p1&#39;: {&#39;o3&#39;, &#39;o4&#39;}, &#39;p2&#39;: {&#39;o5&#39;, &#39;o6&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+        # l1 &amp; l2 = {&#39;p1&#39;: {&#39;o3&#39;}, &#39;p2&#39;: {&#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+        new_dict: dict[str, set[str]] = {}
+        for key in sorted(set(dict1.keys()) | set(dict2.keys())):
+            if key in dict1 and key in dict2:
+                new_dict[key] = dict1[key].intersection(dict2[key])
+            elif key in dict1:
+                new_dict[key] = dict1[key]
+            else:
+                new_dict[key] = dict2[key]
+        return new_dict
+
+    @staticmethod
+    def and_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        new_logic: list[dict[str, set[str]]] = []
+        for dict1, dict2 in it.product(selections1, selections2):
+            new_logic.append(LogicParser.and_dicts(dict1, dict2))
+        return new_logic
+
+    @staticmethod
+    def _trim_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Remove any selections that are subsets of another selection or contains
+        a key with no available values
+        &#34;&#34;&#34;
+        new_selections = []
+        keys2seen_selections: dict[tuple, list[dict[str, set[str]]]] = dict()
+
+        def is_subset(sel):
+            sel_keys = tuple(sorted(sel.keys()))
+            keys_combi = (keys for count in range(1, len(sel_keys) + 1) for keys in it.combinations(sel_keys, count))
+            for keys in keys_combi:
+                if keys in keys2seen_selections:
+                    for seen_selection in keys2seen_selections[keys]:
+                        if all(sel[key] &lt;= seen_selection[key] for key in keys):
+                            return True
+            return False
+
+        for selection in sorted(selections, key=lambda x: len(x)):
+            if any(len(selection[key]) == 0 for key in selection):
+                continue
+            if not is_subset(selection):
+                keys2seen_selections[tuple(sorted(selection.keys()))] = [selection]
+                new_selections.append(selection)
+        return new_selections
+
+    @staticmethod
+    def _compress_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        If there are multiple selections with the same keys, and same values except for one key,
+        merge them into one selection to reduce the number of selections.
+        For example: [{&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;}},
+                      {&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o6&#39;}}] will be merged into
+                     [{&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;, &#39;o6&#39;}}]
+        &#34;&#34;&#34;
+        keys2seen_selections: dict[tuple, list[dict[str, set[str]]]] = dict()
+        for sel_dict in selections:
+            keys = tuple(sorted(sel_dict.keys()))
+            if keys in keys2seen_selections:
+                for seen_selection in keys2seen_selections[keys]:
+                    matching_keys = {key for key in keys if seen_selection[key] == sel_dict[key]}
+                    if len(matching_keys) == len(keys):
+                        # If all keys match, we have a duplicate sel_dict
+                        break
+                    elif len(matching_keys) == len(keys) - 1:
+                        # sel_dict has one key with different value from before. Simply update the record
+                        key = tuple(set(keys) - matching_keys)[0]
+                        seen_selection[key] |= sel_dict[key]
+                        break
+                else:
+                    # If we did not break out of the loop, we have a new selection that can&#39;t be merged with
+                    # any of the previous selections
+                    keys2seen_selections[keys].append(sel_dict)
+            else:
+                keys2seen_selections[keys] = [sel_dict]
+        return list(selection for seen_selections in keys2seen_selections.values() for selection in seen_selections)
+
+    @staticmethod
+    def clean_selections(selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Repeatedly compress and trim selections until there is no change.
+        &#34;&#34;&#34;
+        while True:
+            new_selections = LogicParser._compress_selections(LogicParser._trim_selections(selections))
+            if len(new_selections) == len(selections):
+                return new_selections
+            selections = new_selections
+
+    @staticmethod
+    def or_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        return selections1 + selections2
+
+    def inverse_selection(self, selection: dict):
+        return list({k: self.available_opts[k] - v - {&#34;Void&#34;}} for k, v in selection.items())
+
+    def not_(self, logic1):
+        &#34;&#34;&#34;
+        Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+        &#34;&#34;&#34;
+        prarsed_logic = self.prase_logic(logic1)
+        return_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in prarsed_logic]))
+        return return_val
+
+    def _normalize_lists(self, logic, parent=None):
+        &#34;&#34;&#34;Any list that is not in a or block is considered to be in an and block.
+            This block will normalize this pattern by adding &#34;and&#34; wherever required.
+        Args:
+            logic (_type_): Logic structure (dict, list etc)
+            parent (_type_, optional): The parent of the current logic block. If it is a list, and there is no parent,
+            the list will be wrapped in a and block.
+
+        Returns:
+            _type_: _description_
+        &#34;&#34;&#34;
+        if isinstance(logic, list):
+            # If it is a single element list, just unwrap and return
+            if len(logic) == 1:
+                return self._normalize_lists(logic[0])
+            new_logic = [self._normalize_lists(el) for el in logic]
+            return {&#34;and&#34;: new_logic} if parent is None else new_logic
+        elif isinstance(logic, dict):
+            new_dict = {key: self._normalize_lists(value, parent=key) for key, value in logic.items()}
+            return new_dict
+        else:
+            return logic
+
+    def prase_logic(self, logic):
+        &#34;&#34;&#34;
+        Convert the parameter|option logic in the yaml file into the format the apply upgrade measure understands.
+
+        :param logic: dict, list, or string with downselection logic in it
+        :returns: str of logic
+        &#34;&#34;&#34;
+        logic = self._normalize_lists(logic)
+        if isinstance(logic, dict):
+            assert (len(logic) == 1)
+            key = list(logic.keys())[0]
+            val = logic[key]
+            val = [val] if not isinstance(val, list) else val
+            if key == &#39;and&#39;:
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+                return self.clean_selections(and_result)
+            elif key == &#39;or&#39;:
+                or_result = list(reduce(self.or_, (self.prase_logic(block) for block in val)))
+                return self.clean_selections(or_result)
+            elif key == &#39;not&#39;:
+                and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+                not_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in and_result]))
+                return self.clean_selections(not_val)
+        elif isinstance(logic, list):
+            list_val = list(reduce(self.and_, (self.prase_logic(block) for block in logic)))
+            return self.clean_selections(list_val)
+        elif isinstance(logic, str):
+            para, option = self._get_para_option(logic)
+            return [{para: {option}}]
+        raise ValueError(f&#34;Logic {logic} is invalid&#34;)
+
+    def retrieve_logic(self, selections: list[dict[str, set[str]]]):
+        &#34;&#34;&#34;
+        return back the logic from the selections
+        &#34;&#34;&#34;
+        outer_dict = {&#39;or&#39;: []}
+        for selection in selections:
+            inner_dict = {&#39;and&#39;: []}
+            for key, values in selection.items():
+                if len(values) &gt; 1:
+                    inner_dict[&#39;and&#39;].append({&#39;or&#39;: [f&#34;{key}|{value}&#34; for value in values]})
+                elif len(values) == 1:
+                    inner_dict[&#39;and&#39;].append(f&#34;{key}|{list(values)[0]}&#34;)
+                else:
+                    raise ValueError(f&#34;Selection {selection} has no valid value for {key}&#34;)
+            if len(inner_dict[&#39;and&#39;]) == 1:
+                outer_dict[&#39;or&#39;].append(inner_dict[&#39;and&#39;][0])
+            else:
+                outer_dict[&#39;or&#39;].append(inner_dict)
+        if len(outer_dict[&#39;or&#39;]) == 1:
+            return outer_dict[&#39;or&#39;][0]
+        return outer_dict
+
+    def normalize_logic(self, logic):
+        selections = self.prase_logic(logic)
+        return self.retrieve_logic(selections)
+
+    def get_overlapping_selections(self, logic1, logic2):
+        &#34;&#34;&#34;
+        Get the selections that are common to both logic1 and logic2
+        &#34;&#34;&#34;
+        selections = self.prase_logic({&#34;and&#34;: [logic1, logic2]})
+        if len(selections) == 0:
+            return None
+        selections = self.clean_selections(selections)
+        return self.retrieve_logic(selections)</code></pre>
+</details>
+<h3>Static methods</h3>
+<dl>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.and_"><code class="name flex">
+<span>def <span class="ident">and_</span></span>(<span>selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge two dicts. If there is a conflict, the value in dict2 takes precedence.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def and_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+    &#34;&#34;&#34;
+    Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+    &#34;&#34;&#34;
+    new_logic: list[dict[str, set[str]]] = []
+    for dict1, dict2 in it.product(selections1, selections2):
+        new_logic.append(LogicParser.and_dicts(dict1, dict2))
+    return new_logic</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.and_dicts"><code class="name flex">
+<span>def <span class="ident">and_dicts</span></span>(<span>dict1: dict[str, set[str]], dict2: dict[str, set[str]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge two dicts. If there is a conflict, the value in dict2 takes precedence.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def and_dicts(dict1: dict[str, set[str]], dict2: dict[str, set[str]]):
+    &#34;&#34;&#34;
+    Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+    &#34;&#34;&#34;
+    # l1 = {&#39;p1&#39;: {&#39;o1&#39;, &#39;o2&#39;, &#39;o3&#39;}, &#39;p2&#39;: {&#39;o4&#39;, &#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}}
+    # l2 = {&#39;p1&#39;: {&#39;o3&#39;, &#39;o4&#39;}, &#39;p2&#39;: {&#39;o5&#39;, &#39;o6&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+    # l1 &amp; l2 = {&#39;p1&#39;: {&#39;o3&#39;}, &#39;p2&#39;: {&#39;o5&#39;}, &#39;p5&#39;: {&#39;o9&#39;, &#39;o10&#39;}, &#39;p9&#39;: {&#39;o11&#39;, &#39;o12&#39;}}
+    new_dict: dict[str, set[str]] = {}
+    for key in sorted(set(dict1.keys()) | set(dict2.keys())):
+        if key in dict1 and key in dict2:
+            new_dict[key] = dict1[key].intersection(dict2[key])
+        elif key in dict1:
+            new_dict[key] = dict1[key]
+        else:
+            new_dict[key] = dict2[key]
+    return new_dict</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.clean_selections"><code class="name flex">
+<span>def <span class="ident">clean_selections</span></span>(<span>selections: list[dict[str, set[str]]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Repeatedly compress and trim selections until there is no change.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def clean_selections(selections: list[dict[str, set[str]]]):
+    &#34;&#34;&#34;
+    Repeatedly compress and trim selections until there is no change.
+    &#34;&#34;&#34;
+    while True:
+        new_selections = LogicParser._compress_selections(LogicParser._trim_selections(selections))
+        if len(new_selections) == len(selections):
+            return new_selections
+        selections = new_selections</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.or_"><code class="name flex">
+<span>def <span class="ident">or_</span></span>(<span>selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge two dicts. If there is a conflict, the value in dict2 takes precedence.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def or_(selections1: list[dict[str, set[str]]], selections2: list[dict[str, set[str]]]):
+    &#34;&#34;&#34;
+    Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+    &#34;&#34;&#34;
+    return selections1 + selections2</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.get_apply_logics"><code class="name flex">
+<span>def <span class="ident">get_apply_logics</span></span>(<span>self, upgrade_num, option_name)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the apply logic for a given upgrade number and option.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>upgrade_num</code></strong> :&ensp;<code>int</code></dt>
+<dd>The upgrade number.</dd>
+<dt><strong><code>option_name</code></strong> :&ensp;<code>str</code></dt>
+<dd>The option name.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>dict</code></dt>
+<dd>The apply logic for the given upgrade number and option name.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_apply_logics(self, upgrade_num, option_name):
+    &#34;&#34;&#34;Get the apply logic for a given upgrade number and option.
+
+    Args:
+        upgrade_num (int): The upgrade number.
+        option_name (str): The option name.
+
+    Returns:
+        dict: The apply logic for the given upgrade number and option name.
+    &#34;&#34;&#34;
+    config = self.get_cfg()
+    upgrade = config[&#34;upgrades&#34;][upgrade_num - 1]
+    opt2logic = dict()
+    for opt in upgrade[&#34;options&#34;]:
+        para, _ = self._get_para_option(opt[&#34;option&#34;])
+        if para == option_name:
+            if &#34;apply_logic&#34; in opt and &#34;package_apply_logic&#34; in upgrade:
+                logic = {&#34;and&#34;: [opt[&#34;apply_logic&#34;], upgrade[&#34;package_apply_logic&#34;]]}
+            elif &#34;apply_logic&#34; in opt:
+                logic = opt[&#34;apply_logic&#34;]
+            else:
+                logic = upgrade[&#34;package_apply_logic&#34;]
+            if opt[&#34;option&#34;] in opt2logic:
+                opt2logic[opt[&#34;option&#34;]] = {&#34;or&#34;: [opt2logic[opt[&#34;option&#34;]], logic]}
+            else:
+                opt2logic[opt[&#34;option&#34;]] = logic
+    return opt2logic</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.get_cfg"><code class="name flex">
+<span>def <span class="ident">get_cfg</span></span>(<span>self) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the buildstock configuration file as a dictionary object.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>dict</code></dt>
+<dd>The buildstock configuration file.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_cfg(self) -&gt; dict:
+    &#34;&#34;&#34;Get the buildstock configuration file as a dictionary object.
+
+    Returns:
+        dict: The buildstock configuration file.
+    &#34;&#34;&#34;
+    with open(self.yaml_file) as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+    return config</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.get_overlap_report"><code class="name flex">
+<span>def <span class="ident">get_overlap_report</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>For all the option in each upgrade, verify that there are no overlapping selection.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_overlap_report(self):
+    &#34;&#34;&#34;
+    For all the option in each upgrade, verify that there are no overlapping selection.
+    &#34;&#34;&#34;
+    upgrade_options_map = self.get_upgrade_options_map()
+    overlap_report = &#34;&#34;
+    for (upgrade_num, upgrade_name), options in upgrade_options_map.items():
+        for option in options:
+            print(f&#34;Verifying upgrade {upgrade_num} ({upgrade_name}), {option}&#34;)
+            opt2logic = self.get_apply_logics(upgrade_num, option)
+            for opt1, opt2 in it.combinations(opt2logic.keys(), 2):
+                overlap = self.get_overlapping_selections(opt2logic[opt1], opt2logic[opt2])
+                if overlap:
+                    overlap_report += f&#34;Upgrade {upgrade_num} ({upgrade_name}),\
+                                        has overlapping selections for {opt1} and {opt2}:\n&#34;
+                    overlap_report += json.dumps(overlap, indent=2) + &#34;\n&#34;
+    return overlap_report</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.get_overlapping_selections"><code class="name flex">
+<span>def <span class="ident">get_overlapping_selections</span></span>(<span>self, logic1, logic2)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the selections that are common to both logic1 and logic2</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_overlapping_selections(self, logic1, logic2):
+    &#34;&#34;&#34;
+    Get the selections that are common to both logic1 and logic2
+    &#34;&#34;&#34;
+    selections = self.prase_logic({&#34;and&#34;: [logic1, logic2]})
+    if len(selections) == 0:
+        return None
+    selections = self.clean_selections(selections)
+    return self.retrieve_logic(selections)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.get_upgrade_options_map"><code class="name flex">
+<span>def <span class="ident">get_upgrade_options_map</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get list of all options for all upgrades</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_upgrade_options_map(self):
+    &#34;&#34;&#34;Get list of all options for all upgrades&#34;&#34;&#34;
+    config = self.get_cfg()
+    upgrade_options_map = defaultdict(set)
+    for upgrade_num, upgrade in enumerate(config[&#34;upgrades&#34;], start=1):
+        for opt in upgrade[&#34;options&#34;]:
+            para, _ = self._get_para_option(opt[&#34;option&#34;])
+            upgrade_options_map[(upgrade_num, upgrade[&#39;upgrade_name&#39;])].add(para)
+    return upgrade_options_map</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.inverse_selection"><code class="name flex">
+<span>def <span class="ident">inverse_selection</span></span>(<span>self, selection: dict)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def inverse_selection(self, selection: dict):
+    return list({k: self.available_opts[k] - v - {&#34;Void&#34;}} for k, v in selection.items())</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.normalize_logic"><code class="name flex">
+<span>def <span class="ident">normalize_logic</span></span>(<span>self, logic)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def normalize_logic(self, logic):
+    selections = self.prase_logic(logic)
+    return self.retrieve_logic(selections)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.not_"><code class="name flex">
+<span>def <span class="ident">not_</span></span>(<span>self, logic1)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Merge two dicts. If there is a conflict, the value in dict2 takes precedence.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def not_(self, logic1):
+    &#34;&#34;&#34;
+    Merge two dicts. If there is a conflict, the value in dict2 takes precedence.
+    &#34;&#34;&#34;
+    prarsed_logic = self.prase_logic(logic1)
+    return_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in prarsed_logic]))
+    return return_val</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.prase_logic"><code class="name flex">
+<span>def <span class="ident">prase_logic</span></span>(<span>self, logic)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert the parameter|option logic in the yaml file into the format the apply upgrade measure understands.</p>
+<p>:param logic: dict, list, or string with downselection logic in it
+:returns: str of logic</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def prase_logic(self, logic):
+    &#34;&#34;&#34;
+    Convert the parameter|option logic in the yaml file into the format the apply upgrade measure understands.
+
+    :param logic: dict, list, or string with downselection logic in it
+    :returns: str of logic
+    &#34;&#34;&#34;
+    logic = self._normalize_lists(logic)
+    if isinstance(logic, dict):
+        assert (len(logic) == 1)
+        key = list(logic.keys())[0]
+        val = logic[key]
+        val = [val] if not isinstance(val, list) else val
+        if key == &#39;and&#39;:
+            and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+            return self.clean_selections(and_result)
+        elif key == &#39;or&#39;:
+            or_result = list(reduce(self.or_, (self.prase_logic(block) for block in val)))
+            return self.clean_selections(or_result)
+        elif key == &#39;not&#39;:
+            and_result = list(reduce(self.and_, (self.prase_logic(block) for block in val)))
+            not_val = list(reduce(self.and_, [self.inverse_selection(selection) for selection in and_result]))
+            return self.clean_selections(not_val)
+    elif isinstance(logic, list):
+        list_val = list(reduce(self.and_, (self.prase_logic(block) for block in logic)))
+        return self.clean_selections(list_val)
+    elif isinstance(logic, str):
+        para, option = self._get_para_option(logic)
+        return [{para: {option}}]
+    raise ValueError(f&#34;Logic {logic} is invalid&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.logic_parser.LogicParser.retrieve_logic"><code class="name flex">
+<span>def <span class="ident">retrieve_logic</span></span>(<span>self, selections: list[dict[str, set[str]]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>return back the logic from the selections</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def retrieve_logic(self, selections: list[dict[str, set[str]]]):
+    &#34;&#34;&#34;
+    return back the logic from the selections
+    &#34;&#34;&#34;
+    outer_dict = {&#39;or&#39;: []}
+    for selection in selections:
+        inner_dict = {&#39;and&#39;: []}
+        for key, values in selection.items():
+            if len(values) &gt; 1:
+                inner_dict[&#39;and&#39;].append({&#39;or&#39;: [f&#34;{key}|{value}&#34; for value in values]})
+            elif len(values) == 1:
+                inner_dict[&#39;and&#39;].append(f&#34;{key}|{list(values)[0]}&#34;)
+            else:
+                raise ValueError(f&#34;Selection {selection} has no valid value for {key}&#34;)
+        if len(inner_dict[&#39;and&#39;]) == 1:
+            outer_dict[&#39;or&#39;].append(inner_dict[&#39;and&#39;][0])
+        else:
+            outer_dict[&#39;or&#39;].append(inner_dict)
+    if len(outer_dict[&#39;or&#39;]) == 1:
+        return outer_dict[&#39;or&#39;][0]
+    return outer_dict</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query.tools" href="index.html">buildstock_query.tools</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.tools.logic_parser.LogicParser" href="#buildstock_query.tools.logic_parser.LogicParser">LogicParser</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.and_" href="#buildstock_query.tools.logic_parser.LogicParser.and_">and_</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.and_dicts" href="#buildstock_query.tools.logic_parser.LogicParser.and_dicts">and_dicts</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.clean_selections" href="#buildstock_query.tools.logic_parser.LogicParser.clean_selections">clean_selections</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.get_apply_logics" href="#buildstock_query.tools.logic_parser.LogicParser.get_apply_logics">get_apply_logics</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.get_cfg" href="#buildstock_query.tools.logic_parser.LogicParser.get_cfg">get_cfg</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.get_overlap_report" href="#buildstock_query.tools.logic_parser.LogicParser.get_overlap_report">get_overlap_report</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.get_overlapping_selections" href="#buildstock_query.tools.logic_parser.LogicParser.get_overlapping_selections">get_overlapping_selections</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.get_upgrade_options_map" href="#buildstock_query.tools.logic_parser.LogicParser.get_upgrade_options_map">get_upgrade_options_map</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.inverse_selection" href="#buildstock_query.tools.logic_parser.LogicParser.inverse_selection">inverse_selection</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.normalize_logic" href="#buildstock_query.tools.logic_parser.LogicParser.normalize_logic">normalize_logic</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.not_" href="#buildstock_query.tools.logic_parser.LogicParser.not_">not_</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.or_" href="#buildstock_query.tools.logic_parser.LogicParser.or_">or_</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.prase_logic" href="#buildstock_query.tools.logic_parser.LogicParser.prase_logic">prase_logic</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser.LogicParser.retrieve_logic" href="#buildstock_query.tools.logic_parser.LogicParser.retrieve_logic">retrieve_logic</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

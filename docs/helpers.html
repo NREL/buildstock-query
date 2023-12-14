@@ -27,36 +27,65 @@
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">from concurrent.futures import Future
-from pyathena.sqlalchemy_athena import AthenaDialect
+from pyathena.sqlalchemy.base import AthenaDialect
+from pyathena.pandas.result_set import AthenaPandasResultSet
 import datetime
 import pickle
 import os
+import pandas as pd
+from typing import Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from buildstock_query.schema.utilities import MappedColumn  # noqa: F401
 
 
 KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
 
 
-class FutureDf(Future):
-    def __init__(self, df, *args, **kwargs) -&gt; None:
+class CachedFutureDf(Future):
+    def __init__(self, df: pd.DataFrame, *args, **kwargs) -&gt; None:
         super().__init__(*args, **kwargs)
         self.df = df
         self.set_result(self.df)
 
-    def running(self):
+    def running(self) -&gt; Literal[False]:
         return False
 
-    def done(self):
+    def done(self) -&gt; Literal[True]:
         return True
 
-    def cancelled(self):
+    def cancelled(self) -&gt; Literal[False]:
         return False
 
-    def result(self, timeout=None):
+    def result(self, timeout=None) -&gt; pd.DataFrame:
         return self.df
 
-    def as_pandas(self):
+    def as_pandas(self) -&gt; pd.DataFrame:
         return self.df
+
+
+class AthenaFutureDf:
+    def __init__(self, db_future: Future) -&gt; None:
+        self.future = db_future
+
+    def cancel(self) -&gt; bool:
+        return self.future.cancel()
+
+    def running(self) -&gt; bool:
+        return self.future.running()
+
+    def done(self) -&gt; bool:
+        return self.future.done()
+
+    def cancelled(self) -&gt; bool:
+        return self.future.cancelled()
+
+    def result(self, timeout=None) -&gt; AthenaPandasResultSet:
+        return self.future.result()
+
+    def as_pandas(self) -&gt; pd.DataFrame:
+        return self.future.as_pandas()  # type: ignore # mypy doesn&#39;t know about AthenaPandasResultSet
 
 
 class COLOR:
@@ -78,13 +107,54 @@ def print_g(text):  # print in Green
     print(f&#34;{COLOR.GREEN}{text}{COLOR.END}&#34;)
 
 
+class UnSupportedTypeException(Exception):
+    pass
+
+
 class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
-    def render_literal_value(self, value, type_):
-        if isinstance(value, (datetime.datetime)):
-            return &#34;timestamp &#39;%s&#39;&#34; % str(value).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
-        if isinstance(value, list):
-            return f&#34;ARRAY[{&#39;,&#39;.join([str(v) for v in value])}]&#34;
-        return super(CustomCompiler, self).render_literal_value(value, type_)
+
+    @staticmethod
+    def render_literal(obj):
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+        if isinstance(obj, (int, float)):
+            return str(obj)
+        elif isinstance(obj, str):
+            return &#34;&#39;%s&#39;&#34; % obj.replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+        elif isinstance(obj, (datetime.datetime)):
+            return &#34;timestamp &#39;%s&#39;&#34; % str(obj).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+        elif isinstance(obj, list):
+            return CustomCompiler.get_array_string(obj)
+        elif isinstance(obj, tuple):
+            return f&#34;({&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in obj])})&#34;
+        elif isinstance(obj, MappedColumn):
+            keys = list(obj.mapping_dict.keys())
+            values = list(obj.mapping_dict.values())
+            if isinstance(obj.key, tuple):
+                indexing_str = f&#34;({&#39;, &#39;.join(tuple(obj.bsq._compile(source) for source in obj.key))})&#34;
+            else:
+                indexing_str = obj.bsq._compile(obj.key)
+
+            return f&#34;MAP({CustomCompiler.render_literal(keys)}, &#34; +\
+                   f&#34;{CustomCompiler.render_literal(values)})[{indexing_str}]&#34;
+        else:
+            raise UnSupportedTypeException(f&#34;Unsupported type {type(obj)} for literal {obj}&#34;)
+
+    @staticmethod
+    def get_array_string(array):
+        # rewrite to break into multiple arrays joined by CONCAT if the number of elements is &gt; 254
+        if len(array) &gt; 254:
+            array_list = [&#34;ARRAY[&#34; + &#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array[i:i+254]]) + &#34;]&#34;
+                          for i in range(0, len(array), 254)]
+            return &#34;CONCAT(&#34; + &#39;, &#39;.join(array_list) + &#34;)&#34;
+        else:
+            return f&#34;ARRAY[{&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array])}]&#34;
+
+    def render_literal_value(self, obj, type_):
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+        if isinstance(obj, (datetime.datetime, list, tuple, MappedColumn)):
+            return CustomCompiler.render_literal(obj)
+
+        return super(CustomCompiler, self).render_literal_value(obj, type_)
 
 
 class DataExistsException(Exception):
@@ -102,7 +172,13 @@ def load_pickle(path):
     if not os.path.exists(path):
         raise FileNotFoundError(f&#34;File {path} not found for loading table&#34;)
     with open(path, &#34;rb&#34;) as f:
-        return pickle.load(f)</code></pre>
+        return pickle.load(f)
+
+
+def read_csv(csv_file_path, **kwargs) -&gt; pd.DataFrame:
+    default_na_values = pd._libs.parsers.STR_NA_VALUES
+    df = pd.read_csv(csv_file_path, na_values=list(default_na_values - {&#34;None&#34;}), keep_default_na=False, **kwargs)
+    return df</code></pre>
 </details>
 </section>
 <section>
@@ -167,6 +243,21 @@ def load_pickle(path):
     print(f&#34;{COLOR.YELLOW}{text}{COLOR.END}&#34;)</code></pre>
 </details>
 </dd>
+<dt id="buildstock_query.helpers.read_csv"><code class="name flex">
+<span>def <span class="ident">read_csv</span></span>(<span>csv_file_path, **kwargs) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_csv(csv_file_path, **kwargs) -&gt; pd.DataFrame:
+    default_na_values = pd._libs.parsers.STR_NA_VALUES
+    df = pd.read_csv(csv_file_path, na_values=list(default_na_values - {&#34;None&#34;}), keep_default_na=False, **kwargs)
+    return df</code></pre>
+</details>
+</dd>
 <dt id="buildstock_query.helpers.save_pickle"><code class="name flex">
 <span>def <span class="ident">save_pickle</span></span>(<span>path, obj)</span>
 </code></dt>
@@ -186,6 +277,120 @@ def load_pickle(path):
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="buildstock_query.helpers.AthenaFutureDf"><code class="flex name class">
+<span>class <span class="ident">AthenaFutureDf</span></span>
+<span>(</span><span>db_future: concurrent.futures._base.Future)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AthenaFutureDf:
+    def __init__(self, db_future: Future) -&gt; None:
+        self.future = db_future
+
+    def cancel(self) -&gt; bool:
+        return self.future.cancel()
+
+    def running(self) -&gt; bool:
+        return self.future.running()
+
+    def done(self) -&gt; bool:
+        return self.future.done()
+
+    def cancelled(self) -&gt; bool:
+        return self.future.cancelled()
+
+    def result(self, timeout=None) -&gt; AthenaPandasResultSet:
+        return self.future.result()
+
+    def as_pandas(self) -&gt; pd.DataFrame:
+        return self.future.as_pandas()  # type: ignore # mypy doesn&#39;t know about AthenaPandasResultSet</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.helpers.AthenaFutureDf.as_pandas"><code class="name flex">
+<span>def <span class="ident">as_pandas</span></span>(<span>self) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def as_pandas(self) -&gt; pd.DataFrame:
+    return self.future.as_pandas()  # type: ignore # mypy doesn&#39;t know about AthenaPandasResultSet</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.AthenaFutureDf.cancel"><code class="name flex">
+<span>def <span class="ident">cancel</span></span>(<span>self) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def cancel(self) -&gt; bool:
+    return self.future.cancel()</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.AthenaFutureDf.cancelled"><code class="name flex">
+<span>def <span class="ident">cancelled</span></span>(<span>self) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def cancelled(self) -&gt; bool:
+    return self.future.cancelled()</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.AthenaFutureDf.done"><code class="name flex">
+<span>def <span class="ident">done</span></span>(<span>self) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def done(self) -&gt; bool:
+    return self.future.done()</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.AthenaFutureDf.result"><code class="name flex">
+<span>def <span class="ident">result</span></span>(<span>self, timeout=None) ‑> pyathena.pandas.result_set.AthenaPandasResultSet</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def result(self, timeout=None) -&gt; AthenaPandasResultSet:
+    return self.future.result()</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.AthenaFutureDf.running"><code class="name flex">
+<span>def <span class="ident">running</span></span>(<span>self) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def running(self) -&gt; bool:
+    return self.future.running()</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
 <dt id="buildstock_query.helpers.COLOR"><code class="flex name class">
 <span>class <span class="ident">COLOR</span></span>
 </code></dt>
@@ -221,95 +426,9 @@ def load_pickle(path):
 </dd>
 </dl>
 </dd>
-<dt id="buildstock_query.helpers.CustomCompiler"><code class="flex name class">
-<span>class <span class="ident">CustomCompiler</span></span>
-<span>(</span><span>dialect, statement, cache_key=None, column_keys=None, for_executemany=False, linting=symbol('NO_LINTING'), **kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>PrestoCompiler</p>
-<p><a href="https://github.com/dropbox/PyHive/blob/master/pyhive/sqlalchemy_presto.py">https://github.com/dropbox/PyHive/blob/master/pyhive/sqlalchemy_presto.py</a></p>
-<p>Construct a new :class:<code>.SQLCompiler</code> object.</p>
-<p>:param dialect: :class:<code>.Dialect</code> to be used</p>
-<p>:param statement: :class:<code>_expression.ClauseElement</code> to be compiled</p>
-<p>:param column_keys:
-a list of column names to be compiled into an
-INSERT or UPDATE statement.</p>
-<p>:param for_executemany: whether INSERT / UPDATE statements should
-expect that they are to be invoked in an "executemany" style,
-which may impact how the statement will be expected to return the
-values of defaults and autoincrement / sequences and similar.
-Depending on the backend and driver in use, support for retrieving
-these values may be disabled which means SQL expressions may
-be rendered inline, RETURNING may not be rendered, etc.</p>
-<p>:param kwargs: additional keyword arguments to be consumed by the
-superclass.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
-    def render_literal_value(self, value, type_):
-        if isinstance(value, (datetime.datetime)):
-            return &#34;timestamp &#39;%s&#39;&#34; % str(value).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
-        if isinstance(value, list):
-            return f&#34;ARRAY[{&#39;,&#39;.join([str(v) for v in value])}]&#34;
-        return super(CustomCompiler, self).render_literal_value(value, type_)</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>pyathena.sqlalchemy_athena.AthenaStatementCompiler</li>
-<li>sqlalchemy.sql.compiler.SQLCompiler</li>
-<li>sqlalchemy.sql.compiler.Compiled</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="buildstock_query.helpers.CustomCompiler.render_literal_value"><code class="name flex">
-<span>def <span class="ident">render_literal_value</span></span>(<span>self, value, type_)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Render the value of a bind parameter as a quoted literal.</p>
-<p>This is used for statement sections that do not accept bind parameters
-on the target driver/database.</p>
-<p>This should be implemented by subclasses using the quoting services
-of the DBAPI.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def render_literal_value(self, value, type_):
-    if isinstance(value, (datetime.datetime)):
-        return &#34;timestamp &#39;%s&#39;&#34; % str(value).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
-    if isinstance(value, list):
-        return f&#34;ARRAY[{&#39;,&#39;.join([str(v) for v in value])}]&#34;
-    return super(CustomCompiler, self).render_literal_value(value, type_)</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
-<dt id="buildstock_query.helpers.DataExistsException"><code class="flex name class">
-<span>class <span class="ident">DataExistsException</span></span>
-<span>(</span><span>message, existing_data=None)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">class DataExistsException(Exception):
-    def __init__(self, message, existing_data=None):
-        super(DataExistsException, self).__init__(message)
-        self.existing_data = existing_data</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>builtins.Exception</li>
-<li>builtins.BaseException</li>
-</ul>
-</dd>
-<dt id="buildstock_query.helpers.FutureDf"><code class="flex name class">
-<span>class <span class="ident">FutureDf</span></span>
-<span>(</span><span>df, *args, **kwargs)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf"><code class="flex name class">
+<span>class <span class="ident">CachedFutureDf</span></span>
+<span>(</span><span>df: pandas.core.frame.DataFrame, *args, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Represents the result of an asynchronous computation.</p>
@@ -318,25 +437,25 @@ of the DBAPI.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">class FutureDf(Future):
-    def __init__(self, df, *args, **kwargs) -&gt; None:
+<pre><code class="python">class CachedFutureDf(Future):
+    def __init__(self, df: pd.DataFrame, *args, **kwargs) -&gt; None:
         super().__init__(*args, **kwargs)
         self.df = df
         self.set_result(self.df)
 
-    def running(self):
+    def running(self) -&gt; Literal[False]:
         return False
 
-    def done(self):
+    def done(self) -&gt; Literal[True]:
         return True
 
-    def cancelled(self):
+    def cancelled(self) -&gt; Literal[False]:
         return False
 
-    def result(self, timeout=None):
+    def result(self, timeout=None) -&gt; pd.DataFrame:
         return self.df
 
-    def as_pandas(self):
+    def as_pandas(self) -&gt; pd.DataFrame:
         return self.df</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -345,8 +464,8 @@ of the DBAPI.</p></div>
 </ul>
 <h3>Methods</h3>
 <dl>
-<dt id="buildstock_query.helpers.FutureDf.as_pandas"><code class="name flex">
-<span>def <span class="ident">as_pandas</span></span>(<span>self)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf.as_pandas"><code class="name flex">
+<span>def <span class="ident">as_pandas</span></span>(<span>self) ‑> pandas.core.frame.DataFrame</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -354,12 +473,12 @@ of the DBAPI.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def as_pandas(self):
+<pre><code class="python">def as_pandas(self) -&gt; pd.DataFrame:
     return self.df</code></pre>
 </details>
 </dd>
-<dt id="buildstock_query.helpers.FutureDf.cancelled"><code class="name flex">
-<span>def <span class="ident">cancelled</span></span>(<span>self)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf.cancelled"><code class="name flex">
+<span>def <span class="ident">cancelled</span></span>(<span>self) ‑> Literal[False]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Return True if the future was cancelled.</p></div>
@@ -367,12 +486,12 @@ of the DBAPI.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def cancelled(self):
+<pre><code class="python">def cancelled(self) -&gt; Literal[False]:
     return False</code></pre>
 </details>
 </dd>
-<dt id="buildstock_query.helpers.FutureDf.done"><code class="name flex">
-<span>def <span class="ident">done</span></span>(<span>self)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf.done"><code class="name flex">
+<span>def <span class="ident">done</span></span>(<span>self) ‑> Literal[True]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Return True if the future was cancelled or finished executing.</p></div>
@@ -380,12 +499,12 @@ of the DBAPI.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def done(self):
+<pre><code class="python">def done(self) -&gt; Literal[True]:
     return True</code></pre>
 </details>
 </dd>
-<dt id="buildstock_query.helpers.FutureDf.result"><code class="name flex">
-<span>def <span class="ident">result</span></span>(<span>self, timeout=None)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf.result"><code class="name flex">
+<span>def <span class="ident">result</span></span>(<span>self, timeout=None) ‑> pandas.core.frame.DataFrame</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Return the result of the call that the future represents.</p>
@@ -411,12 +530,12 @@ timeout.</dd>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def result(self, timeout=None):
+<pre><code class="python">def result(self, timeout=None) -&gt; pd.DataFrame:
     return self.df</code></pre>
 </details>
 </dd>
-<dt id="buildstock_query.helpers.FutureDf.running"><code class="name flex">
-<span>def <span class="ident">running</span></span>(<span>self)</span>
+<dt id="buildstock_query.helpers.CachedFutureDf.running"><code class="name flex">
+<span>def <span class="ident">running</span></span>(<span>self) ‑> Literal[False]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Return True if the future is currently executing.</p></div>
@@ -424,11 +543,212 @@ timeout.</dd>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def running(self):
+<pre><code class="python">def running(self) -&gt; Literal[False]:
     return False</code></pre>
 </details>
 </dd>
 </dl>
+</dd>
+<dt id="buildstock_query.helpers.CustomCompiler"><code class="flex name class">
+<span>class <span class="ident">CustomCompiler</span></span>
+<span>(</span><span>dialect, statement, cache_key=None, column_keys=None, for_executemany=False, linting=symbol('NO_LINTING'), **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Default implementation of :class:<code>.Compiled</code>.</p>
+<p>Compiles :class:<code>_expression.ClauseElement</code> objects into SQL strings.</p>
+<p>Construct a new :class:<code>.SQLCompiler</code> object.</p>
+<p>:param dialect: :class:<code>.Dialect</code> to be used</p>
+<p>:param statement: :class:<code>_expression.ClauseElement</code> to be compiled</p>
+<p>:param column_keys:
+a list of column names to be compiled into an
+INSERT or UPDATE statement.</p>
+<p>:param for_executemany: whether INSERT / UPDATE statements should
+expect that they are to be invoked in an "executemany" style,
+which may impact how the statement will be expected to return the
+values of defaults and autoincrement / sequences and similar.
+Depending on the backend and driver in use, support for retrieving
+these values may be disabled which means SQL expressions may
+be rendered inline, RETURNING may not be rendered, etc.</p>
+<p>:param kwargs: additional keyword arguments to be consumed by the
+superclass.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class CustomCompiler(AthenaDialect().statement_compiler):  # type: ignore
+
+    @staticmethod
+    def render_literal(obj):
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+        if isinstance(obj, (int, float)):
+            return str(obj)
+        elif isinstance(obj, str):
+            return &#34;&#39;%s&#39;&#34; % obj.replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+        elif isinstance(obj, (datetime.datetime)):
+            return &#34;timestamp &#39;%s&#39;&#34; % str(obj).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+        elif isinstance(obj, list):
+            return CustomCompiler.get_array_string(obj)
+        elif isinstance(obj, tuple):
+            return f&#34;({&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in obj])})&#34;
+        elif isinstance(obj, MappedColumn):
+            keys = list(obj.mapping_dict.keys())
+            values = list(obj.mapping_dict.values())
+            if isinstance(obj.key, tuple):
+                indexing_str = f&#34;({&#39;, &#39;.join(tuple(obj.bsq._compile(source) for source in obj.key))})&#34;
+            else:
+                indexing_str = obj.bsq._compile(obj.key)
+
+            return f&#34;MAP({CustomCompiler.render_literal(keys)}, &#34; +\
+                   f&#34;{CustomCompiler.render_literal(values)})[{indexing_str}]&#34;
+        else:
+            raise UnSupportedTypeException(f&#34;Unsupported type {type(obj)} for literal {obj}&#34;)
+
+    @staticmethod
+    def get_array_string(array):
+        # rewrite to break into multiple arrays joined by CONCAT if the number of elements is &gt; 254
+        if len(array) &gt; 254:
+            array_list = [&#34;ARRAY[&#34; + &#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array[i:i+254]]) + &#34;]&#34;
+                          for i in range(0, len(array), 254)]
+            return &#34;CONCAT(&#34; + &#39;, &#39;.join(array_list) + &#34;)&#34;
+        else:
+            return f&#34;ARRAY[{&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array])}]&#34;
+
+    def render_literal_value(self, obj, type_):
+        from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+        if isinstance(obj, (datetime.datetime, list, tuple, MappedColumn)):
+            return CustomCompiler.render_literal(obj)
+
+        return super(CustomCompiler, self).render_literal_value(obj, type_)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>pyathena.sqlalchemy.base.AthenaStatementCompiler</li>
+<li>sqlalchemy.sql.compiler.SQLCompiler</li>
+<li>sqlalchemy.sql.compiler.Compiled</li>
+</ul>
+<h3>Static methods</h3>
+<dl>
+<dt id="buildstock_query.helpers.CustomCompiler.get_array_string"><code class="name flex">
+<span>def <span class="ident">get_array_string</span></span>(<span>array)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def get_array_string(array):
+    # rewrite to break into multiple arrays joined by CONCAT if the number of elements is &gt; 254
+    if len(array) &gt; 254:
+        array_list = [&#34;ARRAY[&#34; + &#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array[i:i+254]]) + &#34;]&#34;
+                      for i in range(0, len(array), 254)]
+        return &#34;CONCAT(&#34; + &#39;, &#39;.join(array_list) + &#34;)&#34;
+    else:
+        return f&#34;ARRAY[{&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in array])}]&#34;</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.helpers.CustomCompiler.render_literal"><code class="name flex">
+<span>def <span class="ident">render_literal</span></span>(<span>obj)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def render_literal(obj):
+    from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+    if isinstance(obj, (int, float)):
+        return str(obj)
+    elif isinstance(obj, str):
+        return &#34;&#39;%s&#39;&#34; % obj.replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+    elif isinstance(obj, (datetime.datetime)):
+        return &#34;timestamp &#39;%s&#39;&#34; % str(obj).replace(&#34;&#39;&#34;, &#34;&#39;&#39;&#34;)
+    elif isinstance(obj, list):
+        return CustomCompiler.get_array_string(obj)
+    elif isinstance(obj, tuple):
+        return f&#34;({&#39;, &#39;.join([CustomCompiler.render_literal(v) for v in obj])})&#34;
+    elif isinstance(obj, MappedColumn):
+        keys = list(obj.mapping_dict.keys())
+        values = list(obj.mapping_dict.values())
+        if isinstance(obj.key, tuple):
+            indexing_str = f&#34;({&#39;, &#39;.join(tuple(obj.bsq._compile(source) for source in obj.key))})&#34;
+        else:
+            indexing_str = obj.bsq._compile(obj.key)
+
+        return f&#34;MAP({CustomCompiler.render_literal(keys)}, &#34; +\
+               f&#34;{CustomCompiler.render_literal(values)})[{indexing_str}]&#34;
+    else:
+        raise UnSupportedTypeException(f&#34;Unsupported type {type(obj)} for literal {obj}&#34;)</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.helpers.CustomCompiler.render_literal_value"><code class="name flex">
+<span>def <span class="ident">render_literal_value</span></span>(<span>self, obj, type_)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Render the value of a bind parameter as a quoted literal.</p>
+<p>This is used for statement sections that do not accept bind parameters
+on the target driver/database.</p>
+<p>This should be implemented by subclasses using the quoting services
+of the DBAPI.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def render_literal_value(self, obj, type_):
+    from buildstock_query.schema.utilities import MappedColumn  # noqa: F811
+    if isinstance(obj, (datetime.datetime, list, tuple, MappedColumn)):
+        return CustomCompiler.render_literal(obj)
+
+    return super(CustomCompiler, self).render_literal_value(obj, type_)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="buildstock_query.helpers.DataExistsException"><code class="flex name class">
+<span>class <span class="ident">DataExistsException</span></span>
+<span>(</span><span>message, existing_data=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class DataExistsException(Exception):
+    def __init__(self, message, existing_data=None):
+        super(DataExistsException, self).__init__(message)
+        self.existing_data = existing_data</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+<dt id="buildstock_query.helpers.UnSupportedTypeException"><code class="flex name class">
+<span>class <span class="ident">UnSupportedTypeException</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class UnSupportedTypeException(Exception):
+    pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
 </dd>
 </dl>
 </section>
@@ -445,16 +765,28 @@ timeout.</dd>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="">
+<ul class="two-column">
 <li><code><a title="buildstock_query.helpers.load_pickle" href="#buildstock_query.helpers.load_pickle">load_pickle</a></code></li>
 <li><code><a title="buildstock_query.helpers.print_g" href="#buildstock_query.helpers.print_g">print_g</a></code></li>
 <li><code><a title="buildstock_query.helpers.print_r" href="#buildstock_query.helpers.print_r">print_r</a></code></li>
 <li><code><a title="buildstock_query.helpers.print_y" href="#buildstock_query.helpers.print_y">print_y</a></code></li>
+<li><code><a title="buildstock_query.helpers.read_csv" href="#buildstock_query.helpers.read_csv">read_csv</a></code></li>
 <li><code><a title="buildstock_query.helpers.save_pickle" href="#buildstock_query.helpers.save_pickle">save_pickle</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
+<li>
+<h4><code><a title="buildstock_query.helpers.AthenaFutureDf" href="#buildstock_query.helpers.AthenaFutureDf">AthenaFutureDf</a></code></h4>
+<ul class="two-column">
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.as_pandas" href="#buildstock_query.helpers.AthenaFutureDf.as_pandas">as_pandas</a></code></li>
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.cancel" href="#buildstock_query.helpers.AthenaFutureDf.cancel">cancel</a></code></li>
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.cancelled" href="#buildstock_query.helpers.AthenaFutureDf.cancelled">cancelled</a></code></li>
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.done" href="#buildstock_query.helpers.AthenaFutureDf.done">done</a></code></li>
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.result" href="#buildstock_query.helpers.AthenaFutureDf.result">result</a></code></li>
+<li><code><a title="buildstock_query.helpers.AthenaFutureDf.running" href="#buildstock_query.helpers.AthenaFutureDf.running">running</a></code></li>
+</ul>
+</li>
 <li>
 <h4><code><a title="buildstock_query.helpers.COLOR" href="#buildstock_query.helpers.COLOR">COLOR</a></code></h4>
 <ul class="">
@@ -465,8 +797,20 @@ timeout.</dd>
 </ul>
 </li>
 <li>
+<h4><code><a title="buildstock_query.helpers.CachedFutureDf" href="#buildstock_query.helpers.CachedFutureDf">CachedFutureDf</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.helpers.CachedFutureDf.as_pandas" href="#buildstock_query.helpers.CachedFutureDf.as_pandas">as_pandas</a></code></li>
+<li><code><a title="buildstock_query.helpers.CachedFutureDf.cancelled" href="#buildstock_query.helpers.CachedFutureDf.cancelled">cancelled</a></code></li>
+<li><code><a title="buildstock_query.helpers.CachedFutureDf.done" href="#buildstock_query.helpers.CachedFutureDf.done">done</a></code></li>
+<li><code><a title="buildstock_query.helpers.CachedFutureDf.result" href="#buildstock_query.helpers.CachedFutureDf.result">result</a></code></li>
+<li><code><a title="buildstock_query.helpers.CachedFutureDf.running" href="#buildstock_query.helpers.CachedFutureDf.running">running</a></code></li>
+</ul>
+</li>
+<li>
 <h4><code><a title="buildstock_query.helpers.CustomCompiler" href="#buildstock_query.helpers.CustomCompiler">CustomCompiler</a></code></h4>
 <ul class="">
+<li><code><a title="buildstock_query.helpers.CustomCompiler.get_array_string" href="#buildstock_query.helpers.CustomCompiler.get_array_string">get_array_string</a></code></li>
+<li><code><a title="buildstock_query.helpers.CustomCompiler.render_literal" href="#buildstock_query.helpers.CustomCompiler.render_literal">render_literal</a></code></li>
 <li><code><a title="buildstock_query.helpers.CustomCompiler.render_literal_value" href="#buildstock_query.helpers.CustomCompiler.render_literal_value">render_literal_value</a></code></li>
 </ul>
 </li>
@@ -474,14 +818,7 @@ timeout.</dd>
 <h4><code><a title="buildstock_query.helpers.DataExistsException" href="#buildstock_query.helpers.DataExistsException">DataExistsException</a></code></h4>
 </li>
 <li>
-<h4><code><a title="buildstock_query.helpers.FutureDf" href="#buildstock_query.helpers.FutureDf">FutureDf</a></code></h4>
-<ul class="">
-<li><code><a title="buildstock_query.helpers.FutureDf.as_pandas" href="#buildstock_query.helpers.FutureDf.as_pandas">as_pandas</a></code></li>
-<li><code><a title="buildstock_query.helpers.FutureDf.cancelled" href="#buildstock_query.helpers.FutureDf.cancelled">cancelled</a></code></li>
-<li><code><a title="buildstock_query.helpers.FutureDf.done" href="#buildstock_query.helpers.FutureDf.done">done</a></code></li>
-<li><code><a title="buildstock_query.helpers.FutureDf.result" href="#buildstock_query.helpers.FutureDf.result">result</a></code></li>
-<li><code><a title="buildstock_query.helpers.FutureDf.running" href="#buildstock_query.helpers.FutureDf.running">running</a></code></li>
-</ul>
+<h4><code><a title="buildstock_query.helpers.UnSupportedTypeException" href="#buildstock_query.helpers.UnSupportedTypeException">UnSupportedTypeException</a></code></h4>
 </li>
 </ul>
 </li>

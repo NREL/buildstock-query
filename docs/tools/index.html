@@ -19,23 +19,35 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Namespace <code>buildstock_query.tools</code></h1>
+<h1 class="title">Module <code>buildstock_query.tools</code></h1>
 </header>
 <section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">from .upgrades_analyzer import UpgradesAnalyzer
+__all__ = [&#39;UpgradesAnalyzer&#39;]</code></pre>
+</details>
 </section>
 <section>
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
+<dt><code class="name"><a title="buildstock_query.tools.characteristics_visualizer" href="characteristics_visualizer/index.html">buildstock_query.tools.characteristics_visualizer</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="buildstock_query.tools.logic_parser" href="logic_parser.html">buildstock_query.tools.logic_parser</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
 <dt><code class="name"><a title="buildstock_query.tools.upgrades_analyzer" href="upgrades_analyzer.html">buildstock_query.tools.upgrades_analyzer</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="buildstock_query.tools.upgrades_visualizer" href="upgrades_visualizer.html">buildstock_query.tools.upgrades_visualizer</a></code></dt>
+<dt><code class="name"><a title="buildstock_query.tools.upgrades_visualizer" href="upgrades_visualizer/index.html">buildstock_query.tools.upgrades_visualizer</a></code></dt>
 <dd>
-<div class="desc"><hr>
-<p>Upgrades Visualizer
-Experimental Stage.
-:author: Rajendra.Adhikari@nrel.gov</p></div>
+<div class="desc"></div>
 </dd>
 </dl>
 </section>
@@ -44,6 +56,1159 @@ Experimental Stage.
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.tools.UpgradesAnalyzer"><code class="flex name class">
+<span>class <span class="ident">UpgradesAnalyzer</span></span>
+<span>(</span><span>yaml_file: str, buildstock: Union[str, pandas.core.frame.DataFrame], opt_sat_file: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Analyze the apply logic for various upgrades in the project yaml file.</p>
+<p>Initialize the analyzer instance.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>yaml_file</code></strong> :&ensp;<code>str</code></dt>
+<dd>The path to the yaml file.</dd>
+<dt><strong><code>buildstock</code></strong> :&ensp;<code>Union[str, pd.DataFrame]</code></dt>
+<dd>Either the buildstock dataframe, or path to the csv</dd>
+<dt><strong><code>opt_sat_file</code></strong> :&ensp;<code>str</code></dt>
+<dd>The path to the option saturation file.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class UpgradesAnalyzer:
+    &#34;&#34;&#34;
+    Analyze the apply logic for various upgrades in the project yaml file.
+    &#34;&#34;&#34;
+
+    def __init__(self, yaml_file: str,
+                 buildstock: Union[str, pd.DataFrame],
+                 opt_sat_file: str) -&gt; None:
+        &#34;&#34;&#34;
+        Initialize the analyzer instance.
+        Args:
+            yaml_file (str): The path to the yaml file.
+            buildstock (Union[str, pd.DataFrame]): Either the buildstock dataframe, or path to the csv
+            opt_sat_file (str): The path to the option saturation file.
+        &#34;&#34;&#34;
+        self.parser = LogicParser(opt_sat_file, yaml_file)
+        self.yaml_file = yaml_file
+        if isinstance(buildstock, str):
+            self.buildstock_df_original = read_csv(buildstock, dtype=str)
+            self.buildstock_df = self.buildstock_df_original.copy()
+            self.buildstock_df.columns = [c.lower() for c in self.buildstock_df.columns]
+            self.buildstock_df.rename(columns={&#34;building&#34;: &#34;building_id&#34;}, inplace=True)
+            self.buildstock_df.set_index(&#34;building_id&#34;, inplace=True)
+        elif isinstance(buildstock, pd.DataFrame):
+            self.buildstock_df_original = buildstock.copy()
+            self.buildstock_df = buildstock.reset_index().rename(columns=str.lower)
+            self.buildstock_df.rename(columns={&#34;building&#34;: &#34;building_id&#34;}, inplace=True)
+            if &#34;building_id&#34; in self.buildstock_df.columns:
+                self.buildstock_df.set_index(&#34;building_id&#34;, inplace=True)
+            self.buildstock_df = self.buildstock_df.astype(str)
+        self.total_samples = len(self.buildstock_df)
+        self._logic_cache: dict = {}
+
+    def get_cfg(self) -&gt; dict:
+        &#34;&#34;&#34;Get the buildstock configuration file as a dictionary object.
+
+        Returns:
+            dict: The buildstock configuration file.
+        &#34;&#34;&#34;
+        with open(self.yaml_file) as f:
+            config = yaml.load(f, Loader=yaml.SafeLoader)
+        return config
+
+    @staticmethod
+    def _get_eq_str(condition):
+        para, option = UpgradesAnalyzer._get_para_option(condition)
+        return f&#34;`{para.lower()}`==&#39;{option}&#39;&#34;
+
+    @staticmethod
+    def _get_para_option(condition):
+        try:
+            para, option = condition.split(&#34;|&#34;)
+        except ValueError as e:
+            raise ValueError(f&#34;Condition {condition} is invalid&#34;) from e
+        return para.lower(), option
+
+    @staticmethod
+    def get_mentioned_parameters(logic: Union[list, dict, str]) -&gt; list:
+        &#34;&#34;&#34;
+        Returns the list of all parameters referenced in a logic block. Useful for debugging
+
+        Args:
+            logic ( Union[list, dict, str]): The apply logic
+
+        Raises:
+            ValueError: If the input logic is invalid
+
+        Returns:
+            List: The list of parameters
+        &#34;&#34;&#34;
+        if not logic:
+            return []
+
+        if isinstance(logic, str):
+            return [UpgradesAnalyzer._get_para_option(logic)[0]]
+        elif isinstance(logic, list):
+            all_params = []
+            for el in logic:
+                all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
+            return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
+        elif isinstance(logic, dict):
+            return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
+        else:
+            raise ValueError(&#34;Invalid logic type&#34;)
+
+    def print_unique_characteristic(self, upgrade_num: int, name: str, base_bldg_list: list, compare_bldg_list: list):
+        &#34;&#34;&#34;Finds and prints what&#39;s unique among a list of buildings compared to baseline buildings.
+           Useful for debugging why a certain set of buildings&#39; energy consumption went up for an upgrade, for example.
+        Args:
+            upgrade_num (int): The upgrade for which the analysis is being done.
+            name (str): Some name to identify the building set (only used for printing)
+            base_bldg_list (list): The set of &#39;normal&#39; buildings id to compare against.
+            compare_bldg_list (list): The set of buildings whose unique characteristics is to be printed.
+        &#34;&#34;&#34;
+        cfg = self.get_cfg()
+        if upgrade_num == 0:
+            raise ValueError(f&#34;Upgrades are 1-indexed. Got {upgrade_num}&#34;)
+
+        try:
+            upgrade_cfg = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+        except KeyError as e:
+            raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.&#34;) from e
+
+        parameter_list = []
+        for option_cfg in upgrade_cfg[&#34;options&#34;]:
+            parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg[&#34;option&#34;])[0])
+            parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get(&#34;apply_logic&#34;)))
+        res_df = self.buildstock_df
+        # remove duplicates (dict.fromkeys) and remove parameters not existing in buildstock_df
+        parameter_list = [param for param in dict.fromkeys(parameter_list) if param in res_df.columns]
+        compare_df = res_df.loc[compare_bldg_list]
+        base_df = res_df.loc[base_bldg_list]
+        print(f&#34;Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.&#34;)
+        unique_vals_dict: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
+        for col in res_df.columns:
+            no_change_set = set(compare_df[col].fillna(&#34;&#34;).unique())
+            other_set = set(base_df[col].fillna(&#34;&#34;).unique())
+            if only_in_no_change := no_change_set - other_set:
+                print(f&#34;Only {name} buildings have {col} in {sorted(only_in_no_change)}&#34;)
+                unique_vals_dict[(col,)] = {(entry,) for entry in only_in_no_change}
+
+        if not unique_vals_dict:
+            print(&#34;No 1-column unique chracteristics found.&#34;)
+
+        for combi_size in range(2, min(len(parameter_list) + 1, 5)):
+            print(f&#34;Checking {combi_size} column combinations out of {parameter_list}&#34;)
+            found_uniq_chars = 0
+            for cols in combinations(parameter_list, combi_size):
+                compare_tups = compare_df[list(cols)].fillna(&#34;&#34;).drop_duplicates().itertuples(index=False, name=None)
+                other_tups = base_df[list(cols)].fillna(&#34;&#34;).drop_duplicates().itertuples(index=False, name=None)
+                only_in_compare = set(compare_tups) - set(other_tups)
+
+                # remove cases arisen out of uniqueness found earlier with smaller susbset of cols
+                for sub_combi_size in range(1, len(cols)):
+                    for sub_cols in combinations(cols, sub_combi_size):
+                        if sub_cols in unique_vals_dict:
+                            new_set = set()
+                            for val in only_in_compare:
+                                relevant_val = tuple(val[cols.index(sub_col)] for sub_col in sub_cols)
+                                if relevant_val not in unique_vals_dict[sub_cols]:
+                                    new_set.add(val)
+                            only_in_compare = new_set
+
+                if only_in_compare:
+                    print(f&#34;Only {name} buildings have {cols} in {sorted(only_in_compare)} \n&#34;)
+                    found_uniq_chars += 1
+                    unique_vals_dict[cols] = only_in_compare
+
+            if not found_uniq_chars:
+                print(f&#34;No {combi_size}-column unique chracteristics found.&#34;)
+
+    def _reduce_logic(self, logic, parent=None):
+        cache_key = str(logic) if parent is None else parent + &#34;[&#34; + str(logic) + &#34;]&#34;
+        if cache_key in self._logic_cache:
+            return self._logic_cache[cache_key]
+
+        logic_array = np.ones((1, self.total_samples), dtype=bool)
+        if parent not in [None, &#34;and&#34;, &#34;or&#34;, &#34;not&#34;]:
+            raise ValueError(f&#34;Logic can only inlcude and, or, not blocks. {parent} found in {logic}.&#34;)
+
+        if isinstance(logic, str):
+            para, opt = UpgradesAnalyzer._get_para_option(logic)
+            logic_array = self.buildstock_df[para] == opt
+        elif isinstance(logic, list):
+            if len(logic) == 1:
+                logic_array = self._reduce_logic(logic[0]).copy()
+            elif parent in [&#34;or&#34;]:
+                logic_array = reduce(
+                    lambda l1, l2: l1 | self._reduce_logic(l2),
+                    logic,
+                    np.zeros((1, self.total_samples), dtype=bool),
+                )
+            else:
+                logic_array = reduce(
+                    lambda l1, l2: l1 &amp; self._reduce_logic(l2),
+                    logic,
+                    np.ones((1, self.total_samples), dtype=bool),
+                )
+        elif isinstance(logic, dict):
+            if len(logic) &gt; 1:
+                raise ValueError(f&#34;Dicts cannot have more than one keys. {logic} has.&#34;)
+            key = list(logic.keys())[0]
+            logic_array = self._reduce_logic(logic[key], parent=key).copy()
+
+        if parent == &#34;not&#34;:
+            return ~logic_array
+        if not (isinstance(logic, str) or (isinstance(logic, list) and len(logic) == 1)):
+            # Don&#39;t cache small logics - computing them again won&#39;t be too bad
+            self._logic_cache[cache_key] = logic_array.copy()
+        return logic_array
+
+    def get_report(self, upgrade_num: Optional[int] = None) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Analyses how many buildings various options in all the upgrades is going to apply to and returns
+        a report in DataFrame format.
+        Args:
+            upgrade_num: Numeric index of upgrade (1-indexed). If None, all upgrades are assessed
+
+        Returns:
+            pd.DataFrame: The upgrade and options report.
+
+        &#34;&#34;&#34;
+
+        def _get_records(indx, upgrade):
+            records = []
+            logger.info(f&#34;Analyzing upgrade {indx + 1}&#34;)
+            all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+            package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+            if &#34;package_apply_logic&#34; in upgrade:
+                pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade[&#34;package_apply_logic&#34;])
+                package_applied_bldgs = self._reduce_logic(pkg_flat_logic, parent=None)
+
+            for opt_index, option in enumerate(upgrade[&#34;options&#34;]):
+                applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+                if &#34;apply_logic&#34; in option:
+                    flat_logic = UpgradesAnalyzer._normalize_lists(option[&#34;apply_logic&#34;])
+                    applied_bldgs &amp;= self._reduce_logic(flat_logic, parent=None)
+                else:
+                    applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+
+                applied_bldgs &amp;= package_applied_bldgs
+                count = applied_bldgs.sum()
+                all_applied_bldgs |= applied_bldgs
+                record = {
+                    &#34;upgrade&#34;: indx + 1,
+                    &#34;upgrade_name&#34;: upgrade[&#34;upgrade_name&#34;],
+                    &#34;option_num&#34;: opt_index + 1,
+                    &#34;option&#34;: option[&#34;option&#34;],
+                    &#34;applicable_to&#34;: count,
+                    &#34;applicable_percent&#34;: self._to_pct(count),
+                    &#34;applicable_buildings&#34;: set(self.buildstock_df.loc[applied_bldgs[0]].index),
+                }
+                records.append(record)
+
+            count = all_applied_bldgs.sum()
+            record = {
+                &#34;upgrade&#34;: indx + 1,
+                &#34;upgrade_name&#34;: upgrade[&#34;upgrade_name&#34;],
+                &#34;option_num&#34;: -1,
+                &#34;option&#34;: &#34;All&#34;,
+                &#34;applicable_to&#34;: count,
+                &#34;applicable_buildings&#34;: set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
+                &#34;applicable_percent&#34;: self._to_pct(count),
+            }
+            records.append(record)
+            return records
+
+        cfg = self.get_cfg()
+        self._logic_cache = {}
+        if &#34;upgrades&#34; not in cfg:
+            raise ValueError(&#34;The project yaml has no upgrades defined&#34;)
+
+        max_upg = len(cfg[&#34;upgrades&#34;]) + 1
+        if upgrade_num is not None:
+            if upgrade_num &lt;= 0 or upgrade_num &gt; max_upg:
+                raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.&#34;)
+
+        records = []
+        for indx, upgrade in enumerate(cfg[&#34;upgrades&#34;]):
+            if upgrade_num is None or upgrade_num == indx + 1:
+                records += _get_records(indx, upgrade)
+            else:
+                continue
+
+        report_df = pd.DataFrame.from_records(records)
+        return report_df
+
+    def get_upgraded_buildstock(self, upgrade_num):
+        report_df = self.get_report(upgrade_num)
+        upgrade_name = report_df[&#34;upgrade_name&#34;].unique()[0]
+        logger.info(f&#34; * Upgraded buildstock for upgrade {upgrade_num} : {upgrade_name}&#34;)
+
+        df = self.buildstock_df_original.copy()
+        for idx, row in report_df.iterrows():
+            if row[&#34;option&#34;] == &#34;All&#34;:
+                continue
+            dimension, upgrade_option = row[&#34;option&#34;].split(&#34;|&#34;)
+            apply_logic = df[&#34;Building&#34;].isin(row[&#34;applicable_buildings&#34;])
+            # apply upgrade
+            df[dimension] = np.where(apply_logic, upgrade_option, df[dimension])
+
+        # report
+        cond = report_df[&#34;option&#34;] == &#34;All&#34;
+        n_total = len(self.buildstock_df_original)
+        n_applied = report_df.loc[cond, &#34;applicable_to&#34;].iloc[0]
+        n_applied_pct = report_df.loc[cond, &#34;applicable_percent&#34;].iloc[0]
+        logger.info(
+            f&#34;   Upgrade package has {len(report_df)-1} options and &#34;
+            f&#34;was applied to {n_applied} / {n_total} dwelling units ( {n_applied_pct} % )&#34;
+        )
+
+        # QC
+        n_diff = len(self.buildstock_df_original.compare(df)) - n_applied
+        if n_diff &gt; 0:
+            raise ValueError(
+                f&#34;Relative to baseline buildstock, upgraded buildstock has {n_diff} more rows &#34;
+                &#34;of difference than reported.&#34;
+            )
+        elif n_diff &lt; 0:
+            logger.warning(
+                f&#34;Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows &#34;
+                &#34;of difference than reported. This is okay, but indicates that some parameters are &#34;
+                &#34;being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional.&#34;
+            )
+        else:
+            logger.info(&#34;No cases of parameter upgraded with incumbent option detected.&#34;)
+
+        return df
+
+    @staticmethod
+    def _normalize_lists(logic, parent=None):
+        &#34;&#34;&#34;Any list that is not in a or block is considered to be in an and block.
+           This block will normalize this pattern by adding &#34;and&#34; wherever required.
+        Args:
+            logic (_type_): Logic structure (dict, list etc)
+            parent (_type_, optional): The parent of the current logic block. If it is a list, and there is no parent,
+            the list will be wrapped in a and block.
+
+        Returns:
+            _type_: _description_
+        &#34;&#34;&#34;
+        if isinstance(logic, list):
+            # If it is a single element list, just unwrap and return
+            if len(logic) == 1:
+                return UpgradesAnalyzer._normalize_lists(logic[0])
+            new_logic = [UpgradesAnalyzer._normalize_lists(el) for el in logic]
+            return {&#34;and&#34;: new_logic} if parent is None else new_logic
+        elif isinstance(logic, dict):
+            new_dict = {key: UpgradesAnalyzer._normalize_lists(value, parent=key) for key, value in logic.items()}
+            return new_dict
+        else:
+            return logic
+
+    def _get_options_application_count_report(self, logic_dict) -&gt; Optional[pd.DataFrame]:
+        &#34;&#34;&#34;
+        For a given logic dictionary, this method will return a report df of options application.
+        Example report below:
+                           Applied options Applied buildings Cumulative sub Cumulative all
+        Number of options
+        4                    1, 10, 13, 14         75 (0.1%)      75 (0.1%)      75 (0.1%)
+        4                    1, 11, 13, 14       2279 (2.3%)    2354 (2.4%)    2354 (2.4%)
+        4                    1, 12, 13, 14        309 (0.3%)    2663 (2.7%)    2663 (2.7%)
+        5                  1, 2, 3, 13, 14          8 (0.0%)       8 (0.0%)    2671 (2.7%)
+        5                  1, 2, 4, 13, 14        158 (0.2%)     166 (0.2%)    2829 (2.8%)
+        5                  1, 2, 5, 13, 14         65 (0.1%)     231 (0.2%)    2894 (2.9%)
+        5                  1, 6, 7, 13, 14         23 (0.0%)     254 (0.3%)    2917 (2.9%)
+        5                  1, 6, 8, 13, 14         42 (0.0%)     296 (0.3%)    2959 (3.0%)
+        &#34;&#34;&#34;
+
+        n_options = len(logic_dict)
+        if n_options &lt; 2:
+            return None
+
+        logic_df = pd.DataFrame(logic_dict)
+        nbldgs = len(logic_df)
+        opts2count = logic_df.apply(lambda row: tuple(indx+1 for indx, val in enumerate(row) if val),
+                                    axis=1).value_counts().to_dict()
+        cum_count_all = 0
+        cum_count = defaultdict(int)
+        application_report_rows = []
+        for applied_opts in sorted(opts2count.keys(), key=lambda x: (len(x), x)):
+            num_opt = len(applied_opts)
+            if num_opt == 0:
+                continue
+            n_applied_bldgs = opts2count[applied_opts]
+            cum_count_all += n_applied_bldgs
+            cum_count[num_opt] += n_applied_bldgs
+            record = {&#34;Number of options&#34;: num_opt,
+                      &#34;Applied options&#34;: &#34;, &#34;.join([f&#34;{logic_df.columns[opt - 1]}&#34; for opt in applied_opts]),
+                      &#34;Applied buildings&#34;: f&#34;{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)&#34;,
+                      &#34;Cumulative sub&#34;: f&#34;{cum_count[num_opt]} ({self._to_pct(cum_count[num_opt], nbldgs)}%)&#34;,
+                      &#34;Cumulative all&#34;: f&#34;{cum_count_all} ({self._to_pct(cum_count_all, nbldgs)}%)&#34;
+                      }
+            application_report_rows.append(record)
+
+        assert cum_count_all &lt;= nbldgs, &#34;Cumulative count of options applied is more than total number of buildings.&#34;
+        if application_report_rows:
+            application_report_df = pd.DataFrame(application_report_rows).set_index(&#34;Number of options&#34;)
+            return application_report_df
+        return None
+
+    def _get_left_out_report_all(self, upgrade_num):
+        cfg = self.get_cfg()
+        report_str = &#34;&#34;
+        upgrade = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+        ugrade_name = upgrade.get(&#34;upgrade_name&#34;)
+        header = f&#34;Left Out Report for - Upgrade{upgrade_num}:&#39;{ugrade_name}&#39;&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        report_str += header + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        logic = {&#34;or&#34;: []}
+        for opt in upgrade[&#34;options&#34;]:
+            if &#34;apply_logic&#34; in opt:
+                logic[&#34;or&#34;].append(self._normalize_lists(opt[&#34;apply_logic&#34;]))
+        if &#34;package_apply_logic&#34; in upgrade:
+            logic = {&#34;and&#34;: [logic, upgrade[&#34;package_apply_logic&#34;]]}
+        logic = {&#34;not&#34;: logic}  # invert it
+        logic = self.parser.normalize_logic(logic)
+        logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+        report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+        count = logic_array.sum()
+        footer_str = f&#34;Overall Not Applied to =&gt; {count} ({self._to_pct(count)}%).&#34;
+        report_str += footer_str + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(footer_str) + &#34;\n&#34;
+        return logic_array, report_str
+
+    def get_left_out_report(self, upgrade_num: int, option_num: Optional[int] = None) -&gt; tuple[np.ndarray, str]:
+        &#34;&#34;&#34;Prints detailed report for a particular upgrade (and optionally, an option)
+        Args:
+            upgrade_num (int): The 1-indexed upgrade for which to print the report.
+            option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                        will print report for all options.
+            normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
+        Returns:
+            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+        &#34;&#34;&#34;
+        cfg = self.get_cfg()
+        if upgrade_num &lt;= 0 or upgrade_num &gt; len(cfg[&#34;upgrades&#34;]) + 1:
+            raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.&#34;)
+
+        if option_num is None:
+            return self._get_left_out_report_all(upgrade_num)
+
+        self._logic_cache = {}
+        if upgrade_num == 0 or option_num == 0:
+            raise ValueError(f&#34;Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}&#34;)
+        report_str = &#34;&#34;
+        try:
+            upgrade = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+            opt = upgrade[&#34;options&#34;][option_num - 1]
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f&#34;The yaml doesn&#39;t have {upgrade_num}/{option_num} upgrade/option&#34;) from e
+
+        ugrade_name = upgrade.get(&#34;upgrade_name&#34;)
+        header = f&#34;Left Out Report for - Upgrade{upgrade_num}:&#39;{ugrade_name}&#39;, Option{option_num}:&#39;{opt[&#39;option&#39;]}&#39;&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        report_str += header + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        if &#34;apply_logic&#34; in opt and &#34;package_apply_logic&#34; in upgrade:
+            logic = {&#34;not&#34;: {&#34;and&#34;: [opt[&#34;apply_logic&#34;], upgrade[&#34;package_apply_logic&#34;]]}}
+        elif &#34;apply_logic&#34; in opt:
+            logic = {&#34;not&#34;: opt[&#34;apply_logic&#34;]}
+        else:
+            logic = {&#34;not&#34;: upgrade[&#34;package_apply_logic&#34;]}
+        logic = self.parser.normalize_logic(logic)
+
+        logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+        report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+        count = logic_array.sum()
+        footer_str = f&#34;Overall Not Applied to =&gt; {count} ({self._to_pct(count)}%).&#34;
+        report_str += footer_str + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(footer_str) + &#34;\n&#34;
+        return logic_array, report_str
+
+    def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None,
+                            normalize_logic: bool = False) -&gt; tuple[np.ndarray, str]:
+        &#34;&#34;&#34;Prints detailed report for a particular upgrade (and optionally, an option)
+        Args:
+            upgrade_num (int): The 1-indexed upgrade for which to print the report.
+            option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                        will print report for all options.
+            normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
+        Returns:
+            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+        &#34;&#34;&#34;
+        cfg = self.get_cfg()
+        if upgrade_num &lt;= 0 or upgrade_num &gt; len(cfg[&#34;upgrades&#34;]) + 1:
+            raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.&#34;)
+
+        if option_num is None:
+            return self._get_detailed_report_all(upgrade_num, normalize_logic=normalize_logic)
+
+        self._logic_cache = {}
+        if upgrade_num == 0 or option_num == 0:
+            raise ValueError(f&#34;Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}&#34;)
+        report_str = &#34;&#34;
+        try:
+            upgrade = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+            opt = upgrade[&#34;options&#34;][option_num - 1]
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f&#34;The yaml doesn&#39;t have {upgrade_num}/{option_num} upgrade/option&#34;) from e
+
+        ugrade_name = upgrade.get(&#34;upgrade_name&#34;)
+        header = f&#34;Option Apply Report for - Upgrade{upgrade_num}:&#39;{ugrade_name}&#39;, Option{option_num}:&#39;{opt[&#39;option&#39;]}&#39;&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        report_str += header + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+        if &#34;apply_logic&#34; in opt:
+            logic = UpgradesAnalyzer._normalize_lists(opt[&#34;apply_logic&#34;])
+            logic = self.parser.normalize_logic(logic) if normalize_logic else logic
+            logic_array, logic_str = self._get_logic_report(logic)
+            footer_len = len(logic_str[-1])
+            report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+            report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+        else:
+            logic_array = np.ones((1, self.total_samples), dtype=bool)
+
+        if &#34;package_apply_logic&#34; in upgrade:
+            logic = UpgradesAnalyzer._normalize_lists(upgrade[&#34;package_apply_logic&#34;])
+            logic = self.parser.normalize_logic(logic) if normalize_logic else logic
+            package_logic_array, logic_str = self._get_logic_report(logic)
+            footer_len = len(logic_str[-1])
+            report_str += &#34;Package Apply Logic Report&#34; + &#34;\n&#34;
+            report_str += &#34;--------------------------&#34; + &#34;\n&#34;
+            report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+            report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+            logic_array = logic_array &amp; package_logic_array
+
+        count = logic_array.sum()
+        footer_str = f&#34;Overall applied to =&gt; {count} ({self._to_pct(count)}%).&#34;
+        report_str += footer_str + &#34;\n&#34;
+        report_str += &#34;-&#34; * len(footer_str) + &#34;\n&#34;
+        return logic_array, report_str
+
+    def _get_detailed_report_all(self, upgrade_num, normalize_logic: bool = False):
+        conds_dict = {}
+        grouped_conds_dict = {}
+        cfg = self.get_cfg()
+        report_str = &#34;&#34;
+        n_options = len(cfg[&#34;upgrades&#34;][upgrade_num - 1][&#34;options&#34;])
+        or_array = np.zeros((1, self.total_samples), dtype=bool)
+        and_array = np.ones((1, self.total_samples), dtype=bool)
+        for option_indx in range(n_options):
+            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1,
+                                                                   normalize_logic=normalize_logic)
+            opt_name, _ = self._get_para_option(cfg[&#34;upgrades&#34;][upgrade_num - 1][&#34;options&#34;][option_indx][&#34;option&#34;])
+            report_str += sub_report_str + &#34;\n&#34;
+            conds_dict[option_indx + 1] = logic_array
+            if opt_name not in grouped_conds_dict:
+                grouped_conds_dict[opt_name] = logic_array
+            else:
+                grouped_conds_dict[opt_name] |= logic_array
+            or_array |= logic_array
+            and_array &amp;= logic_array
+        and_count = and_array.sum()
+        or_count = or_array.sum()
+        report_str += f&#34;All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)&#34; + &#34;\n&#34;
+        report_str += f&#34;Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)&#34; + &#34;\n&#34;
+
+        option_app_report = self._get_options_application_count_report(grouped_conds_dict)
+        if option_app_report is not None:
+            report_str += &#34;-&#34; * 80 + &#34;\n&#34;
+            report_str += f&#34;Report of how the {len(grouped_conds_dict)} options were applied to the buildings.&#34; + &#34;\n&#34;
+            report_str += tabulate(option_app_report, headers=&#39;keys&#39;, tablefmt=&#39;grid&#39;, maxcolwidths=50) + &#34;\n&#34;
+
+        detailed_app_report_df = self._get_options_application_count_report(conds_dict)
+        if detailed_app_report_df is not None:
+            report_str += &#34;-&#34; * 80 + &#34;\n&#34;
+            if len(detailed_app_report_df) &gt; 100:
+                report_str += &#34;Detailed report is skipped because of too many rows. &#34; + &#34;\n&#34;
+                report_str += &#34;Ask the developer if this is useful to see&#34; + &#34;\n&#34;
+            else:
+                report_str += f&#34;Detailed report of how the {n_options} options were applied to the buildings.&#34; + &#34;\n&#34;
+                report_str += tabulate(option_app_report, headers=&#39;keys&#39;, tablefmt=&#39;grid&#39;, maxcolwidths=50) + &#34;\n&#34;
+        return or_array, report_str
+
+    def _to_pct(self, count, total=None):
+        total = total or self.total_samples
+        return round(100 * count / total, 1)
+
+    def _get_logic_report(self, logic, parent=None):
+        logic_array = np.ones((1, self.total_samples), dtype=bool)
+        logic_str = [&#34;&#34;]
+        if parent not in [None, &#34;and&#34;, &#34;or&#34;, &#34;not&#34;]:
+            raise ValueError(f&#34;Logic can only include and, or, not blocks. {parent} found in {logic}.&#34;)
+        if isinstance(logic, str):
+            logic_condition = UpgradesAnalyzer._get_eq_str(logic)
+            logic_array = self.buildstock_df.eval(logic_condition, engine=&#34;python&#34;)
+            count = logic_array.sum()
+            logic_str = [logic + &#34; =&gt; &#34; + f&#34;{count} ({self._to_pct(count)}%)&#34;]
+        elif isinstance(logic, list):
+            if len(logic) == 1:
+                logic_array, logic_str = self._get_logic_report(logic[0])
+            elif parent in [&#34;or&#34;]:
+
+                def reducer(l1, l2):
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] | ll2[0], l1[1] + ll2[1]
+
+                logic_array, logic_str = reduce(reducer, logic, (np.zeros((1, self.total_samples), dtype=bool), []))
+            else:
+
+                def reducer(l1, l2):
+                    ll2 = self._get_logic_report(l2)
+                    return l1[0] &amp; ll2[0], l1[1] + ll2[1]
+
+                logic_array, logic_str = reduce(reducer, logic, (np.ones((1, self.total_samples), dtype=bool), []))
+        elif isinstance(logic, dict):
+            if len(logic) &gt; 1:
+                raise ValueError(f&#34;Dicts cannot have more than one keys. {logic} has.&#34;)
+            key = list(logic.keys())[0]
+            sub_logic = self._get_logic_report(logic[key], parent=key)
+            sub_logic_str = sub_logic[1]
+            logic_array = sub_logic[0]
+            if key == &#34;not&#34;:
+                logic_array = ~logic_array
+            count = logic_array.sum()
+            header_str = key + &#34; =&gt; &#34; + f&#34;{count} ({self._to_pct(count)}%)&#34;
+            logic_str = [header_str] + [f&#34;  {ls}&#34; for ls in sub_logic_str]
+
+        count = logic_array.sum()
+        if parent is None and isinstance(logic, list) and len(logic) &gt; 1:
+            logic_str[0] = logic_str[0] + &#34; =&gt; &#34; + f&#34;{count} ({self._to_pct(count)}%)&#34;
+
+        return logic_array, logic_str
+
+    def save_detailed_report_all(self, file_path: str, logic_transform=None):
+        &#34;&#34;&#34;Save detailed text based upgrade report.
+
+        Args:
+            file_path (str): Output file.
+        &#34;&#34;&#34;
+        cfg = self.get_cfg()
+        all_report = &#34;&#34;
+        for upgrade in range(1, len(cfg[&#34;upgrades&#34;]) + 1):
+            logger.info(f&#34;Getting report for upgrade {upgrade}&#34;)
+            _, report = self.get_detailed_report(upgrade, normalize_logic=logic_transform)
+            all_report += report + &#34;\n&#34;
+        with open(file_path, &#34;w&#34;) as file:
+            file.write(all_report)</code></pre>
+</details>
+<h3>Static methods</h3>
+<dl>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_mentioned_parameters"><code class="name flex">
+<span>def <span class="ident">get_mentioned_parameters</span></span>(<span>logic: Union[list, dict, str]) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of all parameters referenced in a logic block. Useful for debugging</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>logic</code></strong> :&ensp;<code> Union[list, dict, str]</code></dt>
+<dd>The apply logic</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>If the input logic is invalid</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>List</code></dt>
+<dd>The list of parameters</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def get_mentioned_parameters(logic: Union[list, dict, str]) -&gt; list:
+    &#34;&#34;&#34;
+    Returns the list of all parameters referenced in a logic block. Useful for debugging
+
+    Args:
+        logic ( Union[list, dict, str]): The apply logic
+
+    Raises:
+        ValueError: If the input logic is invalid
+
+    Returns:
+        List: The list of parameters
+    &#34;&#34;&#34;
+    if not logic:
+        return []
+
+    if isinstance(logic, str):
+        return [UpgradesAnalyzer._get_para_option(logic)[0]]
+    elif isinstance(logic, list):
+        all_params = []
+        for el in logic:
+            all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
+        return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
+    elif isinstance(logic, dict):
+        return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
+    else:
+        raise ValueError(&#34;Invalid logic type&#34;)</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_cfg"><code class="name flex">
+<span>def <span class="ident">get_cfg</span></span>(<span>self) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the buildstock configuration file as a dictionary object.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>dict</code></dt>
+<dd>The buildstock configuration file.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_cfg(self) -&gt; dict:
+    &#34;&#34;&#34;Get the buildstock configuration file as a dictionary object.
+
+    Returns:
+        dict: The buildstock configuration file.
+    &#34;&#34;&#34;
+    with open(self.yaml_file) as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+    return config</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_detailed_report"><code class="name flex">
+<span>def <span class="ident">get_detailed_report</span></span>(<span>self, upgrade_num: int, option_num: Optional[int] = None, normalize_logic: bool = False) ‑> tuple[numpy.ndarray, str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Prints detailed report for a particular upgrade (and optionally, an option)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>upgrade_num</code></strong> :&ensp;<code>int</code></dt>
+<dd>The 1-indexed upgrade for which to print the report.</dd>
+<dt><strong><code>option_num</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>The 1-indexed option number for which to print report. Defaults to None, which
+will print report for all options.</dd>
+<dt><strong><code>normalize_logic</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to normalize the logic structure. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>(np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None,
+                        normalize_logic: bool = False) -&gt; tuple[np.ndarray, str]:
+    &#34;&#34;&#34;Prints detailed report for a particular upgrade (and optionally, an option)
+    Args:
+        upgrade_num (int): The 1-indexed upgrade for which to print the report.
+        option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                    will print report for all options.
+        normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
+    Returns:
+        (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+    &#34;&#34;&#34;
+    cfg = self.get_cfg()
+    if upgrade_num &lt;= 0 or upgrade_num &gt; len(cfg[&#34;upgrades&#34;]) + 1:
+        raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.&#34;)
+
+    if option_num is None:
+        return self._get_detailed_report_all(upgrade_num, normalize_logic=normalize_logic)
+
+    self._logic_cache = {}
+    if upgrade_num == 0 or option_num == 0:
+        raise ValueError(f&#34;Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}&#34;)
+    report_str = &#34;&#34;
+    try:
+        upgrade = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+        opt = upgrade[&#34;options&#34;][option_num - 1]
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(f&#34;The yaml doesn&#39;t have {upgrade_num}/{option_num} upgrade/option&#34;) from e
+
+    ugrade_name = upgrade.get(&#34;upgrade_name&#34;)
+    header = f&#34;Option Apply Report for - Upgrade{upgrade_num}:&#39;{ugrade_name}&#39;, Option{option_num}:&#39;{opt[&#39;option&#39;]}&#39;&#34;
+    report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+    report_str += header + &#34;\n&#34;
+    report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+    if &#34;apply_logic&#34; in opt:
+        logic = UpgradesAnalyzer._normalize_lists(opt[&#34;apply_logic&#34;])
+        logic = self.parser.normalize_logic(logic) if normalize_logic else logic
+        logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+        report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+    else:
+        logic_array = np.ones((1, self.total_samples), dtype=bool)
+
+    if &#34;package_apply_logic&#34; in upgrade:
+        logic = UpgradesAnalyzer._normalize_lists(upgrade[&#34;package_apply_logic&#34;])
+        logic = self.parser.normalize_logic(logic) if normalize_logic else logic
+        package_logic_array, logic_str = self._get_logic_report(logic)
+        footer_len = len(logic_str[-1])
+        report_str += &#34;Package Apply Logic Report&#34; + &#34;\n&#34;
+        report_str += &#34;--------------------------&#34; + &#34;\n&#34;
+        report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+        report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+        logic_array = logic_array &amp; package_logic_array
+
+    count = logic_array.sum()
+    footer_str = f&#34;Overall applied to =&gt; {count} ({self._to_pct(count)}%).&#34;
+    report_str += footer_str + &#34;\n&#34;
+    report_str += &#34;-&#34; * len(footer_str) + &#34;\n&#34;
+    return logic_array, report_str</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_left_out_report"><code class="name flex">
+<span>def <span class="ident">get_left_out_report</span></span>(<span>self, upgrade_num: int, option_num: Optional[int] = None) ‑> tuple[numpy.ndarray, str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Prints detailed report for a particular upgrade (and optionally, an option)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>upgrade_num</code></strong> :&ensp;<code>int</code></dt>
+<dd>The 1-indexed upgrade for which to print the report.</dd>
+<dt><strong><code>option_num</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>The 1-indexed option number for which to print report. Defaults to None, which
+will print report for all options.</dd>
+<dt><strong><code>normalize_logic</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to normalize the logic structure. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>(np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_left_out_report(self, upgrade_num: int, option_num: Optional[int] = None) -&gt; tuple[np.ndarray, str]:
+    &#34;&#34;&#34;Prints detailed report for a particular upgrade (and optionally, an option)
+    Args:
+        upgrade_num (int): The 1-indexed upgrade for which to print the report.
+        option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
+                                    will print report for all options.
+        normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
+    Returns:
+        (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+    &#34;&#34;&#34;
+    cfg = self.get_cfg()
+    if upgrade_num &lt;= 0 or upgrade_num &gt; len(cfg[&#34;upgrades&#34;]) + 1:
+        raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.&#34;)
+
+    if option_num is None:
+        return self._get_left_out_report_all(upgrade_num)
+
+    self._logic_cache = {}
+    if upgrade_num == 0 or option_num == 0:
+        raise ValueError(f&#34;Upgrades and options are 1-indexed.Got {upgrade_num} {option_num}&#34;)
+    report_str = &#34;&#34;
+    try:
+        upgrade = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+        opt = upgrade[&#34;options&#34;][option_num - 1]
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(f&#34;The yaml doesn&#39;t have {upgrade_num}/{option_num} upgrade/option&#34;) from e
+
+    ugrade_name = upgrade.get(&#34;upgrade_name&#34;)
+    header = f&#34;Left Out Report for - Upgrade{upgrade_num}:&#39;{ugrade_name}&#39;, Option{option_num}:&#39;{opt[&#39;option&#39;]}&#39;&#34;
+    report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+    report_str += header + &#34;\n&#34;
+    report_str += &#34;-&#34; * len(header) + &#34;\n&#34;
+    if &#34;apply_logic&#34; in opt and &#34;package_apply_logic&#34; in upgrade:
+        logic = {&#34;not&#34;: {&#34;and&#34;: [opt[&#34;apply_logic&#34;], upgrade[&#34;package_apply_logic&#34;]]}}
+    elif &#34;apply_logic&#34; in opt:
+        logic = {&#34;not&#34;: opt[&#34;apply_logic&#34;]}
+    else:
+        logic = {&#34;not&#34;: upgrade[&#34;package_apply_logic&#34;]}
+    logic = self.parser.normalize_logic(logic)
+
+    logic_array, logic_str = self._get_logic_report(logic)
+    footer_len = len(logic_str[-1])
+    report_str += &#34;\n&#34;.join(logic_str) + &#34;\n&#34;
+    report_str += &#34;-&#34; * footer_len + &#34;\n&#34;
+    count = logic_array.sum()
+    footer_str = f&#34;Overall Not Applied to =&gt; {count} ({self._to_pct(count)}%).&#34;
+    report_str += footer_str + &#34;\n&#34;
+    report_str += &#34;-&#34; * len(footer_str) + &#34;\n&#34;
+    return logic_array, report_str</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_report"><code class="name flex">
+<span>def <span class="ident">get_report</span></span>(<span>self, upgrade_num: Optional[int] = None) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Analyses how many buildings various options in all the upgrades is going to apply to and returns
+a report in DataFrame format.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>upgrade_num</code></strong></dt>
+<dd>Numeric index of upgrade (1-indexed). If None, all upgrades are assessed</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code></dt>
+<dd>The upgrade and options report.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_report(self, upgrade_num: Optional[int] = None) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Analyses how many buildings various options in all the upgrades is going to apply to and returns
+    a report in DataFrame format.
+    Args:
+        upgrade_num: Numeric index of upgrade (1-indexed). If None, all upgrades are assessed
+
+    Returns:
+        pd.DataFrame: The upgrade and options report.
+
+    &#34;&#34;&#34;
+
+    def _get_records(indx, upgrade):
+        records = []
+        logger.info(f&#34;Analyzing upgrade {indx + 1}&#34;)
+        all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+        package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+        if &#34;package_apply_logic&#34; in upgrade:
+            pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade[&#34;package_apply_logic&#34;])
+            package_applied_bldgs = self._reduce_logic(pkg_flat_logic, parent=None)
+
+        for opt_index, option in enumerate(upgrade[&#34;options&#34;]):
+            applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+            if &#34;apply_logic&#34; in option:
+                flat_logic = UpgradesAnalyzer._normalize_lists(option[&#34;apply_logic&#34;])
+                applied_bldgs &amp;= self._reduce_logic(flat_logic, parent=None)
+            else:
+                applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+
+            applied_bldgs &amp;= package_applied_bldgs
+            count = applied_bldgs.sum()
+            all_applied_bldgs |= applied_bldgs
+            record = {
+                &#34;upgrade&#34;: indx + 1,
+                &#34;upgrade_name&#34;: upgrade[&#34;upgrade_name&#34;],
+                &#34;option_num&#34;: opt_index + 1,
+                &#34;option&#34;: option[&#34;option&#34;],
+                &#34;applicable_to&#34;: count,
+                &#34;applicable_percent&#34;: self._to_pct(count),
+                &#34;applicable_buildings&#34;: set(self.buildstock_df.loc[applied_bldgs[0]].index),
+            }
+            records.append(record)
+
+        count = all_applied_bldgs.sum()
+        record = {
+            &#34;upgrade&#34;: indx + 1,
+            &#34;upgrade_name&#34;: upgrade[&#34;upgrade_name&#34;],
+            &#34;option_num&#34;: -1,
+            &#34;option&#34;: &#34;All&#34;,
+            &#34;applicable_to&#34;: count,
+            &#34;applicable_buildings&#34;: set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
+            &#34;applicable_percent&#34;: self._to_pct(count),
+        }
+        records.append(record)
+        return records
+
+    cfg = self.get_cfg()
+    self._logic_cache = {}
+    if &#34;upgrades&#34; not in cfg:
+        raise ValueError(&#34;The project yaml has no upgrades defined&#34;)
+
+    max_upg = len(cfg[&#34;upgrades&#34;]) + 1
+    if upgrade_num is not None:
+        if upgrade_num &lt;= 0 or upgrade_num &gt; max_upg:
+            raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.&#34;)
+
+    records = []
+    for indx, upgrade in enumerate(cfg[&#34;upgrades&#34;]):
+        if upgrade_num is None or upgrade_num == indx + 1:
+            records += _get_records(indx, upgrade)
+        else:
+            continue
+
+    report_df = pd.DataFrame.from_records(records)
+    return report_df</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.get_upgraded_buildstock"><code class="name flex">
+<span>def <span class="ident">get_upgraded_buildstock</span></span>(<span>self, upgrade_num)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_upgraded_buildstock(self, upgrade_num):
+    report_df = self.get_report(upgrade_num)
+    upgrade_name = report_df[&#34;upgrade_name&#34;].unique()[0]
+    logger.info(f&#34; * Upgraded buildstock for upgrade {upgrade_num} : {upgrade_name}&#34;)
+
+    df = self.buildstock_df_original.copy()
+    for idx, row in report_df.iterrows():
+        if row[&#34;option&#34;] == &#34;All&#34;:
+            continue
+        dimension, upgrade_option = row[&#34;option&#34;].split(&#34;|&#34;)
+        apply_logic = df[&#34;Building&#34;].isin(row[&#34;applicable_buildings&#34;])
+        # apply upgrade
+        df[dimension] = np.where(apply_logic, upgrade_option, df[dimension])
+
+    # report
+    cond = report_df[&#34;option&#34;] == &#34;All&#34;
+    n_total = len(self.buildstock_df_original)
+    n_applied = report_df.loc[cond, &#34;applicable_to&#34;].iloc[0]
+    n_applied_pct = report_df.loc[cond, &#34;applicable_percent&#34;].iloc[0]
+    logger.info(
+        f&#34;   Upgrade package has {len(report_df)-1} options and &#34;
+        f&#34;was applied to {n_applied} / {n_total} dwelling units ( {n_applied_pct} % )&#34;
+    )
+
+    # QC
+    n_diff = len(self.buildstock_df_original.compare(df)) - n_applied
+    if n_diff &gt; 0:
+        raise ValueError(
+            f&#34;Relative to baseline buildstock, upgraded buildstock has {n_diff} more rows &#34;
+            &#34;of difference than reported.&#34;
+        )
+    elif n_diff &lt; 0:
+        logger.warning(
+            f&#34;Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows &#34;
+            &#34;of difference than reported. This is okay, but indicates that some parameters are &#34;
+            &#34;being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional.&#34;
+        )
+    else:
+        logger.info(&#34;No cases of parameter upgraded with incumbent option detected.&#34;)
+
+    return df</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.print_unique_characteristic"><code class="name flex">
+<span>def <span class="ident">print_unique_characteristic</span></span>(<span>self, upgrade_num: int, name: str, base_bldg_list: list, compare_bldg_list: list)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Finds and prints what's unique among a list of buildings compared to baseline buildings.
+Useful for debugging why a certain set of buildings' energy consumption went up for an upgrade, for example.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>upgrade_num</code></strong> :&ensp;<code>int</code></dt>
+<dd>The upgrade for which the analysis is being done.</dd>
+<dt><strong><code>name</code></strong> :&ensp;<code>str</code></dt>
+<dd>Some name to identify the building set (only used for printing)</dd>
+<dt><strong><code>base_bldg_list</code></strong> :&ensp;<code>list</code></dt>
+<dd>The set of 'normal' buildings id to compare against.</dd>
+<dt><strong><code>compare_bldg_list</code></strong> :&ensp;<code>list</code></dt>
+<dd>The set of buildings whose unique characteristics is to be printed.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def print_unique_characteristic(self, upgrade_num: int, name: str, base_bldg_list: list, compare_bldg_list: list):
+    &#34;&#34;&#34;Finds and prints what&#39;s unique among a list of buildings compared to baseline buildings.
+       Useful for debugging why a certain set of buildings&#39; energy consumption went up for an upgrade, for example.
+    Args:
+        upgrade_num (int): The upgrade for which the analysis is being done.
+        name (str): Some name to identify the building set (only used for printing)
+        base_bldg_list (list): The set of &#39;normal&#39; buildings id to compare against.
+        compare_bldg_list (list): The set of buildings whose unique characteristics is to be printed.
+    &#34;&#34;&#34;
+    cfg = self.get_cfg()
+    if upgrade_num == 0:
+        raise ValueError(f&#34;Upgrades are 1-indexed. Got {upgrade_num}&#34;)
+
+    try:
+        upgrade_cfg = cfg[&#34;upgrades&#34;][upgrade_num - 1]
+    except KeyError as e:
+        raise ValueError(f&#34;Invalid upgrade {upgrade_num}. Upgrades are 1-indexed, FYI.&#34;) from e
+
+    parameter_list = []
+    for option_cfg in upgrade_cfg[&#34;options&#34;]:
+        parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg[&#34;option&#34;])[0])
+        parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get(&#34;apply_logic&#34;)))
+    res_df = self.buildstock_df
+    # remove duplicates (dict.fromkeys) and remove parameters not existing in buildstock_df
+    parameter_list = [param for param in dict.fromkeys(parameter_list) if param in res_df.columns]
+    compare_df = res_df.loc[compare_bldg_list]
+    base_df = res_df.loc[base_bldg_list]
+    print(f&#34;Comparing {len(compare_df)} buildings with {len(base_df)} other buildings.&#34;)
+    unique_vals_dict: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
+    for col in res_df.columns:
+        no_change_set = set(compare_df[col].fillna(&#34;&#34;).unique())
+        other_set = set(base_df[col].fillna(&#34;&#34;).unique())
+        if only_in_no_change := no_change_set - other_set:
+            print(f&#34;Only {name} buildings have {col} in {sorted(only_in_no_change)}&#34;)
+            unique_vals_dict[(col,)] = {(entry,) for entry in only_in_no_change}
+
+    if not unique_vals_dict:
+        print(&#34;No 1-column unique chracteristics found.&#34;)
+
+    for combi_size in range(2, min(len(parameter_list) + 1, 5)):
+        print(f&#34;Checking {combi_size} column combinations out of {parameter_list}&#34;)
+        found_uniq_chars = 0
+        for cols in combinations(parameter_list, combi_size):
+            compare_tups = compare_df[list(cols)].fillna(&#34;&#34;).drop_duplicates().itertuples(index=False, name=None)
+            other_tups = base_df[list(cols)].fillna(&#34;&#34;).drop_duplicates().itertuples(index=False, name=None)
+            only_in_compare = set(compare_tups) - set(other_tups)
+
+            # remove cases arisen out of uniqueness found earlier with smaller susbset of cols
+            for sub_combi_size in range(1, len(cols)):
+                for sub_cols in combinations(cols, sub_combi_size):
+                    if sub_cols in unique_vals_dict:
+                        new_set = set()
+                        for val in only_in_compare:
+                            relevant_val = tuple(val[cols.index(sub_col)] for sub_col in sub_cols)
+                            if relevant_val not in unique_vals_dict[sub_cols]:
+                                new_set.add(val)
+                        only_in_compare = new_set
+
+            if only_in_compare:
+                print(f&#34;Only {name} buildings have {cols} in {sorted(only_in_compare)} \n&#34;)
+                found_uniq_chars += 1
+                unique_vals_dict[cols] = only_in_compare
+
+        if not found_uniq_chars:
+            print(f&#34;No {combi_size}-column unique chracteristics found.&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.UpgradesAnalyzer.save_detailed_report_all"><code class="name flex">
+<span>def <span class="ident">save_detailed_report_all</span></span>(<span>self, file_path: str, logic_transform=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Save detailed text based upgrade report.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>file_path</code></strong> :&ensp;<code>str</code></dt>
+<dd>Output file.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def save_detailed_report_all(self, file_path: str, logic_transform=None):
+    &#34;&#34;&#34;Save detailed text based upgrade report.
+
+    Args:
+        file_path (str): Output file.
+    &#34;&#34;&#34;
+    cfg = self.get_cfg()
+    all_report = &#34;&#34;
+    for upgrade in range(1, len(cfg[&#34;upgrades&#34;]) + 1):
+        logger.info(f&#34;Getting report for upgrade {upgrade}&#34;)
+        _, report = self.get_detailed_report(upgrade, normalize_logic=logic_transform)
+        all_report += report + &#34;\n&#34;
+    with open(file_path, &#34;w&#34;) as file:
+        file.write(all_report)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -59,8 +1224,27 @@ Experimental Stage.
 </li>
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
+<li><code><a title="buildstock_query.tools.characteristics_visualizer" href="characteristics_visualizer/index.html">buildstock_query.tools.characteristics_visualizer</a></code></li>
+<li><code><a title="buildstock_query.tools.logic_parser" href="logic_parser.html">buildstock_query.tools.logic_parser</a></code></li>
 <li><code><a title="buildstock_query.tools.upgrades_analyzer" href="upgrades_analyzer.html">buildstock_query.tools.upgrades_analyzer</a></code></li>
-<li><code><a title="buildstock_query.tools.upgrades_visualizer" href="upgrades_visualizer.html">buildstock_query.tools.upgrades_visualizer</a></code></li>
+<li><code><a title="buildstock_query.tools.upgrades_visualizer" href="upgrades_visualizer/index.html">buildstock_query.tools.upgrades_visualizer</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.tools.UpgradesAnalyzer" href="#buildstock_query.tools.UpgradesAnalyzer">UpgradesAnalyzer</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_cfg" href="#buildstock_query.tools.UpgradesAnalyzer.get_cfg">get_cfg</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_detailed_report" href="#buildstock_query.tools.UpgradesAnalyzer.get_detailed_report">get_detailed_report</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_left_out_report" href="#buildstock_query.tools.UpgradesAnalyzer.get_left_out_report">get_left_out_report</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_mentioned_parameters" href="#buildstock_query.tools.UpgradesAnalyzer.get_mentioned_parameters">get_mentioned_parameters</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_report" href="#buildstock_query.tools.UpgradesAnalyzer.get_report">get_report</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.get_upgraded_buildstock" href="#buildstock_query.tools.UpgradesAnalyzer.get_upgraded_buildstock">get_upgraded_buildstock</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.print_unique_characteristic" href="#buildstock_query.tools.UpgradesAnalyzer.print_unique_characteristic">print_unique_characteristic</a></code></li>
+<li><code><a title="buildstock_query.tools.UpgradesAnalyzer.save_detailed_report_all" href="#buildstock_query.tools.UpgradesAnalyzer.save_detailed_report_all">save_detailed_report_all</a></code></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
