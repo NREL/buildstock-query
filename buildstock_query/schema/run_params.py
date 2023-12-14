@@ -8,9 +8,8 @@ class RunParams(BaseModel):
     db_name: str
     table_name: Union[str, tuple[str, Optional[str], Optional[str]]]
     buildstock_type: Literal['resstock', 'comstock'] = 'resstock'
-    timestamp_column_name: str = 'time'
-    building_id_column_name: str = 'building_id'
-    sample_weight: Union[str, int, float] = "build_existing_model.sample_weight"
+    db_schema: Optional[str] = 'resstock_raw'
+    sample_weight_override: Optional[Union[int, float]] = None
     region_name: str = 'us-west-2'
     execution_history: Optional[str] = None
     cache_folder: str = '.bsq_cache'

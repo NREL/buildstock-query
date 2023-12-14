@@ -1,5 +1,6 @@
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
+from sqlalchemy.sql import sqltypes
 from typing import List, Union, Sequence
 import logging
 import re
@@ -12,7 +13,7 @@ from typing_extensions import assert_never
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
-from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType
+from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType, AnyTableType
 from buildstock_query.schema.utilities import MappedColumn
 import os
 from dataclasses import dataclass
@@ -37,10 +38,9 @@ class BuildStockQuery(QueryCore):
                  workgroup: str,
                  db_name: str,
                  table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
+                 db_schema: Optional[str] = None,
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
-                 timestamp_column_name: str = 'time',
-                 building_id_column_name: str = 'building_id',
-                 sample_weight: Union[int, float, str] = "build_existing_model.sample_weight",
+                 sample_weight: Optional[Union[int, float]] = None,
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
@@ -69,14 +69,14 @@ class BuildStockQuery(QueryCore):
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         """
+        db_schema = db_schema or f"{buildstock_type}_default"
         self.params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
             table_name=table_name,
-            timestamp_column_name=timestamp_column_name,
-            building_id_column_name=building_id_column_name,
-            sample_weight=sample_weight,
+            db_schema=db_schema,
+            sample_weight_override=sample_weight,
             region_name=region_name,
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
@@ -97,6 +97,9 @@ class BuildStockQuery(QueryCore):
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
+        self.char_prefix = self.db_schema.column_prefix.characteristics
+        self.out_prefix = self.db_schema.column_prefix.output
+
         if not skip_reports:
             logger.info("Getting Success counts...")
             print(self.report.get_success_report())
@@ -111,11 +114,12 @@ class BuildStockQuery(QueryCore):
             pd.DataFrame: The buildstock.csv dataframe.
         """
         results_df = self.get_results_csv_full()
-        results_df = results_df[results_df["completed_status"] == "Success"]
-        buildstock_cols = [c for c in results_df.columns if c.startswith("build_existing_model.")]
+        results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
+                                self.db_schema.completion_values.success.lower()]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [''.join(c.split(".")[1:]).replace("_", " ") for c in buildstock_df.columns
-                           if c.startswith("build_existing_model.")]
+                           if c.startswith(self.char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
@@ -147,7 +151,7 @@ class BuildStockQuery(QueryCore):
     @validate_arguments
     def _get_rows_per_building(self, get_query_only: bool = False) -> Union[int, str]:
         select_cols = []
-        if self.up_table is not None:
+        if self.up_table is not None and self.ts_table is not None:
             select_cols.append(self.ts_table.c['upgrade'])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label("row_count")))
         ts_query = sa.select(select_cols)
@@ -270,19 +274,29 @@ class BuildStockQuery(QueryCore):
         if os.path.exists(local_copy_path):
             return local_copy_path
 
+        if isinstance(self.table_name, str):
+            db_table_name = f'{self.table_name}{self.db_schema.table_suffix.baseline}'
+        else:
+            db_table_name = self.table_name[0]
         baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
-                                                 Name=self.bs_table.name)['Table']['StorageDescriptor']['Location']
+                                                 Name=db_table_name)['Table']['StorageDescriptor']['Location']
         bucket = baseline_path.split('/')[2]
         key = '/'.join(baseline_path.split('/')[3:])
         s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
 
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {baseline_path}")
-        if len(s3_data['Contents']) > 1:
-            raise ValueError(f"Multiple results parquet found in s3 at {baseline_path}")
+        matching_files = [path['Key'] for path in s3_data['Contents']
+                          if "up00.parquet" in path['Key'] or 'baseline' in path['Key']]
 
-        baseline_parquet_path = s3_data['Contents'][0]['Key']
-        self._aws_s3.download_file(bucket, baseline_parquet_path, local_copy_path)
+        if len(matching_files) > 1:
+            raise ValueError(f"Multiple results parquet found in s3 at {baseline_path} for baseline."
+                             f"These files matched: {matching_files}")
+        if len(matching_files) == 0:
+            raise ValueError(f"No results parquet found in s3 at {baseline_path} for baseline."
+                             f"Here are the files: {[content[0]['Key'] for content in s3_data['Contents']]}")
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
         return local_copy_path
 
     def get_results_csv_full(self) -> pd.DataFrame:
@@ -292,7 +306,10 @@ class BuildStockQuery(QueryCore):
             pd.DataFrame: The full results csv.
         """
         local_copy_path = self._download_results_csv()
-        return pd.read_parquet(local_copy_path).set_index(self.bs_bldgid_column.name)
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.bs_bldgid_column.name:
+            df = df.set_index(self.bs_bldgid_column.name)
+        return df
 
     @typing.overload
     def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = '0',
@@ -362,18 +379,22 @@ class BuildStockQuery(QueryCore):
         if os.path.exists(local_copy_path):
             return local_copy_path
 
+        if isinstance(self.table_name, str):
+            db_table_name = f'{self.table_name}{self.db_schema.table_suffix.upgrades}'
+        else:
+            db_table_name = self.table_name[2]
         upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
-                                                 Name=self.up_table.name)['Table']['StorageDescriptor']['Location']
+                                                 Name=db_table_name)['Table']['StorageDescriptor']['Location']
         bucket = upgrades_path.split('/')[2]
         key = '/'.join(upgrades_path.split('/')[3:])
         s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
 
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {upgrades_path}")
-        if len(s3_data['Contents']) != len(available_upgrades):
-            raise ValueError(f"Number of parquet found in s3 at {upgrades_path} is not equal to number of upgrades")
         # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
-        matching_files = [path['Key'] for path in s3_data['Contents'] if f"up{upgrade_id:02}.parquet" in path['Key']]
+        matching_files = [path['Key'] for path in s3_data['Contents']
+                          if f"up{upgrade_id:02}.parquet" in path['Key'] or
+                          f"upgrade{upgrade_id:02}.parquet" in path['Key']]
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
                              f"These files matched: {matching_files}")
@@ -390,8 +411,11 @@ class BuildStockQuery(QueryCore):
         athena.
         """
         local_copy_path = self._download_upgrades_csv(upgrade_id)
-        df = pd.read_parquet(local_copy_path).set_index(self.up_bldgid_column.name)
-        df.insert(0, 'upgrade', upgrade_id)
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.up_bldgid_column.name:
+            df = df.set_index(self.up_bldgid_column.name)
+        if 'upgrade' not in df.columns:
+            df.insert(0, 'upgrade', upgrade_id)
         return df
 
     @typing.overload
@@ -454,10 +478,14 @@ class BuildStockQuery(QueryCore):
     @validate_arguments(config=dict(smart_union=True))
     def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
-        bldg_id = bldg_df.iloc[0].values[0]
-        query1 = sa.select([self.timestamp_column.distinct().label('time')]).where(self.ts_bldgid_column == bldg_id)
+        bldg_id = bldg_df.values[0][0]
+        upgrade_id = bldg_df.values[0][1]
+        query1 = sa.select([self.timestamp_column.distinct().label(
+                            self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
+        if self.up_table is not None:
+            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -521,14 +549,14 @@ class BuildStockQuery(QueryCore):
             try:
                 return self.get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f"build_existing_model.{column[0]}"
+                new_name = f"{self.char_prefix}{column[0]}"
                 return self.get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
                 return self.get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith("build_existing_model."):
-                    new_name = f"build_existing_model.{column}"
+                if not column.startswith(self.char_prefix):
+                    new_name = f"{self.char_prefix}{column}"
                     return self.get_column(new_name).label(column)
                 raise ValueError(f"Invalid column name {column}") from e
         else:
@@ -549,7 +577,7 @@ class BuildStockQuery(QueryCore):
                     enduse_cols.append(tbl.c[enduse])
                 except KeyError as err:
                     if table in ['baseline', 'upgrade']:
-                        enduse_cols.append(tbl.c[f"report_simulation_output.{enduse}"])
+                        enduse_cols.append(tbl.c[f"{self.out_prefix}{enduse}"])
                     else:
                         raise ValueError(f"Invalid enduse column names for {table} table") from err
             elif isinstance(enduse, MappedColumn):
@@ -564,8 +592,8 @@ class BuildStockQuery(QueryCore):
         Returns:
             List[str]: List of building characteristics.
         """
-        cols = {y.removeprefix("build_existing_model.") for y in self.bs_table.c.keys()
-                if y.startswith("build_existing_model.")}
+        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self.char_prefix)}
         return list(cols)
 
     def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
@@ -648,10 +676,10 @@ class BuildStockQuery(QueryCore):
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith("build_existing_model."):
-                    new_group_by.append(f"build_existing_model.{entry}")
-                elif isinstance(entry, tuple) and not entry[0].startswith("build_existing_model."):
-                    new_group_by.append((f"build_existing_model.{entry[0]}", entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
+                    new_group_by.append(f"{self.char_prefix}{entry}")
+                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
+                    new_group_by.append((f"{self.char_prefix}{entry[0]}", entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -706,3 +734,55 @@ class BuildStockQuery(QueryCore):
             return self._compile(query)
         res = self.execute(query)
         return res
+
+    @property
+    def bs_completed_status_col(self):
+        if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return self.bs_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def up_completed_status_col(self):
+        if self.up_table is None:
+            raise ValueError("No upgrades table")
+        if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return self.up_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def bs_successful_condition(self):
+        return self.bs_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def up_successful_condition(self):
+        return self.up_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def ts_upgrade_col(self):
+        if not isinstance(self.ts_table.c['upgrade'].type, sqltypes.String):
+            return sa.cast(self.ts_table.c['upgrade'], sa.String).label('upgrade')
+        else:
+            return self.ts_table.c['upgrade']
+
+    @property
+    def up_upgrade_col(self):
+        if self.up_table is None:
+            raise ValueError("No upgrades table")
+        if not isinstance(self.up_table.c['upgrade'].type, sqltypes.String):
+            return sa.cast(self.up_table.c['upgrade'], sa.String).label('upgrade')
+        else:
+            return self.up_table.c['upgrade']
+
+    def get_completed_status_col(self, table: AnyTableType):
+        if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label('completed_status')
+        else:
+            return table.c[self.db_schema.column_names.completed_status]
+
+    def get_success_condition(self, table: AnyTableType):
+        return self.get_completed_status_col(table) == self.db_schema.completion_values.success

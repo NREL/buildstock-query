@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>buildstock_query.tools.characteristics_visualizer.figure API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>buildstock_query.tools.characteristics_visualizer.figure</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes
+from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
+import plotly.graph_objects as go
+import polars as pl
+import re
+
+
+class UpgradesPlot:
+    def __init__(self, viz_data: VizData) -&gt; None:
+        self.viz_data = viz_data
+
+    def get_ylabel(self, end_use):
+        if len(end_use) == 1:
+            return end_use[0]
+        pure_end_use_name = end_use[0].removeprefix(&#34;end_use_&#34;)
+        pure_end_use_name = pure_end_use_name.removeprefix(&#34;fuel_use_&#34;)
+        pure_end_use_name = &#34;_&#34;.join(pure_end_use_name.split(&#34;_&#34;)[1:])
+        return f&#34;{len(end_use)}_fuels_{pure_end_use_name}&#34;
+
+    def explode_str(self, input_str):
+        input_str = str(input_str).lower()
+        month2num = {&#34;january&#34;: 1, &#34;february&#34;: 2, &#34;march&#34;: 3, &#34;april&#34;: 4,
+                     &#34;may&#34;: 5, &#34;june&#34;: 6, &#34;july&#34;: 7, &#34;august&#34;: 8,
+                     &#34;september&#34;: 9, &#34;october&#34;: 10, &#34;november&#34;: 11, &#34;december&#34;: 12}
+        input_str = str(month2num[input_str] if input_str in month2num else input_str)
+        input_str = [
+            int(x) if x and x[0] in &#34;0123456789&#34; else x
+            for x in re.split(r&#34;([\&lt;\-])|([0-9]+)&#34;, input_str)
+        ]
+
+        return tuple(&#34;X&#34; if x is None else x for x in input_str)
+
+    def get_plot(self, params: PlotParams):
+        if len(params.group_by) &gt;= 2 or params.upgrade is not None or \
+           (params.value_type in [ValueTypes.distribution, ValueTypes.scatter] and len(params.group_by) &gt;= 1):
+            params.upgrade = params.upgrade if params.upgrade else 0
+            params.group_by = [&#39;upgrade&#39;] if not params.group_by else params.group_by
+            plot_df = self.viz_data.get_plotting_df(upgrade=params.upgrade, params=params)
+        else:
+            params.group_by = [&#39;upgrade&#39;] + params.group_by
+            plot_df = self.viz_data.get_plotting_df_all_upgrades(params=params)
+
+        return self._get_plot(plot_df, params)
+
+    def _get_plot(self, df, params: PlotParams):
+        fig = go.Figure()
+        counter = 0
+        counter2 = 0
+        report_dfs = [pl.DataFrame()]
+
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            xtitle = &#34;, &#34;.join(params.group_by[1:]) if len(params.group_by) &gt; 1 else params.group_by[0]
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.value_type.value}_{params.savings_type.value}&#34;
+        elif params.value_type in [ValueTypes.distribution]:
+            xtitle = &#34;, &#34;.join(params.group_by[1:]) if len(params.group_by) &gt; 1 else params.group_by[0]
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.savings_type.value}&#34;
+        else:
+            assert params.value_type in [ValueTypes.scatter]
+            xtitle = &#34;baseline_value&#34;
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.savings_type.value}&#34;
+        for grp0, sub_df in df.groupby(params.group_by[0], maintain_order=True):
+            upgrade = int(grp0) if params.group_by[0] == &#39;upgrade&#39; else params.upgrade
+            upgrade = upgrade or 0
+            yvals = []
+            xvals = []
+            second_groups = []
+            sample_counts = []
+            upgrades = []
+            hovervals = []
+            if len(params.group_by) &gt; 1:
+                second_plots = [(group_name, group_df) for group_name, group_df in
+                                sub_df.groupby(params.group_by[1:], maintain_order=True)]
+            else:
+                second_plots = [(tuple(), sub_df)]
+            for second_name, second_df in second_plots:
+                name = &#39;,&#39;.join(second_name) if second_name else str(grp0)
+                count = len(second_df)
+                mean = pl.mean(second_df[&#39;value&#39;])
+                if counter &gt;= 500:
+                    yvals.append(0.1)
+                    xvals.append(&#34;Too many groups&#34;)
+                    sample_counts.append(0)
+                    upgrades.append(upgrade)
+                    hovervals.append(&#34;Too many groups&#34;)
+                    grp0 = &#34;Too many groups&#34;
+                    break
+                if params.value_type in [ValueTypes.total, ValueTypes.mean, ValueTypes.count]:
+                    if params.value_type == ValueTypes.total:
+                        val = pl.sum(second_df[&#39;value&#39;])
+                    elif params.value_type == ValueTypes.count:
+                        val = second_df[&#39;building_id&#39;].n_unique()
+                    else:
+                        val = pl.mean(second_df[&#39;value&#39;])
+                    val = float(val)
+                    yvals.append(val)
+                    xvals.append(name)
+                    sample_counts.append(count)
+                    upgrades.append(upgrade)
+                    hovertext = f&#34;{self.viz_data.upgrade2name.get(upgrade)}&lt;br&gt;{grp0}&lt;br&gt;{name}&lt;br&gt;Average {mean}.&#34;\
+                        f&#34;&lt;br&gt;Sample Count: {count}.&#34;
+                    f&#34;&lt;br&gt;Units Count: {count * self.viz_data.sample_weight}.&#34;
+                    hovervals.append(hovertext)
+                    second_groups.append(name)
+                elif params.value_type in [ValueTypes.distribution, ValueTypes.scatter]:
+                    hovertext = [f&#39;{self.viz_data.upgrade2name.get(upgrade)}&lt;br&gt;{grp0}&lt;br&gt;{name}&lt;br&gt;Building:&#39;
+                                 f&#39;{bid}&lt;br&gt;Sample Count: {count}&#39;
+                                 for bid in second_df[&#39;building_id&#39;].to_list()]
+                    if params.value_type == ValueTypes.distribution:
+                        xvals.extend([name] * count)
+                        yvals.extend(second_df[&#39;value&#39;].to_list())
+                        second_groups.extend([name] * count)
+                        sample_counts.extend([count] * count)
+                        upgrades.extend([upgrade] * count)
+                        hovervals.extend(hovertext)
+                    else:
+                        xvals.append(second_df[&#39;baseline_value&#39;].to_list())
+                        yvals.append(second_df[&#39;value&#39;].to_list())
+                        second_groups.append(name)
+                        sample_counts.append([count] * count)
+                        upgrades.append([upgrade] * count)
+                        hovervals.append(hovertext)
+                counter += 1
+                counter2 += 1
+
+            self._add_plot(params, fig, grp0, yvals, xvals, second_groups, hovervals, len(params.group_by) &gt; 1)
+            try:
+                sub_df = pl.DataFrame({xtitle: xvals, ytitle: yvals, &#39;upgrade&#39;: [f&#39;Upgrade {grp0}&#39;] * len(xvals),
+                                      &#39;sample_count&#39;: sample_counts, &#39;info&#39;: hovervals})
+                # sub_df = sub_df.with_columns(pl.col(ytitle).cast(pl.Float32))
+                report_dfs.append(sub_df)
+            except Exception:
+                continue
+
+        if params.change_type:
+            title = f&#34;{params.value_type} - {params.savings_type} for {params.change_type} buildings&#34;
+        else:
+            title = f&#39;{params.value_type} - {params.savings_type} value&#39;
+
+        if params.group_by[0] != &#34;upgrade&#34;:
+            title = f&#34;Upgrade {params.upgrade} - {title}&#34;
+        self._update_layout(params, fig, xtitle, ytitle, title, len(params.group_by) &gt; 1)
+
+        return fig, pl.concat(report_dfs)
+
+    def _update_layout(self, params: PlotParams, fig, xtitle, ytitle, title, multi_group=False):
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            fig.update_layout(yaxis_title=ytitle,
+                              barmode=&#39;group&#39;,
+                              xaxis_title=xtitle,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              title=title)
+        elif params.value_type in [ValueTypes.distribution]:
+            fig.update_layout(yaxis_title=ytitle,
+                              boxmode=&#34;group&#34; if multi_group else &#34;overlay&#34;,
+                              xaxis_title=xtitle,
+                              title=title,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              clickmode=&#39;event+select&#39;)
+        elif params.value_type == ValueTypes.scatter:
+            fig.update_layout(yaxis_title=ytitle,
+                              title=title,
+                              boxmode=&#34;group&#34; if multi_group else &#34;overlay&#34;,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              clickmode=&#39;event+select&#39;)
+            fig.add_annotation(
+                dict(
+                    x=0.5,
+                    y=-0.20,
+                    showarrow=False,
+                    text=xtitle,
+                    xref=&#34;paper&#34;,
+                    yref=&#34;paper&#34;,
+                    xanchor=&#34;center&#34;,
+                    yanchor=&#34;top&#34;,
+                    font=dict(size=14)
+                )
+            )
+
+    def _add_plot(self, params: PlotParams, fig, grp0, yvals, xvals, second_groups, hovervals, multi_group=False):
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            fig.add_trace(go.Bar(
+                    y=yvals,
+                    x=xvals,
+                    hovertext=hovervals,
+                    name=f&#39;{grp0}&#39;,
+                    hoverinfo=&#34;all&#34;
+                )).update_traces(
+                    marker={&#34;line&#34;: {&#34;width&#34;: 0.5, &#34;color&#34;: &#34;rgb(0,0,0)&#34;}}
+                )
+        elif params.value_type == ValueTypes.distribution:
+            fig.add_trace(go.Box(
+                y=yvals,
+                x=xvals,
+                name=f&#39;{grp0}&#39;,
+                boxpoints=&#39;suspectedoutliers&#39;,
+                boxmean=True,  # represent mean
+                hovertext=hovervals,
+                hoverinfo=&#34;all&#34;
+            ))
+        elif params.value_type == ValueTypes.scatter:
+            if multi_group:
+                self._add_multi_scatter(fig, grp0, list(zip(second_groups, xvals, yvals, hovervals)))
+            else:
+                fig.add_trace(go.Scatter(
+                    y=yvals[0],
+                    x=xvals[0],
+                    name=f&#39;{grp0}&#39;,
+                    mode=&#39;markers&#39;,
+                    hovertext=hovervals[0],
+                    hoverinfo=&#34;all&#34;))
+
+    def _add_multi_scatter(self, fig, grp0, plot_tuples):
+        # Define the width of each subplot based on total plots and desired gaps
+        num_plots = len(plot_tuples)
+        gap_fraction = 0.05  # for a 5% gap
+        subplot_width = (1.0 - (num_plots-1)*gap_fraction) / num_plots
+
+        # Iterate over the tuples and add scatter plots
+        for index, (name, xvals, yvals, hovervals) in enumerate(plot_tuples):
+            domain_start = index * (subplot_width + gap_fraction)
+            domain_end = domain_start + subplot_width
+
+            # Constructing the appropriate xaxis and yaxis keys
+            scatter_xaxis_key = &#39;x&#39; if index == 0 else f&#39;x{index+1}&#39;
+            scatter_yaxis_key = &#39;y&#39; if index == 0 else f&#39;y{index+1}&#39;
+
+            layout_xaxis_key = f&#39;xaxis{&#34;&#34; if index == 0 else index+1}&#39;
+            layout_yaxis_key = f&#39;yaxis{&#34;&#34; if index == 0 else index+1}&#39;
+
+            # Add scatter plot
+            fig.add_trace(go.Scatter(x=xvals,
+                                     y=yvals,
+                                     hovertext=hovervals[0],
+                                     name=grp0,
+                                     legendgroup=grp0,
+                                     mode=&#39;markers&#39;,
+                                     showlegend=True if index == 0 else False,
+                                     xaxis=scatter_xaxis_key,
+                                     yaxis=scatter_yaxis_key,
+                                     hoverinfo=&#34;all&#34;))
+
+            # Update the layout with the appropriate axis properties
+            fig.update_layout({
+                layout_xaxis_key: {
+                    &#39;domain&#39;: [domain_start, domain_end],
+                    &#39;anchor&#39;: scatter_yaxis_key,
+                    &#39;title&#39;: name
+                },
+                layout_yaxis_key: {
+                    &#39;anchor&#39;: scatter_xaxis_key
+                }
+            })</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot"><code class="flex name class">
+<span>class <span class="ident">UpgradesPlot</span></span>
+<span>(</span><span>viz_data: <a title="buildstock_query.tools.upgrades_visualizer.viz_data.VizData" href="../upgrades_visualizer/viz_data.html#buildstock_query.tools.upgrades_visualizer.viz_data.VizData">VizData</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class UpgradesPlot:
+    def __init__(self, viz_data: VizData) -&gt; None:
+        self.viz_data = viz_data
+
+    def get_ylabel(self, end_use):
+        if len(end_use) == 1:
+            return end_use[0]
+        pure_end_use_name = end_use[0].removeprefix(&#34;end_use_&#34;)
+        pure_end_use_name = pure_end_use_name.removeprefix(&#34;fuel_use_&#34;)
+        pure_end_use_name = &#34;_&#34;.join(pure_end_use_name.split(&#34;_&#34;)[1:])
+        return f&#34;{len(end_use)}_fuels_{pure_end_use_name}&#34;
+
+    def explode_str(self, input_str):
+        input_str = str(input_str).lower()
+        month2num = {&#34;january&#34;: 1, &#34;february&#34;: 2, &#34;march&#34;: 3, &#34;april&#34;: 4,
+                     &#34;may&#34;: 5, &#34;june&#34;: 6, &#34;july&#34;: 7, &#34;august&#34;: 8,
+                     &#34;september&#34;: 9, &#34;october&#34;: 10, &#34;november&#34;: 11, &#34;december&#34;: 12}
+        input_str = str(month2num[input_str] if input_str in month2num else input_str)
+        input_str = [
+            int(x) if x and x[0] in &#34;0123456789&#34; else x
+            for x in re.split(r&#34;([\&lt;\-])|([0-9]+)&#34;, input_str)
+        ]
+
+        return tuple(&#34;X&#34; if x is None else x for x in input_str)
+
+    def get_plot(self, params: PlotParams):
+        if len(params.group_by) &gt;= 2 or params.upgrade is not None or \
+           (params.value_type in [ValueTypes.distribution, ValueTypes.scatter] and len(params.group_by) &gt;= 1):
+            params.upgrade = params.upgrade if params.upgrade else 0
+            params.group_by = [&#39;upgrade&#39;] if not params.group_by else params.group_by
+            plot_df = self.viz_data.get_plotting_df(upgrade=params.upgrade, params=params)
+        else:
+            params.group_by = [&#39;upgrade&#39;] + params.group_by
+            plot_df = self.viz_data.get_plotting_df_all_upgrades(params=params)
+
+        return self._get_plot(plot_df, params)
+
+    def _get_plot(self, df, params: PlotParams):
+        fig = go.Figure()
+        counter = 0
+        counter2 = 0
+        report_dfs = [pl.DataFrame()]
+
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            xtitle = &#34;, &#34;.join(params.group_by[1:]) if len(params.group_by) &gt; 1 else params.group_by[0]
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.value_type.value}_{params.savings_type.value}&#34;
+        elif params.value_type in [ValueTypes.distribution]:
+            xtitle = &#34;, &#34;.join(params.group_by[1:]) if len(params.group_by) &gt; 1 else params.group_by[0]
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.savings_type.value}&#34;
+        else:
+            assert params.value_type in [ValueTypes.scatter]
+            xtitle = &#34;baseline_value&#34;
+            ytitle = f&#34;{self.get_ylabel(params.enduses)}_{params.savings_type.value}&#34;
+        for grp0, sub_df in df.groupby(params.group_by[0], maintain_order=True):
+            upgrade = int(grp0) if params.group_by[0] == &#39;upgrade&#39; else params.upgrade
+            upgrade = upgrade or 0
+            yvals = []
+            xvals = []
+            second_groups = []
+            sample_counts = []
+            upgrades = []
+            hovervals = []
+            if len(params.group_by) &gt; 1:
+                second_plots = [(group_name, group_df) for group_name, group_df in
+                                sub_df.groupby(params.group_by[1:], maintain_order=True)]
+            else:
+                second_plots = [(tuple(), sub_df)]
+            for second_name, second_df in second_plots:
+                name = &#39;,&#39;.join(second_name) if second_name else str(grp0)
+                count = len(second_df)
+                mean = pl.mean(second_df[&#39;value&#39;])
+                if counter &gt;= 500:
+                    yvals.append(0.1)
+                    xvals.append(&#34;Too many groups&#34;)
+                    sample_counts.append(0)
+                    upgrades.append(upgrade)
+                    hovervals.append(&#34;Too many groups&#34;)
+                    grp0 = &#34;Too many groups&#34;
+                    break
+                if params.value_type in [ValueTypes.total, ValueTypes.mean, ValueTypes.count]:
+                    if params.value_type == ValueTypes.total:
+                        val = pl.sum(second_df[&#39;value&#39;])
+                    elif params.value_type == ValueTypes.count:
+                        val = second_df[&#39;building_id&#39;].n_unique()
+                    else:
+                        val = pl.mean(second_df[&#39;value&#39;])
+                    val = float(val)
+                    yvals.append(val)
+                    xvals.append(name)
+                    sample_counts.append(count)
+                    upgrades.append(upgrade)
+                    hovertext = f&#34;{self.viz_data.upgrade2name.get(upgrade)}&lt;br&gt;{grp0}&lt;br&gt;{name}&lt;br&gt;Average {mean}.&#34;\
+                        f&#34;&lt;br&gt;Sample Count: {count}.&#34;
+                    f&#34;&lt;br&gt;Units Count: {count * self.viz_data.sample_weight}.&#34;
+                    hovervals.append(hovertext)
+                    second_groups.append(name)
+                elif params.value_type in [ValueTypes.distribution, ValueTypes.scatter]:
+                    hovertext = [f&#39;{self.viz_data.upgrade2name.get(upgrade)}&lt;br&gt;{grp0}&lt;br&gt;{name}&lt;br&gt;Building:&#39;
+                                 f&#39;{bid}&lt;br&gt;Sample Count: {count}&#39;
+                                 for bid in second_df[&#39;building_id&#39;].to_list()]
+                    if params.value_type == ValueTypes.distribution:
+                        xvals.extend([name] * count)
+                        yvals.extend(second_df[&#39;value&#39;].to_list())
+                        second_groups.extend([name] * count)
+                        sample_counts.extend([count] * count)
+                        upgrades.extend([upgrade] * count)
+                        hovervals.extend(hovertext)
+                    else:
+                        xvals.append(second_df[&#39;baseline_value&#39;].to_list())
+                        yvals.append(second_df[&#39;value&#39;].to_list())
+                        second_groups.append(name)
+                        sample_counts.append([count] * count)
+                        upgrades.append([upgrade] * count)
+                        hovervals.append(hovertext)
+                counter += 1
+                counter2 += 1
+
+            self._add_plot(params, fig, grp0, yvals, xvals, second_groups, hovervals, len(params.group_by) &gt; 1)
+            try:
+                sub_df = pl.DataFrame({xtitle: xvals, ytitle: yvals, &#39;upgrade&#39;: [f&#39;Upgrade {grp0}&#39;] * len(xvals),
+                                      &#39;sample_count&#39;: sample_counts, &#39;info&#39;: hovervals})
+                # sub_df = sub_df.with_columns(pl.col(ytitle).cast(pl.Float32))
+                report_dfs.append(sub_df)
+            except Exception:
+                continue
+
+        if params.change_type:
+            title = f&#34;{params.value_type} - {params.savings_type} for {params.change_type} buildings&#34;
+        else:
+            title = f&#39;{params.value_type} - {params.savings_type} value&#39;
+
+        if params.group_by[0] != &#34;upgrade&#34;:
+            title = f&#34;Upgrade {params.upgrade} - {title}&#34;
+        self._update_layout(params, fig, xtitle, ytitle, title, len(params.group_by) &gt; 1)
+
+        return fig, pl.concat(report_dfs)
+
+    def _update_layout(self, params: PlotParams, fig, xtitle, ytitle, title, multi_group=False):
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            fig.update_layout(yaxis_title=ytitle,
+                              barmode=&#39;group&#39;,
+                              xaxis_title=xtitle,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              title=title)
+        elif params.value_type in [ValueTypes.distribution]:
+            fig.update_layout(yaxis_title=ytitle,
+                              boxmode=&#34;group&#34; if multi_group else &#34;overlay&#34;,
+                              xaxis_title=xtitle,
+                              title=title,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              clickmode=&#39;event+select&#39;)
+        elif params.value_type == ValueTypes.scatter:
+            fig.update_layout(yaxis_title=ytitle,
+                              title=title,
+                              boxmode=&#34;group&#34; if multi_group else &#34;overlay&#34;,
+                              legend={&#34;title&#34;: params.group_by[0]},
+                              clickmode=&#39;event+select&#39;)
+            fig.add_annotation(
+                dict(
+                    x=0.5,
+                    y=-0.20,
+                    showarrow=False,
+                    text=xtitle,
+                    xref=&#34;paper&#34;,
+                    yref=&#34;paper&#34;,
+                    xanchor=&#34;center&#34;,
+                    yanchor=&#34;top&#34;,
+                    font=dict(size=14)
+                )
+            )
+
+    def _add_plot(self, params: PlotParams, fig, grp0, yvals, xvals, second_groups, hovervals, multi_group=False):
+        if params.value_type in [ValueTypes.mean, ValueTypes.total, ValueTypes.count]:
+            fig.add_trace(go.Bar(
+                    y=yvals,
+                    x=xvals,
+                    hovertext=hovervals,
+                    name=f&#39;{grp0}&#39;,
+                    hoverinfo=&#34;all&#34;
+                )).update_traces(
+                    marker={&#34;line&#34;: {&#34;width&#34;: 0.5, &#34;color&#34;: &#34;rgb(0,0,0)&#34;}}
+                )
+        elif params.value_type == ValueTypes.distribution:
+            fig.add_trace(go.Box(
+                y=yvals,
+                x=xvals,
+                name=f&#39;{grp0}&#39;,
+                boxpoints=&#39;suspectedoutliers&#39;,
+                boxmean=True,  # represent mean
+                hovertext=hovervals,
+                hoverinfo=&#34;all&#34;
+            ))
+        elif params.value_type == ValueTypes.scatter:
+            if multi_group:
+                self._add_multi_scatter(fig, grp0, list(zip(second_groups, xvals, yvals, hovervals)))
+            else:
+                fig.add_trace(go.Scatter(
+                    y=yvals[0],
+                    x=xvals[0],
+                    name=f&#39;{grp0}&#39;,
+                    mode=&#39;markers&#39;,
+                    hovertext=hovervals[0],
+                    hoverinfo=&#34;all&#34;))
+
+    def _add_multi_scatter(self, fig, grp0, plot_tuples):
+        # Define the width of each subplot based on total plots and desired gaps
+        num_plots = len(plot_tuples)
+        gap_fraction = 0.05  # for a 5% gap
+        subplot_width = (1.0 - (num_plots-1)*gap_fraction) / num_plots
+
+        # Iterate over the tuples and add scatter plots
+        for index, (name, xvals, yvals, hovervals) in enumerate(plot_tuples):
+            domain_start = index * (subplot_width + gap_fraction)
+            domain_end = domain_start + subplot_width
+
+            # Constructing the appropriate xaxis and yaxis keys
+            scatter_xaxis_key = &#39;x&#39; if index == 0 else f&#39;x{index+1}&#39;
+            scatter_yaxis_key = &#39;y&#39; if index == 0 else f&#39;y{index+1}&#39;
+
+            layout_xaxis_key = f&#39;xaxis{&#34;&#34; if index == 0 else index+1}&#39;
+            layout_yaxis_key = f&#39;yaxis{&#34;&#34; if index == 0 else index+1}&#39;
+
+            # Add scatter plot
+            fig.add_trace(go.Scatter(x=xvals,
+                                     y=yvals,
+                                     hovertext=hovervals[0],
+                                     name=grp0,
+                                     legendgroup=grp0,
+                                     mode=&#39;markers&#39;,
+                                     showlegend=True if index == 0 else False,
+                                     xaxis=scatter_xaxis_key,
+                                     yaxis=scatter_yaxis_key,
+                                     hoverinfo=&#34;all&#34;))
+
+            # Update the layout with the appropriate axis properties
+            fig.update_layout({
+                layout_xaxis_key: {
+                    &#39;domain&#39;: [domain_start, domain_end],
+                    &#39;anchor&#39;: scatter_yaxis_key,
+                    &#39;title&#39;: name
+                },
+                layout_yaxis_key: {
+                    &#39;anchor&#39;: scatter_xaxis_key
+                }
+            })</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.explode_str"><code class="name flex">
+<span>def <span class="ident">explode_str</span></span>(<span>self, input_str)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def explode_str(self, input_str):
+    input_str = str(input_str).lower()
+    month2num = {&#34;january&#34;: 1, &#34;february&#34;: 2, &#34;march&#34;: 3, &#34;april&#34;: 4,
+                 &#34;may&#34;: 5, &#34;june&#34;: 6, &#34;july&#34;: 7, &#34;august&#34;: 8,
+                 &#34;september&#34;: 9, &#34;october&#34;: 10, &#34;november&#34;: 11, &#34;december&#34;: 12}
+    input_str = str(month2num[input_str] if input_str in month2num else input_str)
+    input_str = [
+        int(x) if x and x[0] in &#34;0123456789&#34; else x
+        for x in re.split(r&#34;([\&lt;\-])|([0-9]+)&#34;, input_str)
+    ]
+
+    return tuple(&#34;X&#34; if x is None else x for x in input_str)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_plot"><code class="name flex">
+<span>def <span class="ident">get_plot</span></span>(<span>self, params: <a title="buildstock_query.tools.upgrades_visualizer.plot_utils.PlotParams" href="../upgrades_visualizer/plot_utils.html#buildstock_query.tools.upgrades_visualizer.plot_utils.PlotParams">PlotParams</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_plot(self, params: PlotParams):
+    if len(params.group_by) &gt;= 2 or params.upgrade is not None or \
+       (params.value_type in [ValueTypes.distribution, ValueTypes.scatter] and len(params.group_by) &gt;= 1):
+        params.upgrade = params.upgrade if params.upgrade else 0
+        params.group_by = [&#39;upgrade&#39;] if not params.group_by else params.group_by
+        plot_df = self.viz_data.get_plotting_df(upgrade=params.upgrade, params=params)
+    else:
+        params.group_by = [&#39;upgrade&#39;] + params.group_by
+        plot_df = self.viz_data.get_plotting_df_all_upgrades(params=params)
+
+    return self._get_plot(plot_df, params)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_ylabel"><code class="name flex">
+<span>def <span class="ident">get_ylabel</span></span>(<span>self, end_use)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_ylabel(self, end_use):
+    if len(end_use) == 1:
+        return end_use[0]
+    pure_end_use_name = end_use[0].removeprefix(&#34;end_use_&#34;)
+    pure_end_use_name = pure_end_use_name.removeprefix(&#34;fuel_use_&#34;)
+    pure_end_use_name = &#34;_&#34;.join(pure_end_use_name.split(&#34;_&#34;)[1:])
+    return f&#34;{len(end_use)}_fuels_{pure_end_use_name}&#34;</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="buildstock_query.tools.characteristics_visualizer" href="index.html">buildstock_query.tools.characteristics_visualizer</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot" href="#buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot">UpgradesPlot</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.explode_str" href="#buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.explode_str">explode_str</a></code></li>
+<li><code><a title="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_plot" href="#buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_plot">get_plot</a></code></li>
+<li><code><a title="buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_ylabel" href="#buildstock_query.tools.characteristics_visualizer.figure.UpgradesPlot.get_ylabel">get_ylabel</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

@@ -25,9 +25,11 @@ from typing import TypedDict, NewType
 from botocore.config import Config
 import urllib3
 from buildstock_query.schema.run_params import RunParams
+from buildstock_query.db_schema.db_schema_model import DBSchema
 from buildstock_query.schema.utilities import DBColType, AnyColType, AnyTableType, SALabel
 from pydantic import validate_arguments
 import hashlib
+import toml
 
 urllib3.disable_warnings()
 
@@ -103,10 +105,15 @@ class QueryCore:
 
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
-
-        self.timestamp_column_name = params.timestamp_column_name
-        self.building_id_column_name = params.building_id_column_name
-        self.sample_weight = params.sample_weight
+        db_schema_file = os.path.join(os.path.dirname(__file__), 'db_schema',
+                                      f'{params.db_schema}.toml')
+        db_schema_dict = toml.load(db_schema_file)
+        self.db_schema = DBSchema.parse_obj(db_schema_dict)
+        self.db_col_name = self.db_schema.column_names
+        self.timestamp_column_name = self.db_col_name.timestamp
+        self.building_id_column_name = self.db_col_name.building_id
+        self.sample_weight = params.sample_weight_override if params.sample_weight_override is not None else \
+            self.db_col_name.sample_weight
         self.table_name = params.table_name
         self.cache_folder = pathlib.Path(params.cache_folder)
         self.athena_query_reuse = params.athena_query_reuse
@@ -117,14 +124,16 @@ class QueryCore:
         with contextlib.suppress(FileNotFoundError):
             self.load_cache()
 
-    def get_cache_file_path(self) -> pathlib.Path:
-        cache_file_name = str(self.table_name)
-        if len(cache_file_name) > 64:
-            shortened_name = hashlib.sha256(cache_file_name.encode()).hexdigest()
-            pickle_path = self.cache_folder / f"{shortened_name}_query_cache.pkl"
+    @staticmethod
+    def get_compact_cache_name(table_name: str) -> str:
+        table_name = str(table_name)
+        if len(table_name) > 64:
+            return hashlib.sha256(table_name.encode()).hexdigest()
         else:
-            pickle_path = self.cache_folder / f"{cache_file_name}_query_cache.pkl"
-        return pickle_path
+            return table_name
+
+    def get_cache_file_path(self) -> pathlib.Path:
+        return self.cache_folder / f"{self.get_compact_cache_name(self.table_name)}_query_cache.pkl"
 
     @validate_arguments
     def load_cache(self, path: Optional[str] = None):
@@ -138,6 +147,7 @@ class QueryCore:
         saved_cache = load_pickle(pickle_path)
         logger.info(f"{len(saved_cache)} queries cache read from {path}.")
         self._query_cache.update(saved_cache)
+        self.last_saved_queries = set(saved_cache)
         after_count = len(self._query_cache)
         if diff := after_count - before_count:
             logger.info(f"{diff} queries cache is updated.")
@@ -187,7 +197,7 @@ class QueryCore:
             return sa.literal(1)
         elif isinstance(sample_weight, str):
             try:
-                return self.get_column(sample_weight)
+                return self.bs_table.c[sample_weight]
             except ValueError:
                 logger.error("Sample weight column not found. Using weight of 1.")
                 return sa.literal(1)
@@ -197,17 +207,17 @@ class QueryCore:
             raise ValueError("Invalid value for sample_weight")
 
     @typing.overload
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[True]) -> Optional[sa.Table]:
+    def get_table(self, table_name: AnyTableType, missing_ok: Literal[True]) -> Optional[sa.Table]:
         ...
 
     @typing.overload
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: Literal[False] = False) -> sa.Table:
+    def get_table(self, table_name: AnyTableType, missing_ok: Literal[False] = False) -> sa.Table:
         ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def get_table(self, table_name: Union[str, sa.schema.Table], missing_ok: bool = False) -> Optional[sa.Table]:
+    def get_table(self, table_name: AnyTableType, missing_ok: bool = False) -> Optional[sa.Table]:
 
-        if isinstance(table_name, sa.schema.Table):
+        if not isinstance(table_name, str):
             return table_name  # already a table
 
         try:
@@ -222,14 +232,19 @@ class QueryCore:
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_column(self, column_name: AnyColType,
                    table_name: Optional[AnyTableType] = None) -> DBColType:
-        if isinstance(column_name, (sa.Column, SALabel)):
+        if not isinstance(column_name, str):
             return column_name  # already a col
 
-        assert isinstance(column_name, str)
         if table_name is not None:
             valid_tables = [self.get_table(table_name)]
         else:
-            valid_tables = [table for _, table in self._tables.items() if column_name in table.columns]
+            valid_tables = []
+            for tbl in [self.bs_table, self.up_table, self.ts_table]:
+                if tbl is not None and column_name in tbl.columns:
+                    valid_tables.append(tbl)
+            if not valid_tables:
+                valid_tables += [table for _, table in self._tables.items()
+                                 if column_name in table.columns]
 
         if not valid_tables:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
@@ -244,13 +259,25 @@ class QueryCore:
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
-            baseline_table = self.get_table(f'{table_name}_baseline')
-            ts_table = self.get_table(f'{table_name}_timeseries', missing_ok=True)
-            upgrade_table = self.get_table(f'{table_name}_upgrades', missing_ok=True)
+            baseline_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
+            ts_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
+            if self.db_schema.table_suffix.upgrades == self.db_schema.table_suffix.baseline:
+                upgrade_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
+                baseline_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
+            else:
+                upgrade_table = self.get_table(f'{table_name}{self.db_schema.table_suffix.upgrades}', missing_ok=True)
         else:
             baseline_table = self.get_table(f'{table_name[0]}')
             ts_table = self.get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
-            upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
+            if table_name[2] == table_name[0]:
+                upgrade_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')
+                baseline_table = sa.select(baseline_table).where(
+                    sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
+            else:
+                upgrade_table = self.get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
@@ -930,12 +957,10 @@ class QueryCore:
             tbl = self.get_table(table)
             return [col for col in tbl.columns]
 
-    @staticmethod
-    def _simple_label(label):
-        if '.' in label:
-            return ''.join(label.split('.')[1:])
-        else:
-            return label
+    def _simple_label(self, label: str):
+        label = label.removeprefix(self.db_schema.column_prefix.characteristics)
+        label = label.removeprefix(self.db_schema.column_prefix.output)
+        return label
 
     def _add_restrict(self, query, restrict, bs_only=False):
         if not restrict:

@@ -40,7 +40,7 @@ class BuildStockSavings:
         sa_ts_cols = [ts.c[self._bsq.building_id_column_name],
                       ts.c[self._bsq.timestamp_column_name]] + list(ts_group_by)
         sa_ts_cols.extend(enduses)
-        ucol = ts.c["upgrade"]
+        ucol = self._bsq.ts_upgrade_col
         ts_b = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, ("0")]] + list(restrict)).alias("ts_b")
         ts_u = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, (upgrade_id)]] + list(restrict)).alias("ts_u")
 
@@ -69,16 +69,16 @@ class BuildStockSavings:
                 self._bsq.bs_table.join(
                     self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                                 self._bsq.up_table.c[self._bsq.building_id_column_name],
-                                                self._bsq.up_table.c["upgrade"] == upgrade_id,
-                                                self._bsq.up_table.c["completed_status"] == "Success"))
+                                                self._bsq.up_upgrade_col == upgrade_id,
+                                                self._bsq.up_successful_condition))
             )
         else:
             tbljoin = (
                 self._bsq.bs_table.outerjoin(
                     self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                                 self._bsq.up_table.c[self._bsq.building_id_column_name],
-                                                self._bsq.up_table.c["upgrade"] == upgrade_id,
-                                                self._bsq.up_table.c["completed_status"] == "Success")))
+                                                self._bsq.up_upgrade_col == upgrade_id,
+                                                self._bsq.up_successful_condition)))
 
         return self._bsq.bs_table, self._bsq.up_table, tbljoin
 
@@ -113,12 +113,13 @@ class BuildStockSavings:
         for col in enduse_cols:
             if params.annual_only:
                 savings_col = (safunc.coalesce(ts_b.c[col.name], 0) -
-                               safunc.coalesce(sa.case((ts_u.c['completed_status'] == 'Success', ts_u.c[col.name]),
+                               safunc.coalesce(sa.case((self._bsq.get_success_condition(ts_u),
+                                                        ts_u.c[col.name]),
                                                else_=ts_b.c[col.name]), 0)
                                )
             else:
                 savings_col = (safunc.coalesce(ts_b.c[col.name], 0) -
-                               safunc.coalesce(sa.case((ts_u.c['building_id'] == None, ts_b.c[col.name]),  # noqa E711
+                               safunc.coalesce(sa.case((ts_u.c[self._bsq.building_id_column_name] == None, ts_b.c[col.name]),  # noqa E711
                                                else_=ts_u.c[col.name]), 0)
                                )
             query_cols.extend(
@@ -173,7 +174,7 @@ class BuildStockSavings:
         query = self._bsq._add_join(query, params.join_list)
         query = self._bsq._add_restrict(query, params.restrict)
         if params.annual_only:
-            query = query.where(self._bsq.bs_table.c["completed_status"] == "Success")
+            query = query.where(self._bsq.bs_successful_condition)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
 

@@ -82,7 +82,7 @@ def get_app(viz_data: VizData):
     qoi_cols = filter_cols(all_cols, ["qoi_"])
     cost_cols = filter_cols(all_cols, ["upgrade_cost_"])
     build_cols = viz_data.metadata_df.columns
-    char_cols = [c.removeprefix('build_existing_model.') for c in build_cols if 'applicable' not in c]
+    char_cols = [c.removeprefix(viz_data.main_run.char_prefix) for c in build_cols if 'applicable' not in c]
     char_cols += ['month']
     fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
     change_types = ["any", "no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng"]

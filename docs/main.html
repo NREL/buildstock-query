@@ -26,36 +26,53 @@
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">import contextlib
-import sqlalchemy as sa
+<pre><code class="python">import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
-from typing import List, Tuple, Union
+from sqlalchemy.sql import sqltypes
+from typing import List, Union, Sequence
 import logging
 import re
-from buildstock_query.tools.upgrades_analyzer import UpgradesAnalyzer
+from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
-from buildstock_query.report_query import BuildStockReport
-from buildstock_query.aggregate_query import BuildStockAggregate
-from buildstock_query.savings_query import BuildStockSavings
-from buildstock_query.utility_query import BuildStockUtility
 import pandas as pd
+from pydantic import validate_arguments, Field
+from typing import Optional, Literal
+from typing_extensions import assert_never
+import typing
+from datetime import datetime
+from buildstock_query.schema.run_params import BSQParams
+from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType, AnyTableType
+from buildstock_query.schema.utilities import MappedColumn
+import os
+from dataclasses import dataclass
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 FUELS = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
 
 
+@dataclass
+class SimInfo:
+    year: int
+    interval: int
+    offset: int
+    unit: str
+
+
 class BuildStockQuery(QueryCore):
+
+    @validate_arguments(config=dict(smart_union=True))
     def __init__(self,
                  workgroup: str,
                  db_name: str,
-                 table_name: str | tuple[str, str],
-                 buildstock_type: str = &#39;resstock&#39;,
-                 timestamp_column_name: str = &#39;time&#39;,
-                 building_id_column_name: str = &#39;building_id&#39;,
-                 sample_weight: str = &#34;build_existing_model.sample_weight&#34;,
+                 table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
+                 db_schema: Optional[str] = None,
+                 buildstock_type: Literal[&#39;resstock&#39;, &#39;comstock&#39;] = &#39;resstock&#39;,
+                 sample_weight: Optional[Union[int, float]] = None,
                  region_name: str = &#39;us-west-2&#39;,
-                 execution_history: str | None = None,
-                 skip_reports: bool | None = False,
+                 execution_history: Optional[str] = None,
+                 skip_reports: bool = False,
+                 athena_query_reuse: bool = True,
                  ) -&gt; None:
         &#34;&#34;&#34;A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -63,10 +80,10 @@ class BuildStockQuery(QueryCore):
             workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
             db_name (str): The athena database name
             buildstock_type (str, optional): &#39;resstock&#39; or &#39;comstock&#39; runs. Defaults to &#39;resstock&#39;
-            table_name (str or tuple[str, str]): If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond
-                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
-                as a tuple, (such as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and
-                a timeseries table.
+            table_name (str or Union[str, tuple[str, Optional[str], Optional[str]]]): If a single string is provided,
+            say, &#39;mfm_run&#39;, then it must correspond to tables in athena named mfm_run_baseline and optionally
+            mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
+            for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
             timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
             building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
             sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
@@ -76,19 +93,29 @@ class BuildStockQuery(QueryCore):
                 to help stop them. Will use .execution_history if not supplied.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+            athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
+                When false, it will not. Defaults to True. One use case to set this to False is when you have modified
+                the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         &#34;&#34;&#34;
-
-        super().__init__(
+        db_schema = db_schema or f&#34;{buildstock_type}_default&#34;
+        self.params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
             table_name=table_name,
-            timestamp_column_name=timestamp_column_name,
-            building_id_column_name=building_id_column_name,
-            sample_weight=sample_weight,
+            db_schema=db_schema,
+            sample_weight_override=sample_weight,
             region_name=region_name,
-            execution_history=execution_history
+            execution_history=execution_history,
+            athena_query_reuse=athena_query_reuse
         )
+        self.run_params = self.params.get_run_params()
+        from buildstock_query.report_query import BuildStockReport
+        from buildstock_query.aggregate_query import BuildStockAggregate
+        from buildstock_query.savings_query import BuildStockSavings
+        from buildstock_query.utility_query import BuildStockUtility
+
+        super().__init__(params=self.run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -98,15 +125,15 @@ class BuildStockQuery(QueryCore):
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
-        with contextlib.suppress(FileNotFoundError):
-            self.load_cache()
+        self.char_prefix = self.db_schema.column_prefix.characteristics
+        self.out_prefix = self.db_schema.column_prefix.output
 
         if not skip_reports:
             logger.info(&#34;Getting Success counts...&#34;)
             print(self.report.get_success_report())
             if self.ts_table is not None:
                 self.report.check_ts_bs_integrity()
-        self.save_cache()
+            self.save_cache()
 
     def get_buildstock_df(self) -&gt; pd.DataFrame:
         &#34;&#34;&#34;Returns the building characteristics data by quering Athena tables using the same format as that produced
@@ -114,33 +141,45 @@ class BuildStockQuery(QueryCore):
         Returns:
             pd.DataFrame: The buildstock.csv dataframe.
         &#34;&#34;&#34;
-        results_df = self.get_results_csv()
-        results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
-        buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+        results_df = self.get_results_csv_full()
+        results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
+                                self.db_schema.completion_values.success.lower()]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                           if c.startswith(&#34;build_existing_model.&#34;)]
+                           if c.startswith(self.char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
-    def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+    @validate_arguments
+    def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -&gt; UpgradesAnalyzer:
         &#34;&#34;&#34;
             Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
 
         Args:
             yaml_file (str): The path to the buildstock configuration file.
+            opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
 
         Returns:
             UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
         &#34;&#34;&#34;
 
         buildstock_df = self.get_buildstock_df()
-        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
         return ua
 
-    def _get_rows_per_building(self, get_query_only=False):
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[False] = False) -&gt; int:
+        ...
+
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @validate_arguments
+    def _get_rows_per_building(self, get_query_only: bool = False) -&gt; Union[int, str]:
         select_cols = []
-        if self.up_table is not None:
+        if self.up_table is not None and self.ts_table is not None:
             select_cols.append(self.ts_table.c[&#39;upgrade&#39;])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label(&#34;row_count&#34;)))
         ts_query = sa.select(select_cols)
@@ -157,7 +196,9 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError(&#34;Not all buildings have same number of rows.&#34;)
 
-    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+    @validate_arguments(config=dict(smart_union=True))
+    def get_distinct_vals(self, column: str, table_name: Optional[str],
+                          get_query_only: bool = False) -&gt; Union[str, pd.Series]:
         &#34;&#34;&#34;
             Find distinct vals.
         Args:
@@ -177,8 +218,9 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r[column]
 
-    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
-                           get_query_only: bool = False) -&gt; pd.DataFrame:
+    @validate_arguments(config=dict(smart_union=True))
+    def get_distinct_count(self, column: str, table_name: Optional[str] = None,
+                           get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
         &#34;&#34;&#34;
             Find distinct counts.
         Args:
@@ -199,9 +241,34 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r
 
+    @typing.overload
+    def get_results_csv(self, *,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        get_query_only: Literal[False] = False) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: Literal[True],
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: bool,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        ) -&gt; Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_results_csv(self,
-                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                        get_query_only: bool = False):
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
         &#34;&#34;&#34;
         Returns the results_csv table for the BuildStock run
         Args:
@@ -215,7 +282,7 @@ class BuildStockQuery(QueryCore):
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -223,13 +290,83 @@ class BuildStockQuery(QueryCore):
         if compiled_query in self._query_cache:
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info(&#34;Making results_csv query ...&#34;)
-        return self.execute(query).set_index(self.bs_bldgid_column.name)
+        result = self.execute(query)
+        return result.set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade=None,
-                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                         get_query_only: bool = False, copy=True):
+    def _download_results_csv(self) -&gt; str:
+        &#34;&#34;&#34;Downloads the results csv from s3 and returns the path to the downloaded file.
+        Returns:
+            str: The path to the downloaded file.
         &#34;&#34;&#34;
-        Returns the results_csv table for the BuildStock run
+        local_copy_path = self.cache_folder / f&#34;{self.db_name}_{self.bs_table.name}.parquet&#34;
+        if os.path.exists(local_copy_path):
+            return local_copy_path
+
+        if isinstance(self.table_name, str):
+            db_table_name = f&#39;{self.table_name}{self.db_schema.table_suffix.baseline}&#39;
+        else:
+            db_table_name = self.table_name[0]
+        baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=db_table_name)[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]
+        bucket = baseline_path.split(&#39;/&#39;)[2]
+        key = &#39;/&#39;.join(baseline_path.split(&#39;/&#39;)[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if &#39;Contents&#39; not in s3_data:
+            raise ValueError(f&#34;Results parquet not found in s3 at {baseline_path}&#34;)
+        matching_files = [path[&#39;Key&#39;] for path in s3_data[&#39;Contents&#39;]
+                          if &#34;up00.parquet&#34; in path[&#39;Key&#39;] or &#39;baseline&#39; in path[&#39;Key&#39;]]
+
+        if len(matching_files) &gt; 1:
+            raise ValueError(f&#34;Multiple results parquet found in s3 at {baseline_path} for baseline.&#34;
+                             f&#34;These files matched: {matching_files}&#34;)
+        if len(matching_files) == 0:
+            raise ValueError(f&#34;No results parquet found in s3 at {baseline_path} for baseline.&#34;
+                             f&#34;Here are the files: {[content[0][&#39;Key&#39;] for content in s3_data[&#39;Contents&#39;]]}&#34;)
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
+        return local_copy_path
+
+    def get_results_csv_full(self) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+        the stored parquet files in s3 to download the results which is faster than querying athena.
+        Returns:
+            pd.DataFrame: The full results csv.
+        &#34;&#34;&#34;
+        local_copy_path = self._download_results_csv()
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.bs_bldgid_column.name:
+            df = df.set_index(self.bs_bldgid_column.name)
+        return df
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: bool, upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; Union[pd.DataFrame, str]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_upgrades_csv(self, *, upgrade_id: Union[str, int] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+            default_factory=list),
+            get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run for an upgrade.
         Args:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
@@ -240,10 +377,12 @@ class BuildStockQuery(QueryCore):
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select([&#39;*&#39;]).select_from(self.up_table)
-        if upgrade:
-            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+        if upgrade_id:
+            if self.up_table is None:
+                raise ValueError(&#34;This run has no upgrades&#34;)
+            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade_id))
 
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -253,7 +392,90 @@ class BuildStockQuery(QueryCore):
         logger.info(&#34;Making results_csv query for upgrade ...&#34;)
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+    def _download_upgrades_csv(self, upgrade_id: int) -&gt; str:
+        &#34;&#34;&#34; Downloads the upgrades csv from s3 and returns the path to the downloaded file.
+        &#34;&#34;&#34;
+        if self.up_table is None:
+            raise ValueError(&#34;This run has no upgrades&#34;)
+
+        available_upgrades = list(self.get_available_upgrades())
+        available_upgrades.remove(&#39;0&#39;)
+        if str(upgrade_id) not in available_upgrades:
+            raise ValueError(f&#34;Upgrade {upgrade_id} not found&#34;)
+
+        local_copy_path = self.cache_folder / f&#34;{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet&#34;
+        if os.path.exists(local_copy_path):
+            return local_copy_path
+
+        if isinstance(self.table_name, str):
+            db_table_name = f&#39;{self.table_name}{self.db_schema.table_suffix.upgrades}&#39;
+        else:
+            db_table_name = self.table_name[2]
+        upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=db_table_name)[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]
+        bucket = upgrades_path.split(&#39;/&#39;)[2]
+        key = &#39;/&#39;.join(upgrades_path.split(&#39;/&#39;)[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if &#39;Contents&#39; not in s3_data:
+            raise ValueError(f&#34;Results parquet not found in s3 at {upgrades_path}&#34;)
+        # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
+        matching_files = [path[&#39;Key&#39;] for path in s3_data[&#39;Contents&#39;]
+                          if f&#34;up{upgrade_id:02}.parquet&#34; in path[&#39;Key&#39;] or
+                          f&#34;upgrade{upgrade_id:02}.parquet&#34; in path[&#39;Key&#39;]]
+        if len(matching_files) &gt; 1:
+            raise ValueError(f&#34;Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}.&#34;
+                             f&#34;These files matched: {matching_files}&#34;)
+        if len(matching_files) == 0:
+            raise ValueError(f&#34;No results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}.&#34;
+                             f&#34;Here are the files: {[content[0][&#39;Key&#39;] for content in s3_data[&#39;Contents&#39;]]}&#34;)
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
+        return local_copy_path
+
+    def get_upgrades_csv_full(self, upgrade_id: int) -&gt; pd.DataFrame:
+        &#34;&#34;&#34; Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+        athena.
+        &#34;&#34;&#34;
+        local_copy_path = self._download_upgrades_csv(upgrade_id)
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.up_bldgid_column.name:
+            df = df.set_index(self.up_bldgid_column.name)
+        if &#39;upgrade&#39; not in df.columns:
+            df.insert(0, &#39;upgrade&#39;, upgrade_id)
+        return df
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: Literal[False] = False
+                         ) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: Literal[True]
+                         ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: bool
+                         ) -&gt; Union[pd.DataFrame, str]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_building_ids(self,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: bool = False
+                         ) -&gt; Union[str, pd.DataFrame]:
         &#34;&#34;&#34;
         Returns the list of buildings based on the restrict list
         Args:
@@ -268,18 +490,30 @@ class BuildStockQuery(QueryCore):
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select(self.bs_bldgid_column)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._compile(query)
-        res = self.execute(query)
-        return res
+        return self.execute(query)
 
-    def _get_simulation_info(self, get_query_only=False):
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[False] = False) -&gt; SimInfo:
+        ...
+
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @validate_arguments(config=dict(smart_union=True))
+    def _get_simulation_info(self, get_query_only: bool = False) -&gt; Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
-        bldg_id = bldg_df.iloc[0].values[0]
-        query1 = sa.select([self.timestamp_column.distinct().label(&#39;time&#39;)]).where(self.ts_bldgid_column == bldg_id)
+        bldg_id = bldg_df.values[0][0]
+        upgrade_id = bldg_df.values[0][1]
+        query1 = sa.select([self.timestamp_column.distinct().label(
+                            self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
+        if self.up_table is not None:
+            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -288,45 +522,96 @@ class BuildStockQuery(QueryCore):
         time1 = two_times[self.timestamp_column_name].iloc[0]
         time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
-        sim_interval_seconds = (time2 - time1).total_seconds()
-        return sim_year, sim_interval_seconds
+        reference_time = datetime(year=sim_year, month=1, day=1)
+        sim_interval_seconds = int((time2 - time1).total_seconds())
+        start_offset_seconds = int((time1 - reference_time).total_seconds())
+        if sim_interval_seconds &gt;= 28 * 24 * 60 * 60:  # 28 days or more means monthly resoultion
+            assert start_offset_seconds in [0, 31 * 24 * 60 * 60]
+            interval = 1
+            offset = start_offset_seconds // (31 * 24 * 60 * 60)
+            unit = &#34;month&#34;
+        else:
+            interval = sim_interval_seconds
+            offset = start_offset_seconds
+            unit = &#34;second&#34;
+        assert offset in [0, interval]
+        return SimInfo(sim_year, interval, offset, unit)
 
-    def _get_gcol(self, column):  # gcol =&gt; group by col
+    def get_special_column(self,
+                           column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
+        sim_info = self._get_simulation_info()
+        if sim_info.offset &gt; 0:
+            # If timestamps are not period begining we should make them so we get proper values of special columns.
+            time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
+        else:
+            time_col = self.timestamp_column
+
+        if column_type == &#39;month&#39;:
+            return sa.func.month(time_col).label(&#39;month&#39;)
+        elif column_type == &#39;day&#39;:
+            return sa.func.day(time_col).label(&#39;day&#39;)
+        elif column_type == &#39;hour&#39;:
+            return sa.func.hour(time_col).label(&#39;hour&#39;)
+        elif column_type == &#39;day_of_week&#39;:
+            return sa.func.day_of_week(time_col).label(&#39;day_of_week&#39;)
+        elif column_type == &#39;is_weekend&#39;:
+            return sa.cast(sa.func.day_of_week(time_col).in_([6, 7]), sa.Integer).label(&#39;is_weekend&#39;)
+        else:
+            assert_never(column_type)
+            raise ValueError(f&#34;Unknown special column type: {column_type}&#34;)
+
+    def _get_gcol(self, column) -&gt; DBColType:  # gcol =&gt; group by col
+        &#34;&#34;&#34;Get a DB column for the purpose of grouping. If the provided column doesn&#39;t exist as is,
+        tries to get the column by prepending build_existing_model.&#34;&#34;&#34;
+
         if isinstance(column, sa.Column):
             return column.label(self._simple_label(column.name))  # already a col
 
-        if isinstance(column, sa.sql.elements.Label):
+        if isinstance(column, SALabel):
             return column
+
+        if isinstance(column, MappedColumn):
+            return sa.literal(column).label(self._simple_label(column.name))
 
         if isinstance(column, tuple):
             try:
                 return self.get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f&#34;build_existing_model.{column[0]}&#34;
+                new_name = f&#34;{self.char_prefix}{column[0]}&#34;
                 return self.get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
                 return self.get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith(&#34;build_existing_model.&#34;):
-                    new_name = f&#34;build_existing_model.{column}&#34;
+                if not column.startswith(self.char_prefix):
+                    new_name = f&#34;{self.char_prefix}{column}&#34;
                     return self.get_column(new_name).label(column)
                 raise ValueError(f&#34;Invalid column name {column}&#34;) from e
         else:
             raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
 
-    def _get_enduse_cols(self, enduses, table=&#39;baseline&#39;) -&gt; list[sa.Column]:
+    def _get_enduse_cols(self, enduses: Sequence[AnyColType],
+                         table=&#39;baseline&#39;) -&gt; Sequence[DBColType]:
         tbls_dict = {&#39;baseline&#39;: self.bs_table,
                      &#39;upgrade&#39;: self.up_table,
                      &#39;timeseries&#39;: self.ts_table}
         tbl = tbls_dict[table]
-        try:
-            enduse_cols = [tbl.c[e] for e in enduses]
-        except KeyError as e:
-            if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
-                enduse_cols = [tbl.c[f&#34;report_simulation_output.{e}&#34;] for e in enduses]
+        enduse_cols: list[DBColType] = []
+        for enduse in enduses:
+            if isinstance(enduse, (sa.Column, SALabel)):
+                enduse_cols.append(enduse)
+            elif isinstance(enduse, str):
+                try:
+                    enduse_cols.append(tbl.c[enduse])
+                except KeyError as err:
+                    if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
+                        enduse_cols.append(tbl.c[f&#34;{self.out_prefix}{enduse}&#34;])
+                    else:
+                        raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from err
+            elif isinstance(enduse, MappedColumn):
+                enduse_cols.append(sa.literal(enduse).label(enduse.name))
             else:
-                raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from e
+                assert_never(enduse)
         return enduse_cols
 
     def get_groupby_cols(self) -&gt; List[str]:
@@ -335,11 +620,11 @@ class BuildStockQuery(QueryCore):
         Returns:
             List[str]: List of building characteristics.
         &#34;&#34;&#34;
-        cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
-                if y.startswith(&#34;build_existing_model.&#34;)}
+        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self.char_prefix)}
         return list(cols)
 
-    def _validate_group_by(self, group_by):
+    def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
         valid_groupby_cols = self.get_groupby_cols()
         group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
         if not set(group_by_cols).issubset(valid_groupby_cols):
@@ -349,16 +634,16 @@ class BuildStockQuery(QueryCore):
         # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
         # performance
 
-    def get_available_upgrades(self) -&gt; list:
+    def get_available_upgrades(self) -&gt; Sequence[str]:
         &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
         Returns:
             list: List of upgrades
         &#34;&#34;&#34;
-        return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)
+        return list([str(u) for u in self.report.get_success_report().index])
 
-    def _validate_upgrade(self, upgrade_id):
-        upgrade_id = 0 if upgrade_id in (None, &#39;0&#39;) else upgrade_id
-        available_upgrades = self.get_available_upgrades() or [0]
+    def _validate_upgrade(self, upgrade_id: Union[int, str]) -&gt; str:
+        upgrade_id = &#39;0&#39; if upgrade_id in (None, &#39;0&#39;) else str(upgrade_id)
+        available_upgrades = self.get_available_upgrades() or [&#39;0&#39;]
         if upgrade_id not in set(available_upgrades):
             raise ValueError(f&#34;`upgrade_id` = {upgrade_id} is not a valid upgrade.&#34;
                              &#34;It doesn&#39;t exist or have no successful run&#34;)
@@ -369,7 +654,7 @@ class BuildStockQuery(QueryCore):
         bs_restrict = []  # restrict to apply to baseline table
         ts_restrict = []  # restrict to apply to timeseries table
         for col, restrict_vals in restrict:
-            if col in self.ts_table.columns:  # prioritize ts table
+            if self.ts_table is not None and col in self.ts_table.columns:  # prioritize ts table
                 ts_restrict.append([self.ts_table.c[col], restrict_vals])
             else:
                 bs_restrict.append([self._get_gcol(col), restrict_vals])
@@ -380,7 +665,7 @@ class BuildStockQuery(QueryCore):
         ts_group_by = []  # restrict to apply to baseline table
         bs_group_by = []  # restrict to apply to timeseries table
         for g in processed_group_by:
-            if g.name in self.ts_table.columns:
+            if self.ts_table is not None and g.name in self.ts_table.columns:
                 ts_group_by.append(g)
             else:
                 bs_group_by.append(g)
@@ -419,10 +704,10 @@ class BuildStockQuery(QueryCore):
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith(&#34;build_existing_model.&#34;):
-                    new_group_by.append(f&#34;build_existing_model.{entry}&#34;)
-                elif isinstance(entry, tuple) and not entry[0].startswith(&#34;build_existing_model.&#34;):
-                    new_group_by.append((f&#34;build_existing_model.{entry[0]}&#34;, entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
+                    new_group_by.append(f&#34;{self.char_prefix}{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
+                    new_group_by.append((f&#34;{self.char_prefix}{entry[0]}&#34;, entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -441,7 +726,24 @@ class BuildStockQuery(QueryCore):
 
         return bld0_step_count
 
-    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[False] = False) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool) -&gt; Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool = False) -&gt; Union[str, pd.DataFrame]:
         &#34;&#34;&#34;
         Returns the list of buildings belonging to given list of locations.
         Args:
@@ -459,7 +761,59 @@ class BuildStockQuery(QueryCore):
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
-        return res</code></pre>
+        return res
+
+    @property
+    def bs_completed_status_col(self):
+        if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return self.bs_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def up_completed_status_col(self):
+        if self.up_table is None:
+            raise ValueError(&#34;No upgrades table&#34;)
+        if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return self.up_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def bs_successful_condition(self):
+        return self.bs_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def up_successful_condition(self):
+        return self.up_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def ts_upgrade_col(self):
+        if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+            return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+        else:
+            return self.ts_table.c[&#39;upgrade&#39;]
+
+    @property
+    def up_upgrade_col(self):
+        if self.up_table is None:
+            raise ValueError(&#34;No upgrades table&#34;)
+        if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+            return sa.cast(self.up_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+        else:
+            return self.up_table.c[&#39;upgrade&#39;]
+
+    def get_completed_status_col(self, table: AnyTableType):
+        if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return table.c[self.db_schema.column_names.completed_status]
+
+    def get_success_condition(self, table: AnyTableType):
+        return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 </section>
 <section>
@@ -473,7 +827,7 @@ class BuildStockQuery(QueryCore):
 <dl>
 <dt id="buildstock_query.main.BuildStockQuery"><code class="flex name class">
 <span>class <span class="ident">BuildStockQuery</span></span>
-<span>(</span><span>workgroup: str, db_name: str, table_name: str | tuple[str, str], buildstock_type: str = 'resstock', timestamp_column_name: str = 'time', building_id_column_name: str = 'building_id', sample_weight: str = 'build_existing_model.sample_weight', region_name: str = 'us-west-2', execution_history: str | None = None, skip_reports: bool | None = False)</span>
+<span>(</span><span>workgroup: str, db_name: str, table_name: Union[str, tuple[str, Optional[str], Optional[str]]], db_schema: Optional[str] = None, buildstock_type: Literal['resstock', 'comstock'] = 'resstock', sample_weight: Union[int, float, ForwardRef(None)] = None, region_name: str = 'us-west-2', execution_history: Optional[str] = None, skip_reports: bool = False, athena_query_reuse: bool = True)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.</p>
@@ -485,11 +839,11 @@ class BuildStockQuery(QueryCore):
 <dd>The athena database name</dd>
 <dt><strong><code>buildstock_type</code></strong> :&ensp;<code>str</code>, optional</dt>
 <dd>'resstock' or 'comstock' runs. Defaults to 'resstock'</dd>
-<dt><strong><code>table_name</code></strong> :&ensp;<code>str</code> or <code>tuple[str, str]</code></dt>
-<dd>If a single string is provided, say, 'mfm_run', then it must correspond
-to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
-as a tuple, (such as 'mfm_run_2_baseline', 'mfm_run5_timeseries') and they must be a baseline table and
-a timeseries table.</dd>
+<dt><strong><code>table_name</code></strong> :&ensp;<code>str</code> or <code>Union[str, tuple[str, Optional[str], Optional[str]]]</code></dt>
+<dd>If a single string is provided,</dd>
+<dt>say, 'mfm_run', then it must correspond to tables in athena named mfm_run_baseline and optionally</dt>
+<dt>mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names</dt>
+<dt>for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.</dt>
 <dt><strong><code>timestamp_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
 <dd>The column name for the time column. Defaults to 'time'</dd>
 <dt><strong><code>building_id_column_name</code></strong> :&ensp;<code>str</code>, optional</dt>
@@ -505,23 +859,29 @@ to help stop them. Will use .execution_history if not supplied.</dd>
 <dt><strong><code>skip_reports</code></strong> :&ensp;<code>bool</code>, optional</dt>
 <dd>If true, skips report printing during initialization. If False (default),
 prints report from <code><a title="buildstock_query.report_query.BuildStockReport.get_success_report" href="report_query.html#buildstock_query.report_query.BuildStockReport.get_success_report">BuildStockReport.get_success_report()</a></code>.</dd>
+<dt><strong><code>athena_query_reuse</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>When true, Athena will make use of its built-in 7 day query cache.
+When false, it will not. Defaults to True. One use case to set this to False is when you have modified
+the underlying s3 data or glue schema and want to make sure you are not using the cached results.</dd>
 </dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class BuildStockQuery(QueryCore):
+
+    @validate_arguments(config=dict(smart_union=True))
     def __init__(self,
                  workgroup: str,
                  db_name: str,
-                 table_name: str | tuple[str, str],
-                 buildstock_type: str = &#39;resstock&#39;,
-                 timestamp_column_name: str = &#39;time&#39;,
-                 building_id_column_name: str = &#39;building_id&#39;,
-                 sample_weight: str = &#34;build_existing_model.sample_weight&#34;,
+                 table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
+                 db_schema: Optional[str] = None,
+                 buildstock_type: Literal[&#39;resstock&#39;, &#39;comstock&#39;] = &#39;resstock&#39;,
+                 sample_weight: Optional[Union[int, float]] = None,
                  region_name: str = &#39;us-west-2&#39;,
-                 execution_history: str | None = None,
-                 skip_reports: bool | None = False,
+                 execution_history: Optional[str] = None,
+                 skip_reports: bool = False,
+                 athena_query_reuse: bool = True,
                  ) -&gt; None:
         &#34;&#34;&#34;A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -529,10 +889,10 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
             workgroup (str): The workgroup for athena. The cost will be charged based on workgroup.
             db_name (str): The athena database name
             buildstock_type (str, optional): &#39;resstock&#39; or &#39;comstock&#39; runs. Defaults to &#39;resstock&#39;
-            table_name (str or tuple[str, str]): If a single string is provided, say, &#39;mfm_run&#39;, then it must correspond
-                to two tables in athena named mfm_run_baseline and mfm_run_timeseries. Or, two strings can be provided
-                as a tuple, (such as &#39;mfm_run_2_baseline&#39;, &#39;mfm_run5_timeseries&#39;) and they must be a baseline table and
-                a timeseries table.
+            table_name (str or Union[str, tuple[str, Optional[str], Optional[str]]]): If a single string is provided,
+            say, &#39;mfm_run&#39;, then it must correspond to tables in athena named mfm_run_baseline and optionally
+            mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be privided for the table names
+            for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
             timestamp_column_name (str, optional): The column name for the time column. Defaults to &#39;time&#39;
             building_id_column_name (str, optional): The column name for building_id. Defaults to &#39;building_id&#39;
             sample_weight (str, optional): The column name to be used to get the sample weight. Pass floats/integer to
@@ -542,19 +902,29 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
                 to help stop them. Will use .execution_history if not supplied.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+            athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
+                When false, it will not. Defaults to True. One use case to set this to False is when you have modified
+                the underlying s3 data or glue schema and want to make sure you are not using the cached results.
         &#34;&#34;&#34;
-
-        super().__init__(
+        db_schema = db_schema or f&#34;{buildstock_type}_default&#34;
+        self.params = BSQParams(
             workgroup=workgroup,
             db_name=db_name,
             buildstock_type=buildstock_type,
             table_name=table_name,
-            timestamp_column_name=timestamp_column_name,
-            building_id_column_name=building_id_column_name,
-            sample_weight=sample_weight,
+            db_schema=db_schema,
+            sample_weight_override=sample_weight,
             region_name=region_name,
-            execution_history=execution_history
+            execution_history=execution_history,
+            athena_query_reuse=athena_query_reuse
         )
+        self.run_params = self.params.get_run_params()
+        from buildstock_query.report_query import BuildStockReport
+        from buildstock_query.aggregate_query import BuildStockAggregate
+        from buildstock_query.savings_query import BuildStockSavings
+        from buildstock_query.utility_query import BuildStockUtility
+
+        super().__init__(params=self.run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -564,15 +934,15 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         #: `buildstock_query.utility_query.BuildStockUtility` object to perform utility queries
         self.utility = BuildStockUtility(self)
 
-        with contextlib.suppress(FileNotFoundError):
-            self.load_cache()
+        self.char_prefix = self.db_schema.column_prefix.characteristics
+        self.out_prefix = self.db_schema.column_prefix.output
 
         if not skip_reports:
             logger.info(&#34;Getting Success counts...&#34;)
             print(self.report.get_success_report())
             if self.ts_table is not None:
                 self.report.check_ts_bs_integrity()
-        self.save_cache()
+            self.save_cache()
 
     def get_buildstock_df(self) -&gt; pd.DataFrame:
         &#34;&#34;&#34;Returns the building characteristics data by quering Athena tables using the same format as that produced
@@ -580,33 +950,45 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         Returns:
             pd.DataFrame: The buildstock.csv dataframe.
         &#34;&#34;&#34;
-        results_df = self.get_results_csv()
-        results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
-        buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+        results_df = self.get_results_csv_full()
+        results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
+                                self.db_schema.completion_values.success.lower()]
+        buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
         buildstock_df = results_df[buildstock_cols]
         buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                           if c.startswith(&#34;build_existing_model.&#34;)]
+                           if c.startswith(self.char_prefix)]
         buildstock_df.columns = buildstock_cols
         return buildstock_df
 
-    def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+    @validate_arguments
+    def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -&gt; UpgradesAnalyzer:
         &#34;&#34;&#34;
             Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
 
         Args:
             yaml_file (str): The path to the buildstock configuration file.
+            opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
 
         Returns:
             UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
         &#34;&#34;&#34;
 
         buildstock_df = self.get_buildstock_df()
-        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
         return ua
 
-    def _get_rows_per_building(self, get_query_only=False):
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[False] = False) -&gt; int:
+        ...
+
+    @typing.overload
+    def _get_rows_per_building(self, get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @validate_arguments
+    def _get_rows_per_building(self, get_query_only: bool = False) -&gt; Union[int, str]:
         select_cols = []
-        if self.up_table is not None:
+        if self.up_table is not None and self.ts_table is not None:
             select_cols.append(self.ts_table.c[&#39;upgrade&#39;])
         select_cols.extend((self.ts_bldgid_column, safunc.count().label(&#34;row_count&#34;)))
         ts_query = sa.select(select_cols)
@@ -623,7 +1005,9 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         else:
             raise ValueError(&#34;Not all buildings have same number of rows.&#34;)
 
-    def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+    @validate_arguments(config=dict(smart_union=True))
+    def get_distinct_vals(self, column: str, table_name: Optional[str],
+                          get_query_only: bool = False) -&gt; Union[str, pd.Series]:
         &#34;&#34;&#34;
             Find distinct vals.
         Args:
@@ -643,8 +1027,9 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         r = self.execute(query, run_async=False)
         return r[column]
 
-    def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
-                           get_query_only: bool = False) -&gt; pd.DataFrame:
+    @validate_arguments(config=dict(smart_union=True))
+    def get_distinct_count(self, column: str, table_name: Optional[str] = None,
+                           get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
         &#34;&#34;&#34;
             Find distinct counts.
         Args:
@@ -665,9 +1050,34 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         r = self.execute(query, run_async=False)
         return r
 
+    @typing.overload
+    def get_results_csv(self, *,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        get_query_only: Literal[False] = False) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: Literal[True],
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_results_csv(self, *,
+                        get_query_only: bool,
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        ) -&gt; Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_results_csv(self,
-                        restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                        get_query_only: bool = False):
+                        restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                            default_factory=list),
+                        get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
         &#34;&#34;&#34;
         Returns the results_csv table for the BuildStock run
         Args:
@@ -681,7 +1091,7 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -689,13 +1099,83 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         if compiled_query in self._query_cache:
             return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
         logger.info(&#34;Making results_csv query ...&#34;)
-        return self.execute(query).set_index(self.bs_bldgid_column.name)
+        result = self.execute(query)
+        return result.set_index(self.bs_bldgid_column.name)
 
-    def get_upgrades_csv(self, upgrade=None,
-                         restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                         get_query_only: bool = False, copy=True):
+    def _download_results_csv(self) -&gt; str:
+        &#34;&#34;&#34;Downloads the results csv from s3 and returns the path to the downloaded file.
+        Returns:
+            str: The path to the downloaded file.
         &#34;&#34;&#34;
-        Returns the results_csv table for the BuildStock run
+        local_copy_path = self.cache_folder / f&#34;{self.db_name}_{self.bs_table.name}.parquet&#34;
+        if os.path.exists(local_copy_path):
+            return local_copy_path
+
+        if isinstance(self.table_name, str):
+            db_table_name = f&#39;{self.table_name}{self.db_schema.table_suffix.baseline}&#39;
+        else:
+            db_table_name = self.table_name[0]
+        baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=db_table_name)[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]
+        bucket = baseline_path.split(&#39;/&#39;)[2]
+        key = &#39;/&#39;.join(baseline_path.split(&#39;/&#39;)[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if &#39;Contents&#39; not in s3_data:
+            raise ValueError(f&#34;Results parquet not found in s3 at {baseline_path}&#34;)
+        matching_files = [path[&#39;Key&#39;] for path in s3_data[&#39;Contents&#39;]
+                          if &#34;up00.parquet&#34; in path[&#39;Key&#39;] or &#39;baseline&#39; in path[&#39;Key&#39;]]
+
+        if len(matching_files) &gt; 1:
+            raise ValueError(f&#34;Multiple results parquet found in s3 at {baseline_path} for baseline.&#34;
+                             f&#34;These files matched: {matching_files}&#34;)
+        if len(matching_files) == 0:
+            raise ValueError(f&#34;No results parquet found in s3 at {baseline_path} for baseline.&#34;
+                             f&#34;Here are the files: {[content[0][&#39;Key&#39;] for content in s3_data[&#39;Contents&#39;]]}&#34;)
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
+        return local_copy_path
+
+    def get_results_csv_full(self) -&gt; pd.DataFrame:
+        &#34;&#34;&#34;Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+        the stored parquet files in s3 to download the results which is faster than querying athena.
+        Returns:
+            pd.DataFrame: The full results csv.
+        &#34;&#34;&#34;
+        local_copy_path = self._download_results_csv()
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.bs_bldgid_column.name:
+            df = df.set_index(self.bs_bldgid_column.name)
+        return df
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[False] = False, upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: Literal[True], upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_upgrades_csv(self, *, get_query_only: bool, upgrade_id: Union[int, str] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list)
+    ) -&gt; Union[pd.DataFrame, str]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_upgrades_csv(self, *, upgrade_id: Union[str, int] = &#39;0&#39;,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+            default_factory=list),
+            get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
+        &#34;&#34;&#34;
+        Returns the results_csv table for the BuildStock run for an upgrade.
         Args:
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                       Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
@@ -706,10 +1186,12 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select([&#39;*&#39;]).select_from(self.up_table)
-        if upgrade:
-            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+        if upgrade_id:
+            if self.up_table is None:
+                raise ValueError(&#34;This run has no upgrades&#34;)
+            query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade_id))
 
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -719,7 +1201,90 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         logger.info(&#34;Making results_csv query for upgrade ...&#34;)
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+    def _download_upgrades_csv(self, upgrade_id: int) -&gt; str:
+        &#34;&#34;&#34; Downloads the upgrades csv from s3 and returns the path to the downloaded file.
+        &#34;&#34;&#34;
+        if self.up_table is None:
+            raise ValueError(&#34;This run has no upgrades&#34;)
+
+        available_upgrades = list(self.get_available_upgrades())
+        available_upgrades.remove(&#39;0&#39;)
+        if str(upgrade_id) not in available_upgrades:
+            raise ValueError(f&#34;Upgrade {upgrade_id} not found&#34;)
+
+        local_copy_path = self.cache_folder / f&#34;{self.db_name}_{self.up_table.name}_{upgrade_id}.parquet&#34;
+        if os.path.exists(local_copy_path):
+            return local_copy_path
+
+        if isinstance(self.table_name, str):
+            db_table_name = f&#39;{self.table_name}{self.db_schema.table_suffix.upgrades}&#39;
+        else:
+            db_table_name = self.table_name[2]
+        upgrades_path = self._aws_glue.get_table(DatabaseName=self.db_name,
+                                                 Name=db_table_name)[&#39;Table&#39;][&#39;StorageDescriptor&#39;][&#39;Location&#39;]
+        bucket = upgrades_path.split(&#39;/&#39;)[2]
+        key = &#39;/&#39;.join(upgrades_path.split(&#39;/&#39;)[3:])
+        s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)
+
+        if &#39;Contents&#39; not in s3_data:
+            raise ValueError(f&#34;Results parquet not found in s3 at {upgrades_path}&#34;)
+        # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
+        matching_files = [path[&#39;Key&#39;] for path in s3_data[&#39;Contents&#39;]
+                          if f&#34;up{upgrade_id:02}.parquet&#34; in path[&#39;Key&#39;] or
+                          f&#34;upgrade{upgrade_id:02}.parquet&#34; in path[&#39;Key&#39;]]
+        if len(matching_files) &gt; 1:
+            raise ValueError(f&#34;Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}.&#34;
+                             f&#34;These files matched: {matching_files}&#34;)
+        if len(matching_files) == 0:
+            raise ValueError(f&#34;No results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}.&#34;
+                             f&#34;Here are the files: {[content[0][&#39;Key&#39;] for content in s3_data[&#39;Contents&#39;]]}&#34;)
+
+        self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
+        return local_copy_path
+
+    def get_upgrades_csv_full(self, upgrade_id: int) -&gt; pd.DataFrame:
+        &#34;&#34;&#34; Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+        restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+        athena.
+        &#34;&#34;&#34;
+        local_copy_path = self._download_upgrades_csv(upgrade_id)
+        df = pd.read_parquet(local_copy_path)
+        if df.index.name != self.up_bldgid_column.name:
+            df = df.set_index(self.up_bldgid_column.name)
+        if &#39;upgrade&#39; not in df.columns:
+            df.insert(0, &#39;upgrade&#39;, upgrade_id)
+        return df
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: Literal[False] = False
+                         ) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: Literal[True]
+                         ) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_building_ids(self, *,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: bool
+                         ) -&gt; Union[pd.DataFrame, str]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_building_ids(self,
+                         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                             default_factory=list),
+                         get_query_only: bool = False
+                         ) -&gt; Union[str, pd.DataFrame]:
         &#34;&#34;&#34;
         Returns the list of buildings based on the restrict list
         Args:
@@ -734,18 +1299,30 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         query = sa.select(self.bs_bldgid_column)
-        query = self._add_restrict(query, restrict)
+        query = self._add_restrict(query, restrict, bs_only=True)
         if get_query_only:
             return self._compile(query)
-        res = self.execute(query)
-        return res
+        return self.execute(query)
 
-    def _get_simulation_info(self, get_query_only=False):
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[False] = False) -&gt; SimInfo:
+        ...
+
+    @typing.overload
+    def _get_simulation_info(self, get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @validate_arguments(config=dict(smart_union=True))
+    def _get_simulation_info(self, get_query_only: bool = False) -&gt; Union[str, SimInfo]:
         # find the simulation time interval
-        query0 = sa.select([self.ts_bldgid_column]).limit(1)  # get a building id
+        query0 = sa.select([self.ts_bldgid_column, self.ts_upgrade_col]).limit(1)  # get a building id and upgrade
         bldg_df = self.execute(query0)
-        bldg_id = bldg_df.iloc[0].values[0]
-        query1 = sa.select([self.timestamp_column.distinct().label(&#39;time&#39;)]).where(self.ts_bldgid_column == bldg_id)
+        bldg_id = bldg_df.values[0][0]
+        upgrade_id = bldg_df.values[0][1]
+        query1 = sa.select([self.timestamp_column.distinct().label(
+                            self.timestamp_column_name)]).where(self.ts_bldgid_column == bldg_id)
+        if self.up_table is not None:
+            query1 = query1.where(self.ts_upgrade_col == upgrade_id)
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -754,45 +1331,96 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         time1 = two_times[self.timestamp_column_name].iloc[0]
         time2 = two_times[self.timestamp_column_name].iloc[1]
         sim_year = time1.year
-        sim_interval_seconds = (time2 - time1).total_seconds()
-        return sim_year, sim_interval_seconds
+        reference_time = datetime(year=sim_year, month=1, day=1)
+        sim_interval_seconds = int((time2 - time1).total_seconds())
+        start_offset_seconds = int((time1 - reference_time).total_seconds())
+        if sim_interval_seconds &gt;= 28 * 24 * 60 * 60:  # 28 days or more means monthly resoultion
+            assert start_offset_seconds in [0, 31 * 24 * 60 * 60]
+            interval = 1
+            offset = start_offset_seconds // (31 * 24 * 60 * 60)
+            unit = &#34;month&#34;
+        else:
+            interval = sim_interval_seconds
+            offset = start_offset_seconds
+            unit = &#34;second&#34;
+        assert offset in [0, interval]
+        return SimInfo(sim_year, interval, offset, unit)
 
-    def _get_gcol(self, column):  # gcol =&gt; group by col
+    def get_special_column(self,
+                           column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
+        sim_info = self._get_simulation_info()
+        if sim_info.offset &gt; 0:
+            # If timestamps are not period begining we should make them so we get proper values of special columns.
+            time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
+        else:
+            time_col = self.timestamp_column
+
+        if column_type == &#39;month&#39;:
+            return sa.func.month(time_col).label(&#39;month&#39;)
+        elif column_type == &#39;day&#39;:
+            return sa.func.day(time_col).label(&#39;day&#39;)
+        elif column_type == &#39;hour&#39;:
+            return sa.func.hour(time_col).label(&#39;hour&#39;)
+        elif column_type == &#39;day_of_week&#39;:
+            return sa.func.day_of_week(time_col).label(&#39;day_of_week&#39;)
+        elif column_type == &#39;is_weekend&#39;:
+            return sa.cast(sa.func.day_of_week(time_col).in_([6, 7]), sa.Integer).label(&#39;is_weekend&#39;)
+        else:
+            assert_never(column_type)
+            raise ValueError(f&#34;Unknown special column type: {column_type}&#34;)
+
+    def _get_gcol(self, column) -&gt; DBColType:  # gcol =&gt; group by col
+        &#34;&#34;&#34;Get a DB column for the purpose of grouping. If the provided column doesn&#39;t exist as is,
+        tries to get the column by prepending build_existing_model.&#34;&#34;&#34;
+
         if isinstance(column, sa.Column):
             return column.label(self._simple_label(column.name))  # already a col
 
-        if isinstance(column, sa.sql.elements.Label):
+        if isinstance(column, SALabel):
             return column
+
+        if isinstance(column, MappedColumn):
+            return sa.literal(column).label(self._simple_label(column.name))
 
         if isinstance(column, tuple):
             try:
                 return self.get_column(column[0]).label(column[1])
             except ValueError:
-                new_name = f&#34;build_existing_model.{column[0]}&#34;
+                new_name = f&#34;{self.char_prefix}{column[0]}&#34;
                 return self.get_column(new_name).label(column[1])
         elif isinstance(column, str):
             try:
                 return self.get_column(column).label(self._simple_label(column))
             except ValueError as e:
-                if not column.startswith(&#34;build_existing_model.&#34;):
-                    new_name = f&#34;build_existing_model.{column}&#34;
+                if not column.startswith(self.char_prefix):
+                    new_name = f&#34;{self.char_prefix}{column}&#34;
                     return self.get_column(new_name).label(column)
                 raise ValueError(f&#34;Invalid column name {column}&#34;) from e
         else:
             raise ValueError(f&#34;Invalid column name type {column}: {type(column)}&#34;)
 
-    def _get_enduse_cols(self, enduses, table=&#39;baseline&#39;) -&gt; list[sa.Column]:
+    def _get_enduse_cols(self, enduses: Sequence[AnyColType],
+                         table=&#39;baseline&#39;) -&gt; Sequence[DBColType]:
         tbls_dict = {&#39;baseline&#39;: self.bs_table,
                      &#39;upgrade&#39;: self.up_table,
                      &#39;timeseries&#39;: self.ts_table}
         tbl = tbls_dict[table]
-        try:
-            enduse_cols = [tbl.c[e] for e in enduses]
-        except KeyError as e:
-            if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
-                enduse_cols = [tbl.c[f&#34;report_simulation_output.{e}&#34;] for e in enduses]
+        enduse_cols: list[DBColType] = []
+        for enduse in enduses:
+            if isinstance(enduse, (sa.Column, SALabel)):
+                enduse_cols.append(enduse)
+            elif isinstance(enduse, str):
+                try:
+                    enduse_cols.append(tbl.c[enduse])
+                except KeyError as err:
+                    if table in [&#39;baseline&#39;, &#39;upgrade&#39;]:
+                        enduse_cols.append(tbl.c[f&#34;{self.out_prefix}{enduse}&#34;])
+                    else:
+                        raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from err
+            elif isinstance(enduse, MappedColumn):
+                enduse_cols.append(sa.literal(enduse).label(enduse.name))
             else:
-                raise ValueError(f&#34;Invalid enduse column names for {table} table&#34;) from e
+                assert_never(enduse)
         return enduse_cols
 
     def get_groupby_cols(self) -&gt; List[str]:
@@ -801,11 +1429,11 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         Returns:
             List[str]: List of building characteristics.
         &#34;&#34;&#34;
-        cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
-                if y.startswith(&#34;build_existing_model.&#34;)}
+        cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
+                if y.startswith(self.char_prefix)}
         return list(cols)
 
-    def _validate_group_by(self, group_by):
+    def _validate_group_by(self, group_by: Sequence[Union[str, tuple[str, str]]]):
         valid_groupby_cols = self.get_groupby_cols()
         group_by_cols = [g[0] if isinstance(g, tuple) else g for g in group_by]
         if not set(group_by_cols).issubset(valid_groupby_cols):
@@ -815,16 +1443,16 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         # TODO: intelligently select groupby columns order by cardinality (most to least groups) for
         # performance
 
-    def get_available_upgrades(self) -&gt; list:
+    def get_available_upgrades(self) -&gt; Sequence[str]:
         &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
         Returns:
             list: List of upgrades
         &#34;&#34;&#34;
-        return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)
+        return list([str(u) for u in self.report.get_success_report().index])
 
-    def _validate_upgrade(self, upgrade_id):
-        upgrade_id = 0 if upgrade_id in (None, &#39;0&#39;) else upgrade_id
-        available_upgrades = self.get_available_upgrades() or [0]
+    def _validate_upgrade(self, upgrade_id: Union[int, str]) -&gt; str:
+        upgrade_id = &#39;0&#39; if upgrade_id in (None, &#39;0&#39;) else str(upgrade_id)
+        available_upgrades = self.get_available_upgrades() or [&#39;0&#39;]
         if upgrade_id not in set(available_upgrades):
             raise ValueError(f&#34;`upgrade_id` = {upgrade_id} is not a valid upgrade.&#34;
                              &#34;It doesn&#39;t exist or have no successful run&#34;)
@@ -835,7 +1463,7 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         bs_restrict = []  # restrict to apply to baseline table
         ts_restrict = []  # restrict to apply to timeseries table
         for col, restrict_vals in restrict:
-            if col in self.ts_table.columns:  # prioritize ts table
+            if self.ts_table is not None and col in self.ts_table.columns:  # prioritize ts table
                 ts_restrict.append([self.ts_table.c[col], restrict_vals])
             else:
                 bs_restrict.append([self._get_gcol(col), restrict_vals])
@@ -846,7 +1474,7 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         ts_group_by = []  # restrict to apply to baseline table
         bs_group_by = []  # restrict to apply to timeseries table
         for g in processed_group_by:
-            if g.name in self.ts_table.columns:
+            if self.ts_table is not None and g.name in self.ts_table.columns:
                 ts_group_by.append(g)
             else:
                 bs_group_by.append(g)
@@ -885,10 +1513,10 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         if annual_only:
             new_group_by = []
             for entry in group_by:
-                if isinstance(entry, str) and not entry.startswith(&#34;build_existing_model.&#34;):
-                    new_group_by.append(f&#34;build_existing_model.{entry}&#34;)
-                elif isinstance(entry, tuple) and not entry[0].startswith(&#34;build_existing_model.&#34;):
-                    new_group_by.append((f&#34;build_existing_model.{entry[0]}&#34;, entry[1]))
+                if isinstance(entry, str) and not entry.startswith(self.char_prefix):
+                    new_group_by.append(f&#34;{self.char_prefix}{entry}&#34;)
+                elif isinstance(entry, tuple) and not entry[0].startswith(self.char_prefix):
+                    new_group_by.append((f&#34;{self.char_prefix}{entry[0]}&#34;, entry[1]))
                 else:
                     new_group_by.append(entry)
             group_by = new_group_by
@@ -907,7 +1535,24 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
 
         return bld0_step_count
 
-    def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[False] = False) -&gt; pd.DataFrame:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: Literal[True]) -&gt; str:
+        ...
+
+    @typing.overload
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool) -&gt; Union[str, pd.DataFrame]:
+        ...
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                                   get_query_only: bool = False) -&gt; Union[str, pd.DataFrame]:
         &#34;&#34;&#34;
         Returns the list of buildings belonging to given list of locations.
         Args:
@@ -925,7 +1570,59 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
         if get_query_only:
             return self._compile(query)
         res = self.execute(query)
-        return res</code></pre>
+        return res
+
+    @property
+    def bs_completed_status_col(self):
+        if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return self.bs_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def up_completed_status_col(self):
+        if self.up_table is None:
+            raise ValueError(&#34;No upgrades table&#34;)
+        if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return self.up_table.c[self.db_schema.column_names.completed_status]
+
+    @property
+    def bs_successful_condition(self):
+        return self.bs_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def up_successful_condition(self):
+        return self.up_completed_status_col == self.db_schema.completion_values.success
+
+    @property
+    def ts_upgrade_col(self):
+        if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+            return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+        else:
+            return self.ts_table.c[&#39;upgrade&#39;]
+
+    @property
+    def up_upgrade_col(self):
+        if self.up_table is None:
+            raise ValueError(&#34;No upgrades table&#34;)
+        if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+            return sa.cast(self.up_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+        else:
+            return self.up_table.c[&#39;upgrade&#39;]
+
+    def get_completed_status_col(self, table: AnyTableType):
+        if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+            return sa.cast(table.c[self.db_schema.column_names.completed_status],
+                           sa.String).label(&#39;completed_status&#39;)
+        else:
+            return table.c[self.db_schema.column_names.completed_status]
+
+    def get_success_condition(self, table: AnyTableType):
+        return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -937,6 +1634,34 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.aggregate_query.BuildStockAggregate" href="aggregate_query.html#buildstock_query.aggregate_query.BuildStockAggregate">BuildStockAggregate</a></code> object to perform aggregate queries</p></div>
 </dd>
+<dt id="buildstock_query.main.BuildStockQuery.bs_completed_status_col"><code class="name">var <span class="ident">bs_completed_status_col</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def bs_completed_status_col(self):
+    if not isinstance(self.bs_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+        return sa.cast(self.bs_table.c[self.db_schema.column_names.completed_status],
+                       sa.String).label(&#39;completed_status&#39;)
+    else:
+        return self.bs_table.c[self.db_schema.column_names.completed_status]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.bs_successful_condition"><code class="name">var <span class="ident">bs_successful_condition</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def bs_successful_condition(self):
+    return self.bs_completed_status_col == self.db_schema.completion_values.success</code></pre>
+</details>
+</dd>
 <dt id="buildstock_query.main.BuildStockQuery.report"><code class="name">var <span class="ident">report</span></code></dt>
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.report_query.BuildStockReport" href="report_query.html#buildstock_query.report_query.BuildStockReport">BuildStockReport</a></code> object to perform report queries</p></div>
@@ -944,6 +1669,68 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
 <dt id="buildstock_query.main.BuildStockQuery.savings"><code class="name">var <span class="ident">savings</span></code></dt>
 <dd>
 <div class="desc"><p><code><a title="buildstock_query.savings_query.BuildStockSavings" href="savings_query.html#buildstock_query.savings_query.BuildStockSavings">BuildStockSavings</a></code> object to perform savings queries</p></div>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.ts_upgrade_col"><code class="name">var <span class="ident">ts_upgrade_col</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def ts_upgrade_col(self):
+    if not isinstance(self.ts_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+        return sa.cast(self.ts_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+    else:
+        return self.ts_table.c[&#39;upgrade&#39;]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.up_completed_status_col"><code class="name">var <span class="ident">up_completed_status_col</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def up_completed_status_col(self):
+    if self.up_table is None:
+        raise ValueError(&#34;No upgrades table&#34;)
+    if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+        return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status],
+                       sa.String).label(&#39;completed_status&#39;)
+    else:
+        return self.up_table.c[self.db_schema.column_names.completed_status]</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.up_successful_condition"><code class="name">var <span class="ident">up_successful_condition</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def up_successful_condition(self):
+    return self.up_completed_status_col == self.db_schema.completion_values.success</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.up_upgrade_col"><code class="name">var <span class="ident">up_upgrade_col</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def up_upgrade_col(self):
+    if self.up_table is None:
+        raise ValueError(&#34;No upgrades table&#34;)
+    if not isinstance(self.up_table.c[&#39;upgrade&#39;].type, sqltypes.String):
+        return sa.cast(self.up_table.c[&#39;upgrade&#39;], sa.String).label(&#39;upgrade&#39;)
+    else:
+        return self.up_table.c[&#39;upgrade&#39;]</code></pre>
+</details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.utility"><code class="name">var <span class="ident">utility</span></code></dt>
 <dd>
@@ -953,7 +1740,7 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
 <h3>Methods</h3>
 <dl>
 <dt id="buildstock_query.main.BuildStockQuery.get_available_upgrades"><code class="name flex">
-<span>def <span class="ident">get_available_upgrades</span></span>(<span>self) ‑> list</span>
+<span>def <span class="ident">get_available_upgrades</span></span>(<span>self) ‑> Sequence[str]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Get the available upgrade scenarios and their identifier numbers.</p>
@@ -966,16 +1753,16 @@ prints report from <code><a title="buildstock_query.report_query.BuildStockRepor
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_available_upgrades(self) -&gt; list:
+<pre><code class="python">def get_available_upgrades(self) -&gt; Sequence[str]:
     &#34;&#34;&#34;Get the available upgrade scenarios and their identifier numbers.
     Returns:
         list: List of upgrades
     &#34;&#34;&#34;
-    return list(self.report.get_success_report().query(&#34;Success&gt;0&#34;).index)</code></pre>
+    return list([str(u) for u in self.report.get_success_report().index])</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_building_ids"><code class="name flex">
-<span>def <span class="ident">get_building_ids</span></span>(<span>self, restrict: Optional[List[Tuple[str, List]]] = None, get_query_only: bool = False)</span>
+<span>def <span class="ident">get_building_ids</span></span>(<span>self, restrict: Sequence[tuple[Union[sqlalchemy.sql.elements.Label, sqlalchemy.sql.schema.Column, str, <a title="buildstock_query.schema.utilities.MappedColumn" href="schema/utilities.html#buildstock_query.schema.utilities.MappedColumn">MappedColumn</a>], Union[str, int, Sequence[Union[int, str]]]]] = FieldInfo(default=PydanticUndefined, default_factory=&lt;class &#x27;list&#x27;&gt;, extra={}), get_query_only: bool = False) ‑> Union[str, pandas.core.frame.DataFrame]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Returns the list of buildings based on the restrict list</p>
@@ -994,7 +1781,12 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_building_ids(self, restrict: List[Tuple[str, List]] | None = None, get_query_only: bool = False):
+<pre><code class="python">@validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+def get_building_ids(self,
+                     restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                         default_factory=list),
+                     get_query_only: bool = False
+                     ) -&gt; Union[str, pd.DataFrame]:
     &#34;&#34;&#34;
     Returns the list of buildings based on the restrict list
     Args:
@@ -1009,15 +1801,14 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
     &#34;&#34;&#34;
     restrict = list(restrict) if restrict else []
     query = sa.select(self.bs_bldgid_column)
-    query = self._add_restrict(query, restrict)
+    query = self._add_restrict(query, restrict, bs_only=True)
     if get_query_only:
         return self._compile(query)
-    res = self.execute(query)
-    return res</code></pre>
+    return self.execute(query)</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_buildings_by_locations"><code class="name flex">
-<span>def <span class="ident">get_buildings_by_locations</span></span>(<span>self, location_col, locations: List[str], get_query_only: bool = False)</span>
+<span>def <span class="ident">get_buildings_by_locations</span></span>(<span>self, location_col: str, locations: List[str], get_query_only: bool = False) ‑> Union[str, pandas.core.frame.DataFrame]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Returns the list of buildings belonging to given list of locations.</p>
@@ -1036,7 +1827,9 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_buildings_by_locations(self, location_col, locations: List[str], get_query_only: bool = False):
+<pre><code class="python">@validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+def get_buildings_by_locations(self, location_col: str, locations: List[str],
+                               get_query_only: bool = False) -&gt; Union[str, pd.DataFrame]:
     &#34;&#34;&#34;
     Returns the list of buildings belonging to given list of locations.
     Args:
@@ -1078,18 +1871,36 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
     Returns:
         pd.DataFrame: The buildstock.csv dataframe.
     &#34;&#34;&#34;
-    results_df = self.get_results_csv()
-    results_df = results_df[results_df[&#34;completed_status&#34;] == &#34;Success&#34;]
-    buildstock_cols = [c for c in results_df.columns if c.startswith(&#34;build_existing_model.&#34;)]
+    results_df = self.get_results_csv_full()
+    results_df = results_df[results_df[self.db_schema.column_names.completed_status].astype(str).str.lower() ==
+                            self.db_schema.completion_values.success.lower()]
+    buildstock_cols = [c for c in results_df.columns if c.startswith(self.char_prefix)]
     buildstock_df = results_df[buildstock_cols]
     buildstock_cols = [&#39;&#39;.join(c.split(&#34;.&#34;)[1:]).replace(&#34;_&#34;, &#34; &#34;) for c in buildstock_df.columns
-                       if c.startswith(&#34;build_existing_model.&#34;)]
+                       if c.startswith(self.char_prefix)]
     buildstock_df.columns = buildstock_cols
     return buildstock_df</code></pre>
 </details>
 </dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_completed_status_col"><code class="name flex">
+<span>def <span class="ident">get_completed_status_col</span></span>(<span>self, table: Union[sqlalchemy.sql.schema.Table, str, sqlalchemy.sql.selectable.Subquery])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_completed_status_col(self, table: AnyTableType):
+    if not isinstance(table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
+        return sa.cast(table.c[self.db_schema.column_names.completed_status],
+                       sa.String).label(&#39;completed_status&#39;)
+    else:
+        return table.c[self.db_schema.column_names.completed_status]</code></pre>
+</details>
+</dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_distinct_count"><code class="name flex">
-<span>def <span class="ident">get_distinct_count</span></span>(<span>self, column: str, table_name: str | None = None, weight_column: str | None = None, get_query_only: bool = False) ‑> pandas.core.frame.DataFrame</span>
+<span>def <span class="ident">get_distinct_count</span></span>(<span>self, column: str, table_name: Optional[str] = None, get_query_only: bool = False) ‑> Union[str, pandas.core.frame.DataFrame]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Find distinct counts.</p>
@@ -1111,8 +1922,9 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_distinct_count(self, column: str, table_name: str | None = None, weight_column: str | None = None,
-                       get_query_only: bool = False) -&gt; pd.DataFrame:
+<pre><code class="python">@validate_arguments(config=dict(smart_union=True))
+def get_distinct_count(self, column: str, table_name: Optional[str] = None,
+                       get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
     &#34;&#34;&#34;
         Find distinct counts.
     Args:
@@ -1135,7 +1947,7 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_distinct_vals"><code class="name flex">
-<span>def <span class="ident">get_distinct_vals</span></span>(<span>self, column: str, table_name: str | None = None, get_query_only: bool = False) ‑> pandas.core.series.Series</span>
+<span>def <span class="ident">get_distinct_vals</span></span>(<span>self, column: str, table_name: Optional[str], get_query_only: bool = False) ‑> Union[str, pandas.core.series.Series]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Find distinct vals.</p>
@@ -1157,7 +1969,9 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_distinct_vals(self, column: str, table_name: str | None = None, get_query_only: bool = False) -&gt; pd.Series:
+<pre><code class="python">@validate_arguments(config=dict(smart_union=True))
+def get_distinct_vals(self, column: str, table_name: Optional[str],
+                      get_query_only: bool = False) -&gt; Union[str, pd.Series]:
     &#34;&#34;&#34;
         Find distinct vals.
     Args:
@@ -1198,13 +2012,13 @@ by the sampler and written as buildstock.csv. It only includes buildings with su
     Returns:
         List[str]: List of building characteristics.
     &#34;&#34;&#34;
-    cols = {y.removeprefix(&#34;build_existing_model.&#34;) for y in self.bs_table.c.keys()
-            if y.startswith(&#34;build_existing_model.&#34;)}
+    cols = {y.removeprefix(self.char_prefix) for y in self.bs_table.c.keys()
+            if y.startswith(self.char_prefix)}
     return list(cols)</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_results_csv"><code class="name flex">
-<span>def <span class="ident">get_results_csv</span></span>(<span>self, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None, get_query_only: bool = False)</span>
+<span>def <span class="ident">get_results_csv</span></span>(<span>self, restrict: Sequence[tuple[Union[sqlalchemy.sql.elements.Label, sqlalchemy.sql.schema.Column, str, <a title="buildstock_query.schema.utilities.MappedColumn" href="schema/utilities.html#buildstock_query.schema.utilities.MappedColumn">MappedColumn</a>], Union[str, int, Sequence[Union[int, str]]]]] = FieldInfo(default=PydanticUndefined, default_factory=&lt;class &#x27;list&#x27;&gt;, extra={}), get_query_only: bool = False) ‑> Union[str, pandas.core.frame.DataFrame]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Returns the results_csv table for the BuildStock run</p>
@@ -1223,9 +2037,11 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_results_csv(self,
-                    restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                    get_query_only: bool = False):
+<pre><code class="python">@validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+def get_results_csv(self,
+                    restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+                        default_factory=list),
+                    get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
     &#34;&#34;&#34;
     Returns the results_csv table for the BuildStock run
     Args:
@@ -1239,7 +2055,7 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
     &#34;&#34;&#34;
     restrict = list(restrict) if restrict else []
     query = sa.select([&#39;*&#39;]).select_from(self.bs_table)
-    query = self._add_restrict(query, restrict)
+    query = self._add_restrict(query, restrict, bs_only=True)
     compiled_query = self._compile(query)
     if get_query_only:
         return compiled_query
@@ -1247,11 +2063,86 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
     if compiled_query in self._query_cache:
         return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
     logger.info(&#34;Making results_csv query ...&#34;)
-    return self.execute(query).set_index(self.bs_bldgid_column.name)</code></pre>
+    result = self.execute(query)
+    return result.set_index(self.bs_bldgid_column.name)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_results_csv_full"><code class="name flex">
+<span>def <span class="ident">get_results_csv_full</span></span>(<span>self) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+the stored parquet files in s3 to download the results which is faster than querying athena.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code></dt>
+<dd>The full results csv.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_results_csv_full(self) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Returns the full results csv table. This is the same as get_results_csv without any restrictions. It uses
+    the stored parquet files in s3 to download the results which is faster than querying athena.
+    Returns:
+        pd.DataFrame: The full results csv.
+    &#34;&#34;&#34;
+    local_copy_path = self._download_results_csv()
+    df = pd.read_parquet(local_copy_path)
+    if df.index.name != self.bs_bldgid_column.name:
+        df = df.set_index(self.bs_bldgid_column.name)
+    return df</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_special_column"><code class="name flex">
+<span>def <span class="ident">get_special_column</span></span>(<span>self, column_type: Literal['month', 'day', 'hour', 'is_weekend', 'day_of_week']) ‑> Union[sqlalchemy.sql.elements.Label, sqlalchemy.sql.schema.Column]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_special_column(self,
+                       column_type: Literal[&#39;month&#39;, &#39;day&#39;, &#39;hour&#39;, &#39;is_weekend&#39;, &#39;day_of_week&#39;]) -&gt; DBColType:
+    sim_info = self._get_simulation_info()
+    if sim_info.offset &gt; 0:
+        # If timestamps are not period begining we should make them so we get proper values of special columns.
+        time_col = sa.func.date_add(sim_info.unit, -sim_info.offset, self.timestamp_column)
+    else:
+        time_col = self.timestamp_column
+
+    if column_type == &#39;month&#39;:
+        return sa.func.month(time_col).label(&#39;month&#39;)
+    elif column_type == &#39;day&#39;:
+        return sa.func.day(time_col).label(&#39;day&#39;)
+    elif column_type == &#39;hour&#39;:
+        return sa.func.hour(time_col).label(&#39;hour&#39;)
+    elif column_type == &#39;day_of_week&#39;:
+        return sa.func.day_of_week(time_col).label(&#39;day_of_week&#39;)
+    elif column_type == &#39;is_weekend&#39;:
+        return sa.cast(sa.func.day_of_week(time_col).in_([6, 7]), sa.Integer).label(&#39;is_weekend&#39;)
+    else:
+        assert_never(column_type)
+        raise ValueError(f&#34;Unknown special column type: {column_type}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_success_condition"><code class="name flex">
+<span>def <span class="ident">get_success_condition</span></span>(<span>self, table: Union[sqlalchemy.sql.schema.Table, str, sqlalchemy.sql.selectable.Subquery])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_success_condition(self, table: AnyTableType):
+    return self.get_completed_status_col(table) == self.db_schema.completion_values.success</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer"><code class="name flex">
-<span>def <span class="ident">get_upgrades_analyzer</span></span>(<span>self, yaml_file: str) ‑> <a title="buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer" href="tools/upgrades_analyzer.html#buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer">UpgradesAnalyzer</a></span>
+<span>def <span class="ident">get_upgrades_analyzer</span></span>(<span>self, yaml_file: str, opt_sat_file: str) ‑> <a title="buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer" href="tools/upgrades_analyzer.html#buildstock_query.tools.upgrades_analyzer.UpgradesAnalyzer">UpgradesAnalyzer</a></span>
 </code></dt>
 <dd>
 <div class="desc"><p>Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)</p>
@@ -1259,6 +2150,8 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <dl>
 <dt><strong><code>yaml_file</code></strong> :&ensp;<code>str</code></dt>
 <dd>The path to the buildstock configuration file.</dd>
+<dt><strong><code>opt_sat_file</code></strong> :&ensp;<code>str</code></dt>
+<dd>The path to the opt_saturation.csv file for the housing characteristics.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
@@ -1269,27 +2162,29 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_upgrades_analyzer(self, yaml_file: str) -&gt; UpgradesAnalyzer:
+<pre><code class="python">@validate_arguments
+def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -&gt; UpgradesAnalyzer:
     &#34;&#34;&#34;
         Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
 
     Args:
         yaml_file (str): The path to the buildstock configuration file.
+        opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
 
     Returns:
         UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
     &#34;&#34;&#34;
 
     buildstock_df = self.get_buildstock_df()
-    ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file)
+    ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
     return ua</code></pre>
 </details>
 </dd>
 <dt id="buildstock_query.main.BuildStockQuery.get_upgrades_csv"><code class="name flex">
-<span>def <span class="ident">get_upgrades_csv</span></span>(<span>self, upgrade=None, restrict: Optional[List[Tuple[str, Union[List, str, int]]]] = None, get_query_only: bool = False, copy=True)</span>
+<span>def <span class="ident">get_upgrades_csv</span></span>(<span>self, *, upgrade_id: Union[str, int] = '0', restrict: Sequence[tuple[Union[sqlalchemy.sql.elements.Label, sqlalchemy.sql.schema.Column, str, <a title="buildstock_query.schema.utilities.MappedColumn" href="schema/utilities.html#buildstock_query.schema.utilities.MappedColumn">MappedColumn</a>], Union[str, int, Sequence[Union[int, str]]]]] = FieldInfo(default=PydanticUndefined, default_factory=&lt;class &#x27;list&#x27;&gt;, extra={}), get_query_only: bool = False) ‑> Union[str, pandas.core.frame.DataFrame]</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Returns the results_csv table for the BuildStock run</p>
+<div class="desc"><p>Returns the results_csv table for the BuildStock run for an upgrade.</p>
 <h2 id="args">Args</h2>
 <dl>
 <dt><strong><code>restrict</code></strong></dt>
@@ -1304,11 +2199,13 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_upgrades_csv(self, upgrade=None,
-                     restrict: List[Tuple[str, Union[List, str, int]]] | None = None,
-                     get_query_only: bool = False, copy=True):
+<pre><code class="python">@validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+def get_upgrades_csv(self, *, upgrade_id: Union[str, int] = &#39;0&#39;,
+                     restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(
+        default_factory=list),
+        get_query_only: bool = False) -&gt; Union[pd.DataFrame, str]:
     &#34;&#34;&#34;
-    Returns the results_csv table for the BuildStock run
+    Returns the results_csv table for the BuildStock run for an upgrade.
     Args:
         restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                   Example: `[(&#39;state&#39;,[&#39;VA&#39;,&#39;AZ&#39;]), (&#34;build_existing_model.lighting&#34;,[&#39;60% CFL&#39;]), ...]`
@@ -1319,10 +2216,12 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
     &#34;&#34;&#34;
     restrict = list(restrict) if restrict else []
     query = sa.select([&#39;*&#39;]).select_from(self.up_table)
-    if upgrade:
-        query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade))
+    if upgrade_id:
+        if self.up_table is None:
+            raise ValueError(&#34;This run has no upgrades&#34;)
+        query = query.where(self.up_table.c[&#39;upgrade&#39;] == str(upgrade_id))
 
-    query = self._add_restrict(query, restrict)
+    query = self._add_restrict(query, restrict, bs_only=True)
     compiled_query = self._compile(query)
     if get_query_only:
         return compiled_query
@@ -1331,6 +2230,31 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
         return self._query_cache[compiled_query].copy().set_index(self.bs_bldgid_column.name)
     logger.info(&#34;Making results_csv query for upgrade ...&#34;)
     return self.execute(query).set_index(self.bs_bldgid_column.name)</code></pre>
+</details>
+</dd>
+<dt id="buildstock_query.main.BuildStockQuery.get_upgrades_csv_full"><code class="name flex">
+<span>def <span class="ident">get_upgrades_csv_full</span></span>(<span>self, upgrade_id: int) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+athena.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_upgrades_csv_full(self, upgrade_id: int) -&gt; pd.DataFrame:
+    &#34;&#34;&#34; Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
+    restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
+    athena.
+    &#34;&#34;&#34;
+    local_copy_path = self._download_upgrades_csv(upgrade_id)
+    df = pd.read_parquet(local_copy_path)
+    if df.index.name != self.up_bldgid_column.name:
+        df = df.set_index(self.up_bldgid_column.name)
+    if &#39;upgrade&#39; not in df.columns:
+        df.insert(0, &#39;upgrade&#39;, upgrade_id)
+    return df</code></pre>
 </details>
 </dd>
 </dl>
@@ -1349,6 +2273,7 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_report" href="query_core.html#buildstock_query.query_core.QueryCore.get_batch_query_report">get_batch_query_report</a></code></li>
 <li><code><a title="buildstock_query.query_core.QueryCore.get_batch_query_result" href="query_core.html#buildstock_query.query_core.QueryCore.get_batch_query_result">get_batch_query_result</a></code></li>
 <li><code><a title="buildstock_query.query_core.QueryCore.get_cols" href="query_core.html#buildstock_query.query_core.QueryCore.get_cols">get_cols</a></code></li>
+<li><code><a title="buildstock_query.query_core.QueryCore.get_failed_queries" href="query_core.html#buildstock_query.query_core.QueryCore.get_failed_queries">get_failed_queries</a></code></li>
 <li><code><a title="buildstock_query.query_core.QueryCore.get_ids_for_failed_queries" href="query_core.html#buildstock_query.query_core.QueryCore.get_ids_for_failed_queries">get_ids_for_failed_queries</a></code></li>
 <li><code><a title="buildstock_query.query_core.QueryCore.get_query_error" href="query_core.html#buildstock_query.query_core.QueryCore.get_query_error">get_query_error</a></code></li>
 <li><code><a title="buildstock_query.query_core.QueryCore.get_query_output_location" href="query_core.html#buildstock_query.query_core.QueryCore.get_query_output_location">get_query_output_location</a></code></li>
@@ -1366,6 +2291,43 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 </ul>
 </li>
 </ul>
+</dd>
+<dt id="buildstock_query.main.SimInfo"><code class="flex name class">
+<span>class <span class="ident">SimInfo</span></span>
+<span>(</span><span>year: int, interval: int, offset: int, unit: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>SimInfo(year: int, interval: int, offset: int, unit: str)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class SimInfo:
+    year: int
+    interval: int
+    offset: int
+    unit: str</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="buildstock_query.main.SimInfo.interval"><code class="name">var <span class="ident">interval</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="buildstock_query.main.SimInfo.offset"><code class="name">var <span class="ident">offset</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="buildstock_query.main.SimInfo.unit"><code class="name">var <span class="ident">unit</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="buildstock_query.main.SimInfo.year"><code class="name">var <span class="ident">year</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 </dd>
 </dl>
 </section>
@@ -1387,19 +2349,39 @@ Example: <code>[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CF
 <h4><code><a title="buildstock_query.main.BuildStockQuery" href="#buildstock_query.main.BuildStockQuery">BuildStockQuery</a></code></h4>
 <ul class="">
 <li><code><a title="buildstock_query.main.BuildStockQuery.agg" href="#buildstock_query.main.BuildStockQuery.agg">agg</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.bs_completed_status_col" href="#buildstock_query.main.BuildStockQuery.bs_completed_status_col">bs_completed_status_col</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.bs_successful_condition" href="#buildstock_query.main.BuildStockQuery.bs_successful_condition">bs_successful_condition</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_available_upgrades" href="#buildstock_query.main.BuildStockQuery.get_available_upgrades">get_available_upgrades</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_building_ids" href="#buildstock_query.main.BuildStockQuery.get_building_ids">get_building_ids</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_buildings_by_locations" href="#buildstock_query.main.BuildStockQuery.get_buildings_by_locations">get_buildings_by_locations</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_buildstock_df" href="#buildstock_query.main.BuildStockQuery.get_buildstock_df">get_buildstock_df</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_completed_status_col" href="#buildstock_query.main.BuildStockQuery.get_completed_status_col">get_completed_status_col</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_count" href="#buildstock_query.main.BuildStockQuery.get_distinct_count">get_distinct_count</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_distinct_vals" href="#buildstock_query.main.BuildStockQuery.get_distinct_vals">get_distinct_vals</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_groupby_cols" href="#buildstock_query.main.BuildStockQuery.get_groupby_cols">get_groupby_cols</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_results_csv" href="#buildstock_query.main.BuildStockQuery.get_results_csv">get_results_csv</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_results_csv_full" href="#buildstock_query.main.BuildStockQuery.get_results_csv_full">get_results_csv_full</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_special_column" href="#buildstock_query.main.BuildStockQuery.get_special_column">get_special_column</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_success_condition" href="#buildstock_query.main.BuildStockQuery.get_success_condition">get_success_condition</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_analyzer" href="#buildstock_query.main.BuildStockQuery.get_upgrades_analyzer">get_upgrades_analyzer</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_csv" href="#buildstock_query.main.BuildStockQuery.get_upgrades_csv">get_upgrades_csv</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.get_upgrades_csv_full" href="#buildstock_query.main.BuildStockQuery.get_upgrades_csv_full">get_upgrades_csv_full</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.report" href="#buildstock_query.main.BuildStockQuery.report">report</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.savings" href="#buildstock_query.main.BuildStockQuery.savings">savings</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.ts_upgrade_col" href="#buildstock_query.main.BuildStockQuery.ts_upgrade_col">ts_upgrade_col</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.up_completed_status_col" href="#buildstock_query.main.BuildStockQuery.up_completed_status_col">up_completed_status_col</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.up_successful_condition" href="#buildstock_query.main.BuildStockQuery.up_successful_condition">up_successful_condition</a></code></li>
+<li><code><a title="buildstock_query.main.BuildStockQuery.up_upgrade_col" href="#buildstock_query.main.BuildStockQuery.up_upgrade_col">up_upgrade_col</a></code></li>
 <li><code><a title="buildstock_query.main.BuildStockQuery.utility" href="#buildstock_query.main.BuildStockQuery.utility">utility</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="buildstock_query.main.SimInfo" href="#buildstock_query.main.SimInfo">SimInfo</a></code></h4>
+<ul class="">
+<li><code><a title="buildstock_query.main.SimInfo.interval" href="#buildstock_query.main.SimInfo.interval">interval</a></code></li>
+<li><code><a title="buildstock_query.main.SimInfo.offset" href="#buildstock_query.main.SimInfo.offset">offset</a></code></li>
+<li><code><a title="buildstock_query.main.SimInfo.unit" href="#buildstock_query.main.SimInfo.unit">unit</a></code></li>
+<li><code><a title="buildstock_query.main.SimInfo.year" href="#buildstock_query.main.SimInfo.year">year</a></code></li>
 </ul>
 </li>
 </ul>

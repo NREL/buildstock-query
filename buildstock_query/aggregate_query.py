@@ -65,10 +65,10 @@ class BuildStockAggregate:
                 self._bsq.up_table, sa.and_(self._bsq.bs_table.c[self._bsq.building_id_column_name] ==
                                             self._bsq.up_table.c[self._bsq.building_id_column_name],
                                             self._bsq.up_table.c["upgrade"] == str(upgrade_id),
-                                            self._bsq.up_table.c["completed_status"] == "Success"))
+                                            self._bsq.up_successful_condition))
             query = query.select_from(tbljoin)
 
-        restrict = [(self._bsq.bs_table.c['completed_status'], ['Success'])] + restrict
+        restrict = [(self._bsq.bs_completed_status_col, [self._bsq.db_schema.completion_values.success])] + restrict
         query = self._bsq._add_join(query, join_list)
         query = self._bsq._add_restrict(query, restrict)
         query = self._bsq._add_group_by(query, group_by_selection)
@@ -187,7 +187,7 @@ class BuildStockAggregate:
         upgrade_in_restrict = any(entry[0] == 'upgrade' for entry in params.restrict)
         if self._bsq.up_table is not None and not upgrade_in_restrict and 'upgrade' not in group_by_names:
             logger.info(f"Restricting query to Upgrade {upgrade_id}.")
-            params.restrict = list(params.restrict) + [(self._bsq.ts_table.c['upgrade'], [upgrade_id])]
+            params.restrict = list(params.restrict) + [(self._bsq.ts_upgrade_col, [upgrade_id])]
 
         query = self._bsq._add_restrict(query, params.restrict)
         query = self._bsq._add_group_by(query, group_by_selection)

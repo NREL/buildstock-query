@@ -78,7 +78,8 @@ class VizData:
             res_df = pl.read_parquet(self.run_obj(upgrade)._download_results_csv())
         else:
             res_df = pl.read_parquet(self.run_obj(upgrade)._download_upgrades_csv(upgrade_id=upgrade))
-        res_df = res_df.filter(pl.col('completed_status') == 'Success')
+        res_df = res_df.filter(pl.col(self.run_obj(upgrade).db_schema.column_names.completed_status) ==
+                               self.run_obj(upgrade).db_schema.completion_values.success)
         res_df = res_df.drop([col for col in res_df.columns if
                               "applicable" in col
                               or "output_format" in col])
@@ -91,8 +92,8 @@ class VizData:
 
     def _get_metadata_df(self):
         bs_res_df = pl.read_parquet(self.run_obj(0)._download_results_csv())
-        metadata_cols = [c for c in bs_res_df.columns if c.startswith('build_existing_model.')]
-        metadata_df = bs_res_df.select(['building_id'] + metadata_cols)
+        metadata_cols = [c for c in bs_res_df.columns if c.startswith(self.main_run.char_prefix)]
+        metadata_df = bs_res_df.select([self.main_run.building_id_column_name] + metadata_cols)
         metadata_df = metadata_df.rename({x: x.split('.')[1] for x in metadata_df.columns if '.' in x})
         return metadata_df
 
