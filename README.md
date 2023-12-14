@@ -1,4 +1,4 @@
-# BuildStockQuery (previously known as smart_query)
+# BuildStockQuery
 - - - - - - - - -
 A library to run AWS Athena queries to get various data from a BuildStock run. 
 
@@ -88,8 +88,8 @@ Welcome to upgrades analyzer
 ```
 
 There is also another experimental tool called `buildstock_query.tools.upgrades_visualizer` available from command line.
-The tool starts a localhost poltly dash dashboard that can be used for analytic visualization of annual results for
-different upgrades.
+This tool is only available when doing a 'full' install. The tool starts a localhost poltly dash dashboard that can be
+used for analytic visualization of annual results for different upgrades.
 ```
 >>>upgrades_visualizer
 Welcome to upgrades visualizer
