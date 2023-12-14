@@ -117,7 +117,7 @@ def get_app(viz_data: VizData):
     qoi_cols = filter_cols(all_cols, [&#34;qoi_&#34;])
     cost_cols = filter_cols(all_cols, [&#34;upgrade_cost_&#34;])
     build_cols = viz_data.metadata_df.columns
-    char_cols = [c.removeprefix(viz_data.main_run.char_prefix) for c in build_cols if &#39;applicable&#39; not in c]
+    char_cols = [c.removeprefix(viz_data.main_run._char_prefix) for c in build_cols if &#39;applicable&#39; not in c]
     char_cols += [&#39;month&#39;]
     fuels_types = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
     change_types = [&#34;any&#34;, &#34;no-chng&#34;, &#34;bad-chng&#34;, &#34;ok-chng&#34;, &#34;true-bad-chng&#34;, &#34;true-ok-chng&#34;]
@@ -933,7 +933,7 @@ if __name__ == &#39;__main__&#39;:
     qoi_cols = filter_cols(all_cols, [&#34;qoi_&#34;])
     cost_cols = filter_cols(all_cols, [&#34;upgrade_cost_&#34;])
     build_cols = viz_data.metadata_df.columns
-    char_cols = [c.removeprefix(viz_data.main_run.char_prefix) for c in build_cols if &#39;applicable&#39; not in c]
+    char_cols = [c.removeprefix(viz_data.main_run._char_prefix) for c in build_cols if &#39;applicable&#39; not in c]
     char_cols += [&#39;month&#39;]
     fuels_types = [&#39;electricity&#39;, &#39;natural_gas&#39;, &#39;propane&#39;, &#39;fuel_oil&#39;, &#39;coal&#39;, &#39;wood_cord&#39;, &#39;wood_pellets&#39;]
     change_types = [&#34;any&#34;, &#34;no-chng&#34;, &#34;bad-chng&#34;, &#34;ok-chng&#34;, &#34;true-bad-chng&#34;, &#34;true-ok-chng&#34;]

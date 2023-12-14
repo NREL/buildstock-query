@@ -97,9 +97,9 @@ class BuildStockUtility:
                              id_column: str,
                              id_list: Sequence[Any],
                              params: UtilityTSQuery):
-        new_table = self._bsq.get_table(map_table_name)
-        new_column = self._bsq.get_column(map_column_name, table_name=new_table)
-        baseline_column = self._bsq.get_column(baseline_column_name, self._bsq.bs_table)
+        new_table = self._bsq._get_table(map_table_name)
+        new_column = self._bsq._get_column(map_column_name, table_name=new_table)
+        baseline_column = self._bsq._get_column(baseline_column_name, self._bsq.bs_table)
         params.group_by = [new_table.c[id_column]] + list(params.group_by)
         params.weights = list(params.weights) + [new_table.c[&#39;weight&#39;]]
         params.join_list = [(new_table, baseline_column, new_column)] + list(params.join_list)
@@ -144,15 +144,15 @@ class BuildStockUtility:
     def get_eiaid_map(self) -&gt; tuple[str, str, str]:
         if self.eia_mapping_version == 1:
             map_table_name = &#39;eiaid_weights&#39;
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         elif self.eia_mapping_version == 2:
             map_table_name = &#39;v2_eiaid_weights&#39;
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         elif self.eia_mapping_version == 3:
             map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         else:
             raise ValueError(&#34;Invalid mapping_version&#34;)
@@ -214,7 +214,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [(&#39;eiaid&#39;, eiaid_list)]
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                             sort=True,
                                             join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
@@ -240,8 +240,8 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        group_by_cols = [self._bsq.get_column(col, self._bsq.bs_table) for col in group_by]
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        group_by_cols = [self._bsq._get_column(col, self._bsq.bs_table) for col in group_by]
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by_cols,
                                             join_list=join_list,
                                             weights=[&#39;weight&#39;],
@@ -268,7 +268,7 @@ class BuildStockUtility:
         query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -288,7 +288,7 @@ class BuildStockUtility:
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         if &#39;eiaids&#39; in self._cache:
             if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
                 return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
@@ -322,7 +322,7 @@ class BuildStockUtility:
         query = sa.select([self._bsq.bs_bldgid_column.distinct()])
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -344,7 +344,7 @@ class BuildStockUtility:
 
         &#34;&#34;&#34;
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_map_table = self._bsq.get_table(eiaid_map_table_name)
+        eiaid_map_table = self._bsq._get_table(eiaid_map_table_name)
         query = sa.select([eiaid_map_table.c[map_eiaid_column].distinct()])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
         query = query.where(eiaid_map_table.c[&#34;weight&#34;] &gt; 0)
@@ -410,11 +410,11 @@ class BuildStockUtility:
         else:
             if isinstance(meter_col, tuple):
                 for col in meter_col:
-                    TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq.get_column(col)
+                    TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq._get_column(col)
             else:
-                TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq.get_column(meter_col)
+                TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq._get_column(meter_col)
 
-        month_col, is_weekend_col, hour_col = (self._bsq.get_special_column(col) for col in
+        month_col, is_weekend_col, hour_col = (self._bsq._get_special_column(col) for col in
                                                (&#34;month&#34;, &#34;is_weekend&#34;, &#34;hour&#34;))
         rate_col = MappedColumn(bsq=self._bsq, name=&#34;tou_rate&#34;, mapping_dict=user_rate.raw_dict,
                                 key=(month_col, is_weekend_col, hour_col))
@@ -494,9 +494,9 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
                              id_column: str,
                              id_list: Sequence[Any],
                              params: UtilityTSQuery):
-        new_table = self._bsq.get_table(map_table_name)
-        new_column = self._bsq.get_column(map_column_name, table_name=new_table)
-        baseline_column = self._bsq.get_column(baseline_column_name, self._bsq.bs_table)
+        new_table = self._bsq._get_table(map_table_name)
+        new_column = self._bsq._get_column(map_column_name, table_name=new_table)
+        baseline_column = self._bsq._get_column(baseline_column_name, self._bsq.bs_table)
         params.group_by = [new_table.c[id_column]] + list(params.group_by)
         params.weights = list(params.weights) + [new_table.c[&#39;weight&#39;]]
         params.join_list = [(new_table, baseline_column, new_column)] + list(params.join_list)
@@ -541,15 +541,15 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
     def get_eiaid_map(self) -&gt; tuple[str, str, str]:
         if self.eia_mapping_version == 1:
             map_table_name = &#39;eiaid_weights&#39;
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         elif self.eia_mapping_version == 2:
             map_table_name = &#39;v2_eiaid_weights&#39;
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         elif self.eia_mapping_version == 3:
             map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
-            map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+            map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
             map_eiaid_column = &#39;county&#39;
         else:
             raise ValueError(&#34;Invalid mapping_version&#34;)
@@ -611,7 +611,7 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
         restrict = [(&#39;eiaid&#39;, eiaid_list)]
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                             sort=True,
                                             join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
@@ -637,8 +637,8 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        group_by_cols = [self._bsq.get_column(col, self._bsq.bs_table) for col in group_by]
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        group_by_cols = [self._bsq._get_column(col, self._bsq.bs_table) for col in group_by]
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by_cols,
                                             join_list=join_list,
                                             weights=[&#39;weight&#39;],
@@ -665,7 +665,7 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -685,7 +685,7 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         &#34;&#34;&#34;
         restrict = list(restrict) if restrict else []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+        eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
         if &#39;eiaids&#39; in self._cache:
             if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
                 return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
@@ -719,7 +719,7 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         query = sa.select([self._bsq.bs_bldgid_column.distinct()])
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-        query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+        query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -741,7 +741,7 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
 
         &#34;&#34;&#34;
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-        eiaid_map_table = self._bsq.get_table(eiaid_map_table_name)
+        eiaid_map_table = self._bsq._get_table(eiaid_map_table_name)
         query = sa.select([eiaid_map_table.c[map_eiaid_column].distinct()])
         query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
         query = query.where(eiaid_map_table.c[&#34;weight&#34;] &gt; 0)
@@ -807,11 +807,11 @@ service territories. Currently, only 2018 and 2012 are valid years.</dd>
         else:
             if isinstance(meter_col, tuple):
                 for col in meter_col:
-                    TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq.get_column(col)
+                    TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq._get_column(col)
             else:
-                TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq.get_column(meter_col)
+                TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq._get_column(meter_col)
 
-        month_col, is_weekend_col, hour_col = (self._bsq.get_special_column(col) for col in
+        month_col, is_weekend_col, hour_col = (self._bsq._get_special_column(col) for col in
                                                (&#34;month&#34;, &#34;is_weekend&#34;, &#34;hour&#34;))
         rate_col = MappedColumn(bsq=self._bsq, name=&#34;tou_rate&#34;, mapping_dict=user_rate.raw_dict,
                                 key=(month_col, is_weekend_col, hour_col))
@@ -876,8 +876,8 @@ def aggregate_annual_by_eiaid(self, enduses: Sequence[AnyColType], group_by: Opt
     eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
     join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
     group_by = [] if group_by is None else group_by
-    group_by_cols = [self._bsq.get_column(col, self._bsq.bs_table) for col in group_by]
-    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    group_by_cols = [self._bsq._get_column(col, self._bsq.bs_table) for col in group_by]
+    eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
     result = self._agg.aggregate_annual(enduses=enduses, group_by=[eiaid_col] + group_by_cols,
                                         join_list=join_list,
                                         weights=[&#39;weight&#39;],
@@ -997,7 +997,7 @@ def aggregate_unit_counts_by_eiaid(self, *, eiaid_list: list[str],
     eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
     group_by = [] if group_by is None else group_by
     restrict = [(&#39;eiaid&#39;, eiaid_list)]
-    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
     result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                         sort=True,
                                         join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
@@ -1049,11 +1049,11 @@ def calculate_tou_bill(self, *,
     else:
         if isinstance(meter_col, tuple):
             for col in meter_col:
-                TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq.get_column(col)
+                TOU_enduse[f&#34;{col}__TOU&#34;] = self._bsq._get_column(col)
         else:
-            TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq.get_column(meter_col)
+            TOU_enduse[f&#34;{meter_col}__TOU&#34;] = self._bsq._get_column(meter_col)
 
-    month_col, is_weekend_col, hour_col = (self._bsq.get_special_column(col) for col in
+    month_col, is_weekend_col, hour_col = (self._bsq._get_special_column(col) for col in
                                            (&#34;month&#34;, &#34;is_weekend&#34;, &#34;hour&#34;))
     rate_col = MappedColumn(bsq=self._bsq, name=&#34;tou_rate&#34;, mapping_dict=user_rate.raw_dict,
                             key=(month_col, is_weekend_col, hour_col))
@@ -1116,7 +1116,7 @@ def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = Fals
     query = sa.select([self._bsq.bs_bldgid_column.distinct()])
     query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
     query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-    query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+    query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
     if get_query_only:
         return self._bsq._compile(query)
     res = self._bsq.execute(query)
@@ -1135,15 +1135,15 @@ def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = Fals
 <pre><code class="python">def get_eiaid_map(self) -&gt; tuple[str, str, str]:
     if self.eia_mapping_version == 1:
         map_table_name = &#39;eiaid_weights&#39;
-        map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+        map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
         map_eiaid_column = &#39;county&#39;
     elif self.eia_mapping_version == 2:
         map_table_name = &#39;v2_eiaid_weights&#39;
-        map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+        map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
         map_eiaid_column = &#39;county&#39;
     elif self.eia_mapping_version == 3:
         map_table_name = &#39;v3_eiaid_weights_%d&#39; % (self.eia_mapping_year)
-        map_baseline_column = f&#39;{self._bsq.char_prefix}county&#39;
+        map_baseline_column = f&#39;{self._bsq._char_prefix}county&#39;
         map_eiaid_column = &#39;county&#39;
     else:
         raise ValueError(&#34;Invalid mapping_version&#34;)
@@ -1185,7 +1185,7 @@ def get_eiaids(self, restrict: Optional[List[Tuple[str, List]]] = None) -&gt; li
     &#34;&#34;&#34;
     restrict = list(restrict) if restrict else []
     eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-    eiaid_col = self._bsq.get_column(&#34;eiaid&#34;, eiaid_map_table_name)
+    eiaid_col = self._bsq._get_column(&#34;eiaid&#34;, eiaid_map_table_name)
     if &#39;eiaids&#39; in self._cache:
         if self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name in self._cache[&#39;eiaids&#39;]:
             return self._cache[&#39;eiaids&#39;][self._bsq.db_name + &#39;/&#39; + eiaid_map_table_name]
@@ -1241,7 +1241,7 @@ def get_filtered_results_csv_by_eiaid(
     query = sa.select([&#39;*&#39;]).select_from(self._bsq.bs_table)
     query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
     query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
-    query = query.where(self._bsq.get_column(&#34;weight&#34;) &gt; 0)
+    query = query.where(self._bsq._get_column(&#34;weight&#34;) &gt; 0)
     if get_query_only:
         return self._bsq._compile(query)
     res = self._bsq.execute(query)
@@ -1286,7 +1286,7 @@ def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = Fals
 
     &#34;&#34;&#34;
     eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
-    eiaid_map_table = self._bsq.get_table(eiaid_map_table_name)
+    eiaid_map_table = self._bsq._get_table(eiaid_map_table_name)
     query = sa.select([eiaid_map_table.c[map_eiaid_column].distinct()])
     query = self._bsq._add_restrict(query, [(&#34;eiaid&#34;, eiaids)])
     query = query.where(eiaid_map_table.c[&#34;weight&#34;] &gt; 0)
