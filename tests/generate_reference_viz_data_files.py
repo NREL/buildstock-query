@@ -7,7 +7,7 @@ from buildstock_query import BuildStockQuery
 
 
 def save_bsq_obj(bsq_obj: BuildStockQuery, cache_name=None):
-    cache_name = bsq_obj.get_compact_cache_name(bsq_obj.table_name)
+    cache_name = bsq_obj._get_compact_cache_name(bsq_obj.table_name)
     save_ref_pkl(f"{cache_name}_query_cache", bsq_obj._query_cache)
     save_ref_pkl(bsq_obj.bs_table.name, bsq_obj.bs_table)
     if bsq_obj.up_table is not None:

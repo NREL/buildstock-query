@@ -75,7 +75,7 @@ def generate_table(table_name: str):
         save_ref_pkl(mya2.bs_table.name, mya2.bs_table)
         save_ref_pkl(mya2.bs_table.name, mya2.ts_table)
         try:
-            eiaid_table = mya2.get_table('eiaid_weights')
+            eiaid_table = mya2._get_table('eiaid_weights')
             save_ref_pkl(eiaid_table.name, eiaid_table)
         except NoSuchTableError:
             print("res_n250_hrly_v1 no longer exists in Athena")
