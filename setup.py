@@ -7,6 +7,8 @@ setup(
     author="Rajendra Adhikari",
     author_email='Rajendra.Adhikari@nrel.gov',
     package_dir={"buildstock_query": "buildstock_query"},
+    package_data={'buildstock_query': ['**']},
+    include_package_data=True,
     python_requires='>=3.9',
     install_requires=[
         "pandas >= 2.0.0",
