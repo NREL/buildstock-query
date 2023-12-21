@@ -14,7 +14,6 @@ from pathlib import Path
 from buildstock_query.tools.logic_parser import LogicParser
 from tabulate import tabulate
 from buildstock_query.helpers import read_csv, load_script_defaults, save_script_defaults
-import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
