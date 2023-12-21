@@ -5,6 +5,8 @@ import datetime
 import pickle
 import os
 import pandas as pd
+from pathlib import Path
+import json
 from typing import Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -151,3 +153,28 @@ def read_csv(csv_file_path, **kwargs) -> pd.DataFrame:
     default_na_values = pd._libs.parsers.STR_NA_VALUES
     df = pd.read_csv(csv_file_path, na_values=list(default_na_values - {"None"}), keep_default_na=False, **kwargs)
     return df
+
+
+def load_script_defaults(defaults_name):
+    """
+    Load the default input for script from cache
+    """
+    cache_folder = Path(".bsq_cache")
+    cache_folder.mkdir(exist_ok=True)
+    defaults_cache = cache_folder / f"{defaults_name}_defaults.json"
+    defaults = {}
+    if defaults_cache.exists():
+        with open(defaults_cache) as f:
+            defaults = json.load(f)
+    return defaults
+
+
+def save_script_defaults(defaults_name, defaults):
+    """
+    Save the current input for script to cache as the default for next run
+    """
+    cache_folder = Path(".bsq_cache")
+    cache_folder.mkdir(exist_ok=True)
+    defaults_cache = cache_folder / f"{defaults_name}_defaults.json"
+    with open(defaults_cache, "w") as f:
+        json.dump(defaults, f)
