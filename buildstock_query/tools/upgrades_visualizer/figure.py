@@ -75,7 +75,7 @@ class UpgradesPlot:
             for second_name, second_df in second_plots:
                 name = ','.join(second_name) if second_name else str(grp0)
                 count = len(second_df)
-                mean = pl.mean(second_df['value'])
+                mean = second_df['value'].mean()
                 if counter >= 500:
                     yvals.append(0.1)
                     xvals.append("Too many groups")
@@ -90,7 +90,7 @@ class UpgradesPlot:
                     elif params.value_type == ValueTypes.count:
                         val = second_df['building_id'].n_unique()
                     else:
-                        val = pl.mean(second_df['value'])
+                        val = second_df['value'].mean()
                     val = float(val)
                     yvals.append(val)
                     xvals.append(name)
