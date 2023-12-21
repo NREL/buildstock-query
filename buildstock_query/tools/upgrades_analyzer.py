@@ -11,9 +11,10 @@ import os
 from typing import Optional
 from collections import defaultdict
 from pathlib import Path
-from .logic_parser import LogicParser
+from buildstock_query.tools.logic_parser import LogicParser
 from tabulate import tabulate
-from buildstock_query.helpers import read_csv
+from buildstock_query.helpers import read_csv, load_script_defaults, save_script_defaults
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -353,7 +354,7 @@ class UpgradesAnalyzer:
         else:
             return logic
 
-    def _get_options_application_count_report(self, logic_dict) -> Optional[pd.DataFrame]:
+    def _get_options_application_count_report(self, logic_dict) -> pd.DataFrame:
         """
         For a given logic dictionary, this method will return a report df of options application.
         Example report below:
@@ -368,10 +369,6 @@ class UpgradesAnalyzer:
         5                  1, 6, 7, 13, 14         23 (0.0%)     254 (0.3%)    2917 (2.9%)
         5                  1, 6, 8, 13, 14         42 (0.0%)     296 (0.3%)    2959 (3.0%)
         """
-
-        n_options = len(logic_dict)
-        if n_options < 2:
-            return None
 
         logic_df = pd.DataFrame(logic_dict)
         nbldgs = len(logic_df)
@@ -396,10 +393,7 @@ class UpgradesAnalyzer:
             application_report_rows.append(record)
 
         assert cum_count_all <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
-        if application_report_rows:
-            application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
-            return application_report_df
-        return None
+        return pd.DataFrame(application_report_rows).set_index("Number of options")
 
     def _get_left_out_report_all(self, upgrade_num):
         cfg = self.get_cfg()
@@ -564,20 +558,18 @@ class UpgradesAnalyzer:
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
 
         option_app_report = self._get_options_application_count_report(grouped_conds_dict)
-        if option_app_report is not None:
-            report_str += "-" * 80 + "\n"
-            report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
-            report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+        report_str += "-" * 80 + "\n"
+        report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
+        report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
 
         detailed_app_report_df = self._get_options_application_count_report(conds_dict)
-        if detailed_app_report_df is not None:
-            report_str += "-" * 80 + "\n"
-            if len(detailed_app_report_df) > 100:
-                report_str += "Detailed report is skipped because of too many rows. " + "\n"
-                report_str += "Ask the developer if this is useful to see" + "\n"
-            else:
-                report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
-                report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+        report_str += "-" * 80 + "\n"
+        if len(detailed_app_report_df) > 100:
+            report_str += "Detailed report is skipped because of too many rows. " + "\n"
+            report_str += "Ask the developer if this is useful to see" + "\n"
+        else:
+            report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
+            report_str += tabulate(detailed_app_report_df, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -647,24 +639,30 @@ class UpgradesAnalyzer:
 
 
 def main():
+    defaults = load_script_defaults("project_info")
     yaml_file = inquirer.filepath(
-        message="Project configuration file (EUSS-project-file.yml):",
+        message="Project configuration file (the yaml file):",
+        default=defaults.get("yaml_file", ""),
         validate=PathValidator(),
-        filter=lambda x: x or "EUSS-project-file.yml",
     ).execute()
     buildstock_file = inquirer.filepath(
         message="Project sample file (buildstock.csv):",
+        default=defaults.get("buildstock_file", ""),
         validate=PathValidator(),
-        filter=lambda x: x or "buildstock.csv",
     ).execute()
     opt_sat_file = inquirer.filepath(
         message="Path to option_saturation.csv file",
+        default=defaults.get("opt_sat_file", ""),
         validate=PathValidator()
     ).execute()
     output_prefix = inquirer.text(
         message="output file name prefix:",
-        filter=lambda x: "" if x is None else f"{x}_",
+        default=defaults.get("output_prefix", ""),
+        filter=lambda x: "" if x is None else f"{x}",
     ).execute()
+    defaults.update({"yaml_file": yaml_file, "buildstock_file": buildstock_file, "opt_sat_file": opt_sat_file,
+                     "output_prefix": output_prefix})
+    save_script_defaults("project_info", defaults)
     ua = UpgradesAnalyzer(yaml_file, buildstock_file, opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()

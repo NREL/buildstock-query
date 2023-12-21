@@ -20,6 +20,7 @@ from InquirerPy import inquirer
 from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
 from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
+from buildstock_query.helpers import load_script_defaults, save_script_defaults
 import polars as pl
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
@@ -811,25 +812,28 @@ def get_app(viz_data: VizData):
 
 def main():
     print("Welcome to Upgrades Visualizer.")
-    yaml_path = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default="").execute()
-    opt_sat_path = inquirer.text(message="Please enter path to the options saturation csv file: ",
-                                 default="").execute()
+    defaults = load_script_defaults("project_info")
+    yaml_file = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
+                              default=defaults.get("yaml_file", "")).execute()
+    opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file: ",
+                                 default=defaults.get("opt_sat_file", "")).execute()
     workgroup = inquirer.text(message="Please Athena workgroup name: ",
-                              default="rescore").execute()
+                              default=defaults.get("workgroup", "")).execute()
     db_name = inquirer.text(message="Please enter database_name "
                             "(found in postprocessing:aws:athena in the buildstock configuration file): ",
-                            default='').execute()
+                            default=defaults.get("db_name", "")).execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file). [Enter two names "
                                "separated by comma if baseline and upgrades are in different run] :",
-                               default=""
+                               default=defaults.get("table_name", "")
                                ).execute()
-
+    defaults.update({"yaml_file": yaml_file, "opt_sat_file": opt_sat_file, "workgroup": workgroup,
+                     "db_name": db_name, "table_name": table_name})
+    save_script_defaults("project_info", defaults)
     if ',' in table_name:
         table_name = table_name.split(',')
-    app = _get_app(yaml_path=yaml_path,
-                   opt_sat_path=opt_sat_path,
+    app = _get_app(yaml_path=yaml_file,
+                   opt_sat_path=opt_sat_file,
                    workgroup=workgroup,
                    db_name=db_name,
                    table_name=table_name)
