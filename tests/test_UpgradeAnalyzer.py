@@ -5,20 +5,54 @@ import pytest
 
 
 class TestUpgradesAnalyzer:
-    @pytest.fixture
-    def ua(self):
+
+    # Create three different kind of UpgradesAnalyzer fixuture objects.
+    # 1. with_filter: upgrades yaml and filter yaml are included
+    # 2. without_filter: only upgrades yaml is included
+    # 3. only_filter: only filter yaml is included
+    # The test cases are parametrized to run with all three kinds of fixtures.
+    # But some test functions skip the test if the fixture is not applicable.
+    @pytest.fixture(params=['with_filter', 'without_filter', 'only_filter'],
+                    ids=["with_filter", "without_filter", "only_filter"])
+    def ua(self, request):
         folder_path = pathlib.Path(__file__).parent.resolve()
-        yaml_path = folder_path / "reference_files" / "res_n250_15min_v19.yml"
+
+        if request.param == "with_filter":
+            yaml_path = str(folder_path / "reference_files" / "res_n250_15min_v19.yml")
+            upgrade_names = None
+            filter_yaml_path = str(folder_path / "reference_files" / "res_n250_15min_v19_upgrades_filter.yml")
+        elif request.param == "without_filter":
+            yaml_path = str(folder_path / "reference_files" / "res_n250_15min_v19.yml")
+            upgrade_names = None
+            filter_yaml_path = None
+        elif request.param == "only_filter":
+            yaml_path = None
+            filter_yaml_path = str(folder_path / "reference_files" / "res_n250_15min_v19_upgrades_filter.yml")
+            upgrade_names = {i: f"upgrade{i}" for i in range(1, 9)}
+        else:
+            raise ValueError(f"Invalid request param: {request.param}")
+
         self.buildstock_path = folder_path / "reference_files" / "res_n250_15min_v19_buildstock.csv"
         self.opt_sat_path = folder_path / "reference_files" / "options_saturations.csv"
-        ua = UpgradesAnalyzer(str(yaml_path), str(self.buildstock_path), str(self.opt_sat_path))
+        ua = UpgradesAnalyzer(yaml_file=yaml_path,
+                              filter_yaml_file=filter_yaml_path,
+                              buildstock=str(self.buildstock_path),
+                              upgrade_names=upgrade_names,
+                              opt_sat_file=str(self.opt_sat_path))
         return ua
 
-    def test_read_cfg(self, ua):
-        cfg = ua.get_cfg()
-        assert isinstance(cfg, dict)
-        assert "upgrades" in cfg
-        assert "postprocessing" in cfg
+    def test_read_cfg(self, ua, request):
+        cfg = ua.cfg
+        if request.node.callspec.id != "only_filter":
+            assert isinstance(cfg, dict)
+            assert "upgrades" in cfg
+            assert "postprocessing" in cfg
+
+    def test_read_filter_cfg(self, ua, request):
+        cfg = ua.filter_cfg
+        if request.node.callspec.id == "with_filter":
+            assert isinstance(cfg, dict)
+            assert set(ua.filter_cfg.keys()) == set(ua.upgrade_names.values())
 
     def test_parse_none(self, ua):
         assert "None" in ua.buildstock_df["hvac secondary heating type and fuel"].unique()
@@ -154,28 +188,46 @@ class TestUpgradesAnalyzer:
         assert report_df.loc[3]['Cumulative all'].iloc[0] == "2 (66.7%)"
         assert report_df.loc[3]['Cumulative all'].iloc[1] == "3 (100.0%)"
 
-    def test_get_report(self, ua: UpgradesAnalyzer):
-        cfg = ua.get_cfg()
+    def test_get_report_only_filter(self, ua: UpgradesAnalyzer, request):
+        if request.node.callspec.id != "only_filter":
+            return
+        report = ua.get_report()
+        assert len(report) == 8
+        assert (list(report['removal_count'].values) == [14, 36, 14, 14, 14, 14, 14, 14])
+
+    def test_get_report(self, ua: UpgradesAnalyzer, request):
+        if request.node.callspec.id == "only_filter":  # test if upgrades yaml is included
+            return
+
+        cfg = ua.cfg
         new_cfg = cfg.copy()
-        ua.get_cfg = lambda: new_cfg  # type: ignore
+        # ua.cfg = new_cfg  # type: ignore
 
         new_cfg["upgrades"] = [cfg["upgrades"][0]]  # keep only one upgrade
-        report_df = ua.get_report()
+        report_df = ua.get_report(1)
         assert (report_df["upgrade_name"] == "upgrade1").all()
         assert len(report_df) == 2
         opt1_cond = report_df["option"] == "Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing"
         logic_cond1 = ua.buildstock_df["insulation wall"] == "Wood Stud, Uninsulated"
         logic_cond2 = ua.buildstock_df["vintage"] == "1980s"
-        assert report_df[opt1_cond].applicable_to.values[0] == sum(logic_cond1 | logic_cond2)
-        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == sum(logic_cond1 | logic_cond2)
+
+        if ua.filter_cfg:
+            remove_logic = ua.buildstock_df["vintage"] == "1980s"
+            combined_logic = (logic_cond1 | logic_cond2) & (~remove_logic)
+        else:
+            combined_logic = logic_cond1 | logic_cond2
+
+        assert report_df[opt1_cond].applicable_to.values[0] == sum(combined_logic)
+        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == sum(combined_logic)
 
         new_cfg["upgrades"] = [cfg["upgrades"][1]]  # keep only one upgrade
-        report_df = ua.get_report()
+        report_df = ua.get_report(2)
         assert (report_df["upgrade_name"] == "upgrade2").all()
         assert len(report_df) == 4
         opt1_cond = report_df["option"] == "Windows|Single, Clear, Metal, Exterior Low-E Storm"
         opt2_cond = report_df["option"] == "Vintage|1980s"
         opt3_cond = report_df["option"] == "Vintage|1970s"
+
         pkg_logic = ~ua.buildstock_df["vintage"].isin(["1990s", "2000s"])
         logic_cond1_1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
         logic_cond1_2 = ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
@@ -186,6 +238,12 @@ class TestUpgradesAnalyzer:
         logic_cond3_2 = ua.buildstock_df["vintage"] == "1960s"
         logic_cond3_3 = ua.buildstock_df["location region"] == "CR09"
         opt3_logic = (logic_cond3_1 | logic_cond3_2) & logic_cond3_3 & pkg_logic
+        if ua.filter_cfg:
+            remove_logic = ((ua.buildstock_df["vintage"] == "1980s") | (ua.buildstock_df["vintage"] == "1960s"))
+            opt1_logic &= ~remove_logic
+            opt2_logic &= ~remove_logic
+            opt3_logic &= ~remove_logic
+
         assert report_df[opt1_cond].applicable_to.values[0] == sum(opt1_logic)
         assert report_df[opt2_cond].applicable_to.values[0] == sum(opt2_logic)
         assert report_df[opt3_cond].applicable_to.values[0] == sum(opt3_logic)
@@ -194,18 +252,28 @@ class TestUpgradesAnalyzer:
         )
 
         new_cfg["upgrades"] = [cfg["upgrades"][4]]  # No apply_logic
-        report_df = ua.get_report()
+        report_df = ua.get_report(5)
         assert (report_df["upgrade_name"] == "upgrade5").all()
         assert len(report_df) == 2
         opt1_cond = report_df["option"] == "Vintage|1980s"
-        assert report_df[opt1_cond].applicable_to.values[0] == len(ua.buildstock_df)
-        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == len(ua.buildstock_df)
+        if ua.filter_cfg:
+            remove_logic = ((ua.buildstock_df["vintage"] == "1980s"))
+            total_applicable_buildings = sum(~remove_logic)
+            assert report_df[report_df["option"] == "All"].removal_count.values[0] == sum(remove_logic)
+        else:
+            total_applicable_buildings = len(ua.buildstock_df)
+
+        assert report_df[opt1_cond].applicable_to.values[0] == total_applicable_buildings
+        assert report_df[report_df["option"] == "All"].applicable_to.values[0] == total_applicable_buildings
 
         with pytest.raises(ValueError):
             ua.get_report(0)
             ua.get_report(len(cfg["upgrades"]) + 2)
 
-    def test_print_detailed_report(self, ua: UpgradesAnalyzer, capsys):
+    def test_print_detailed_report(self, ua: UpgradesAnalyzer, capsys, request):
+        if request.node.callspec.id == "only_filter":  # test if upgrades yaml is included
+            return
+
         with pytest.raises(ValueError):
             ua.get_detailed_report(0)  # upgrade 0 is invalid. It is 1-indexed
 
@@ -222,7 +290,14 @@ class TestUpgradesAnalyzer:
         assert cmp_str in report_text
         assert f"or => {sum(logic_cond1 | logic_cond2)}" in report_text
         assert f"and => {sum(logic_cond1 | logic_cond2)}" in report_text
-        assert f"Overall applied to => {sum(logic_cond1 | logic_cond2)}" in report_text
+
+        if ua.filter_cfg:  # if filter yaml is included
+            assert "Remove Logic Report" in report_text
+            remove_logic = ua.buildstock_df["vintage"] == "1980s"
+            combined_logic = (logic_cond1 | logic_cond2) & (~remove_logic)
+            assert f"Overall applied to => {sum(combined_logic)}" in report_text
+        else:
+            assert f"Overall applied to => {sum(logic_cond1 | logic_cond2)}" in report_text
 
         _, report_text = ua.get_detailed_report(2)
         opt1_text = "Option1:'Windows|Single, Clear, Metal, Exterior Low-E Storm'"
@@ -234,22 +309,39 @@ class TestUpgradesAnalyzer:
 
         substr1 = report_text[report_text.index(opt1_text): report_text.index(opt2_text)]
         assert "Package Apply Logic Report" in substr1
-        package_report = substr1[substr1.index("Package Apply Logic Report"):]
+        if ua.filter_cfg:  # if filter yaml is included
+            package_report = substr1[substr1.index("Package Apply Logic Report"):substr1.index("Remove Logic Report")]
+        else:
+            package_report = substr1[substr1.index("Package Apply Logic Report"):]
         main_report = substr1[: substr1.index("Package Apply Logic Report")]
-        logic1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
-        assert f"Windows|Single, Clear, Metal => {sum(logic1)}" in main_report
-        logic2 = ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
-        assert f"Single, Clear, Metal, Exterior Clear Storm => {sum(logic2)}" in main_report
-        assert f"or => {sum(logic1 | logic2)}" in main_report
-        assert f"and => {sum(logic1 | logic2)}" in main_report
+        logic_opt1_1 = ua.buildstock_df["windows"] == "Single, Clear, Metal"
+        assert f"Windows|Single, Clear, Metal => {sum(logic_opt1_1)}" in main_report
+        logic_opt1_2 = ua.buildstock_df["windows"] == "Single, Clear, Metal, Exterior Clear Storm"
+        assert f"Single, Clear, Metal, Exterior Clear Storm => {sum(logic_opt1_2)}" in main_report
+        assert f"or => {sum(logic_opt1_1 | logic_opt1_2)}" in main_report
+        assert f"and => {sum(logic_opt1_1 | logic_opt1_2)}" in main_report
 
-        logic3 = ua.buildstock_df["vintage"] == "1990s"
-        assert f"Vintage|1990s => {sum(logic3)}" in package_report
-        logic4 = ua.buildstock_df["vintage"] == "2000s"
-        assert f"Vintage|2000s => {sum(logic4)}" in package_report
-        assert f"or => {sum(logic3 | logic4)}" in package_report
-        assert f"not => {sum(~(logic3 | logic4))}" in package_report
+        logic_package_1 = ua.buildstock_df["vintage"] == "1990s"
+        assert f"Vintage|1990s => {sum(logic_package_1)}" in package_report
+        logic_package_2 = ua.buildstock_df["vintage"] == "2000s"
+        assert f"Vintage|2000s => {sum(logic_package_2)}" in package_report
+        assert f"or => {sum(logic_package_1 | logic_package_2)}" in package_report
+        final_package_apply_logic = ~(logic_package_1 | logic_package_2)
+        assert f"not => {sum(final_package_apply_logic)}" in package_report
 
+        overall_logic = (logic_opt1_1 | logic_opt1_2) & final_package_apply_logic
+
+        if ua.filter_cfg:  # if filter yaml is included
+            assert "Remove Logic Report" in substr1
+            remove_report = substr1[substr1.index("Remove Logic Report"):]
+            remove_logic = ((ua.buildstock_df["vintage"] == "1980s") | (ua.buildstock_df["vintage"] == "1960s"))
+            assert f"or => {sum(remove_logic)}" in remove_report
+            assert f"Vintage|1980s => {sum(ua.buildstock_df['vintage'] == '1980s')}" in remove_report
+            assert f"Vintage|1960s => {sum(ua.buildstock_df['vintage'] == '1960s')}" in remove_report
+            assert f"Removed after applying => {sum(overall_logic & remove_logic)}" in remove_report
+            overall_logic &= ~remove_logic
+
+        assert f"Overall applied to => {sum(overall_logic)}" in report_text
         # TODO: Also add test for combination report output
 
     def test_get_logic_report(self, ua: UpgradesAnalyzer):
@@ -325,7 +417,10 @@ class TestUpgradesAnalyzer:
         assert f"Vintage|1980s => {sum(logic_arr1)}" in logic_report[2]
         assert f"Vintage|1960s => {sum(logic_arr2)}" in logic_report[3]
 
-    def test_print_unique_characteristics(self, ua: UpgradesAnalyzer, capsys):
+    def test_print_unique_characteristics(self, ua: UpgradesAnalyzer, capsys, request):
+        if request.node.callspec.id == "only_filter":  # test if upgrades yaml is included
+            return
+
         compare_bldg_list = ua.buildstock_df[ua.buildstock_df["vintage"].isin(["2000s", "1990s"])].index
         other_bldg_list = ua.buildstock_df[~ua.buildstock_df["vintage"].isin(["2000s", "1990s"])].index
         ua.print_unique_characteristic(1, "no-chng", other_bldg_list, compare_bldg_list)
@@ -350,7 +445,10 @@ class TestUpgradesAnalyzer:
             "[('Single, Clear, Metal', '1990s', 'CR09')]" in printed_text
         )
 
-    def test_get_upgraded_buildstock(self, ua: UpgradesAnalyzer):
+    def test_get_upgraded_buildstock(self, ua: UpgradesAnalyzer, request):
+        if request.node.callspec.id == "only_filter":  # test if upgrades yaml is included
+            return
+
         report_df = ua.get_report()
         upgrades = report_df["upgrade"].unique()
         for upg in upgrades:

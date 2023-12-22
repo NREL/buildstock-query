@@ -4,24 +4,36 @@ import yaml
 from collections import defaultdict
 import json
 from buildstock_query.helpers import read_csv
+from buildstock_query.file_getter import OpenOrDownload
 
 
 class LogicParser:
     def __init__(self, opt_sat_path, yaml_file) -> None:
-        opt_df = read_csv(opt_sat_path)
-        opt_df = opt_df[opt_df["Saturation"] > 0]
-        self.available_opts = opt_df.groupby("Parameter")['Option'].agg(set).to_dict()
+        self.opt_df = self.get_opt_df(opt_sat_path)
+        self.opt_df = self.opt_df[self.opt_df["Saturation"] > 0]
+        self.available_opts = self.opt_df.groupby("Parameter")['Option'].agg(set).to_dict()
         self.yaml_file = yaml_file
+        self.cfg = self.get_cfg(yaml_file)
 
-    def get_cfg(self) -> dict:
+    def get_cfg(self, yaml_file) -> dict:
         """Get the buildstock configuration file as a dictionary object.
 
         Returns:
             dict: The buildstock configuration file.
         """
-        with open(self.yaml_file) as f:
+        with OpenOrDownload(self.yaml_file) as f:
             config = yaml.load(f, Loader=yaml.SafeLoader)
         return config
+
+    def get_opt_df(self, opt_sat_path):
+        """Get the options saturation dataframe.
+
+        Returns:
+            pandas.DataFrame: The options saturation dataframe.
+        """
+        with OpenOrDownload(opt_sat_path) as f:
+            opt_df = read_csv(f)
+            return opt_df
 
     def get_apply_logics(self, upgrade_num, option_name):
         """Get the apply logic for a given upgrade number and option.
@@ -33,7 +45,7 @@ class LogicParser:
         Returns:
             dict: The apply logic for the given upgrade number and option name.
         """
-        config = self.get_cfg()
+        config = self.cfg
         upgrade = config["upgrades"][upgrade_num - 1]
         opt2logic = dict()
         for opt in upgrade["options"]:
@@ -53,7 +65,7 @@ class LogicParser:
 
     def get_upgrade_options_map(self):
         """Get list of all options for all upgrades"""
-        config = self.get_cfg()
+        config = self.cfg
         upgrade_options_map = defaultdict(set)
         for upgrade_num, upgrade in enumerate(config["upgrades"], start=1):
             for opt in upgrade["options"]:

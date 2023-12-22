@@ -3,7 +3,7 @@ from pyathena.pandas.result_set import AthenaPandasResultSet
 from unittest.mock import MagicMock
 import tempfile
 import pytest
-from tests.utils import assert_query_equal, load_tbl_from_pkl
+from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
 from buildstock_query.helpers import CachedFutureDf
 import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery, SimInfo
@@ -260,6 +260,21 @@ def test_aggregate_annual(temp_history_file):
         end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
     """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
+
+
+def test_get_upgrade_names(temp_history_file):
+    my_athena = BuildStockQuery(
+        workgroup='eulp',
+        db_name='buildstock_testing',
+        buildstock_type='resstock',
+        table_name='res_n250_15min_v19',
+        execution_history=temp_history_file,
+        skip_reports=True
+    )
+    my_athena._query_cache = load_cache_from_pkl('res_n250_15min_v19')
+    upgrade_names = my_athena.get_upgrade_names()
+    assert upgrade_names is not None
+    assert len(upgrade_names) == 8
 
 
 def test_aggregate_ts(temp_history_file):
@@ -636,7 +651,7 @@ def static_test_aggregate_ts_inferred_types(temp_history_file):
         workgroup='eulp',
         db_name='buildstock_testing',
         buildstock_type='resstock',
-        table_name='res_n250_hrly_v1',
+        table_name='res_n250_15min_v19',
         execution_history=temp_history_file,
         skip_reports=True
     )
