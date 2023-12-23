@@ -127,7 +127,7 @@ class BuildStockQuery(QueryCore):
         return buildstock_df
 
     @validate_arguments
-    def get_upgrades_analyzer(self,
+    def get_upgrades_analyzer(self, *,
                               opt_sat_file: str,
                               yaml_file: Optional[str] = None,
                               filter_yaml_file: Optional[str] = None,

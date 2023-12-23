@@ -28,8 +28,8 @@ class UpgradesAnalyzer:
 
     def __init__(self, *,
                  buildstock: Union[str, pd.DataFrame],
-                 opt_sat_file: str,
                  yaml_file: Optional[str] = None,
+                 opt_sat_file: str,
                  filter_yaml_file: Optional[str] = None,
                  upgrade_names: Optional[dict[int, str]] = None,
                  ) -> None:
