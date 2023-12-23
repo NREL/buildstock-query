@@ -45,14 +45,15 @@ class VizData:
             self.initialize()
 
     def initialize(self):
-        self.ua = self.main_run.get_upgrades_analyzer(self.yaml_path, self.opt_sat_path)
+        self.ua = self.main_run.get_upgrades_analyzer(yaml_file=self.yaml_path,
+                                                      opt_sat_file=self.opt_sat_path)
         self.report = pl.from_pandas(self.main_run.report.get_success_report(), include_index=True)
         self.available_upgrades = list(sorted(set(self.report["upgrade"].unique()) - {0}))
         self.upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
-                             upgrade in enumerate(self.ua.get_cfg().get('upgrades', []))}
+                             upgrade in enumerate(self.ua.cfg.get('upgrades', []))}
         self.upgrade2name[0] = "Upgrade 0: Baseline"
         self.upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx,
-                                  upgrade in enumerate(self.ua.get_cfg().get('upgrades', []))}
+                                  upgrade in enumerate(self.ua.cfg.get('upgrades', []))}
         self.chng2bldg = self.get_change2bldgs()
         self.init_annual_results()
         self.init_monthly_results(self.metadata_df)

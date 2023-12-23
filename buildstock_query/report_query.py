@@ -106,7 +106,8 @@ class BuildStockReport:
     def print_change_details(self, upgrade_id: int, yml_file: str, opt_sat_path: str,
                              change_type: Literal["no-chng", "bad-chng", "ok-chng", "true-bad-chng",
                                                   "true-ok-chng", "null", "any"] = 'no-chng'):
-        ua = self._bsq.get_upgrades_analyzer(yml_file, opt_sat_path)
+        ua = self._bsq.get_upgrades_analyzer(yaml_file=yml_file,
+                                             opt_sat_file=opt_sat_path)
         bad_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type=change_type)
         good_bids = self.get_buildings_by_change(upgrade_id=upgrade_id, change_type='ok-chng')
         ua.print_unique_characteristic(upgrade_id, change_type, good_bids, bad_bids)
@@ -370,7 +371,8 @@ class BuildStockReport:
         Returns:
             pd.DataFrame: The report dataframe.
         """
-        ua_df = self._bsq.get_upgrades_analyzer(yaml_file, opt_sat_path).get_report()
+        ua_df = self._bsq.get_upgrades_analyzer(yaml_file=yaml_file,
+                                                opt_sat_file=opt_sat_path).get_report()
         ua_df = ua_df.groupby(['upgrade', 'option']).aggregate({'applicable_to': 'sum',
                                                                 'applicable_buildings': lambda x: reduce(set.union, x)})
         assert (ua_df['applicable_to'] == ua_df['applicable_buildings'].map(lambda x: len(x))).all()

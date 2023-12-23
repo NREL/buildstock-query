@@ -1,0 +1,8 @@
+schema_version: "0.3"
+all_upgrades_remove_logic:
+  - Vintage|1980s
+
+upgrades:
+  - upgrade_name: upgrade2 #Applies to some, corrects some, (Success + Invalid + Fail)
+    remove_logic:
+      - Vintage|1960s

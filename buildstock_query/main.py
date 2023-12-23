@@ -127,21 +127,51 @@ class BuildStockQuery(QueryCore):
         return buildstock_df
 
     @validate_arguments
-    def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -> UpgradesAnalyzer:
+    def get_upgrades_analyzer(self, *,
+                              opt_sat_file: str,
+                              yaml_file: Optional[str] = None,
+                              filter_yaml_file: Optional[str] = None,
+                              upgrade_names: Optional[dict[int, str]] = None,
+                              ) -> UpgradesAnalyzer:
         """
-            Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
-
+        Initialize the analyzer instance.
         Args:
-            yaml_file (str): The path to the buildstock configuration file.
-            opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
-
-        Returns:
-            UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+            opt_sat_file (str): The path to the option saturation file.
+            yaml_file (str): The path to the yaml file.
+            filter_yaml_file (str): The path to the filter yaml file.
+            upgrade_names (dict[int, str]): A dictionary of upgrade number to upgrade name. This
+                needs to be provided if only the filter_yaml_file is provided.
         """
 
         buildstock_df = self.get_buildstock_df()
-        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
+        if yaml_file is None and upgrade_names is None:
+            upgrade_names = self.get_upgrade_names()
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file,
+                              filter_yaml_file=filter_yaml_file, upgrade_names=upgrade_names)
         return ua
+
+    @typing.overload
+    def get_upgrade_names(self, get_query_only: Literal[False] = False) -> dict:
+        ...
+
+    @typing.overload
+    def get_upgrade_names(self, get_query_only: Literal[True]) -> str:
+        ...
+
+    @validate_arguments
+    def get_upgrade_names(self, get_query_only: bool = False) -> Union[str, dict]:
+        if self.up_table is None:
+            raise ValueError("This run has no upgrades")
+        upgrade_table = self.up_table
+        query = f"""
+            Select cast(upgrade as integer) as upgrade, arbitrary("apply_upgrade.upgrade_name") as upgrade_name
+            from {upgrade_table}
+            group by 1 order by 1
+        """
+        if get_query_only:
+            return query
+        up_name_dict = self.execute(query).set_index('upgrade').to_dict()['upgrade_name']
+        return up_name_dict
 
     @typing.overload
     def _get_rows_per_building(self, get_query_only: Literal[False] = False) -> int:
