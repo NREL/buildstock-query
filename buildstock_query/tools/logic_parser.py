@@ -13,7 +13,8 @@ class LogicParser:
         self.opt_df = self.opt_df[self.opt_df["Saturation"] > 0]
         self.available_opts = self.opt_df.groupby("Parameter")['Option'].agg(set).to_dict()
         self.yaml_file = yaml_file
-        self.cfg = self.get_cfg(yaml_file)
+        if yaml_file:
+            self.cfg = self.get_cfg(yaml_file)
 
     def get_cfg(self, yaml_file) -> dict:
         """Get the buildstock configuration file as a dictionary object.
