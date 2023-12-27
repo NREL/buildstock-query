@@ -737,7 +737,7 @@ class UpgradesAnalyzer:
 
         return logic_array, logic_str
 
-    def save_detailed_report_all(self, file_path: str, logic_transform=None):
+    def save_detailed_report_all(self, file_path: str, normalize_logic: bool = False):
         """Save detailed text based upgrade report.
 
         Args:
@@ -747,7 +747,7 @@ class UpgradesAnalyzer:
         all_report = ""
         for upgrade in range(1, len(cfg["upgrades"]) + 1):
             logger.info(f"Getting report for upgrade {upgrade}")
-            _, report = self.get_detailed_report(upgrade, normalize_logic=logic_transform)
+            _, report = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
             all_report += report + "\n"
         with open(file_path, "w") as file:
             file.write(all_report)
@@ -778,7 +778,8 @@ def main():
     defaults.update({"yaml_file": yaml_file, "buildstock_file": buildstock_file, "opt_sat_file": opt_sat_file,
                      "output_prefix": output_prefix})
     save_script_defaults("project_info", defaults)
-    ua = UpgradesAnalyzer(yaml_file, buildstock_file, opt_sat_file)
+    ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file,
+                          opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}options_report.csv"
