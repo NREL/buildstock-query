@@ -24,7 +24,8 @@ setup(
         "pydantic<2",
         "PyYAML",
         "tabulate",
-        "toml"
+        "toml",
+        "requests"
     ],
 
     extras_require={
