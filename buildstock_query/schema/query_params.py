@@ -11,6 +11,7 @@ class AnnualQuery(BaseModel):
     sort: bool = True
     join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list)
     restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list)
+    avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list)
     weights: Sequence[Union[str, tuple, AnyColType]] = Field(default_factory=list)
     get_quartiles: bool = False
     get_nonzero_count: bool = False

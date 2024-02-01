@@ -972,7 +972,7 @@ class QueryCore:
         label = label.removeprefix(self.db_schema.column_prefix.output)
         return label
 
-    def _add_restrict(self, query, restrict, bs_only=False):
+    def _add_restrict(self, query, restrict, *, bs_only=False):
         if not restrict:
             return query
         where_clauses = []
@@ -985,6 +985,22 @@ class QueryCore:
                 else:
                     criteria = criteria[0]
             where_clauses.append(col == criteria)
+        query = query.where(*where_clauses)
+        return query
+
+    def _add_avoid(self, query, avoid, *, bs_only=False):
+        if not avoid:
+            return query
+        where_clauses = []
+        for col_str, criteria in avoid:
+            col = self._get_column(col_str, table_name=self.bs_table) if bs_only else self._get_column(col_str)
+            if isinstance(criteria, (list, tuple)):
+                if len(criteria) > 1:
+                    where_clauses.append(self._get_column(col).not_in(criteria))
+                    continue
+                else:
+                    criteria = criteria[0]
+            where_clauses.append(col != criteria)
         query = query.where(*where_clauses)
         return query
 

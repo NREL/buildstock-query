@@ -40,11 +40,12 @@ class BuildStockQuery(QueryCore):
                  table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
                  db_schema: Optional[str] = None,
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
-                 sample_weight: Optional[Union[int, float]] = None,
+                 sample_weight_override: Optional[Union[int, float]] = None,
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
                  athena_query_reuse: bool = True,
+                 **kwargs,
                  ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -60,8 +61,8 @@ class BuildStockQuery(QueryCore):
                 It is also different between the version in OEDI and default version from BuildStockBatch. This argument
                 controls the assumed schema. Allowed values are 'resstock_default', 'resstock_oedi', 'comstock_default'
                 and 'comstock_oedi'. Defaults to 'resstock_default' for resstock and 'comstock_default' for comstock.
-            sample_weight (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
-                uses sample_weight in the run for ResStock.
+            sample_weight_override (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for
+                ComStock and uses sample_weight in the run for ResStock.
             region_name (str, optional): the AWS region where the database exists. Defaults to 'us-west-2'.
             execution_history (str, optional): A temporary file to record which execution is run by the user,
                 to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
@@ -71,6 +72,7 @@ class BuildStockQuery(QueryCore):
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
+            kargs: Any other extra keyword argument supported by the QueryCore can be supplied here
         """
         db_schema = db_schema or f"{buildstock_type}_default"
         self.params = BSQParams(
@@ -79,7 +81,7 @@ class BuildStockQuery(QueryCore):
             buildstock_type=buildstock_type,
             table_name=table_name,
             db_schema=db_schema,
-            sample_weight_override=sample_weight,
+            sample_weight_override=sample_weight_override,
             region_name=region_name,
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
