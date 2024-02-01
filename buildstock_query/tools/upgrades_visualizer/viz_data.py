@@ -51,6 +51,8 @@ class VizData:
     def initialize(self):
         available_upgrades = self.main_run.get_available_upgrades()
         available_upgrades = [int(u) for u in available_upgrades]
+        if not self.upgrades_selection:
+            self.upgrades_selection = set(available_upgrades)
         if (unavailable_upgrades := self.upgrades_selection - set(available_upgrades)):
             raise ValueError(f"Upgrades {unavailable_upgrades} is not available in the run")
         available_upgrades = self.upgrades_selection
@@ -137,11 +139,11 @@ class VizData:
                                                                   upgrade_id=upgrade,
                                                                   timestamp_grouping_func='month',
                                                                   )
-            month_year = f"{datetime.datetime.now().strftime('%b%Y')}"
-            s3_unload_path = f"s3://resstock-core/athena_unload_results/{month_year}/"
             if monthly_vals_query in run_obj._query_cache:
                 monthly_vals = run_obj._query_cache[monthly_vals_query].copy()
             else:
+                month_year = f"{datetime.datetime.now().strftime('%b%Y')}"
+                s3_unload_path = f"s3://resstock-core/athena_unload_results/{month_year}/"
                 pd_cursor = run_obj._conn.cursor(unload=True, s3_staging_dir=s3_unload_path).execute(
                     monthly_vals_query,
                     result_reuse_enable=True,
