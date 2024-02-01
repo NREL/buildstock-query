@@ -3,6 +3,7 @@ from pydantic import validate_arguments
 import polars as pl
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams
 from typing import Union
+import datetime
 
 num2month = {1: "January", 2: "February", 3: "March", 4: "April",
              5: "May", 6: "June", 7: "July", 8: "August",
@@ -12,12 +13,14 @@ fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'woo
 
 class VizData:
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def __init__(self, yaml_path: str, opt_sat_path: str,
+    def __init__(self, opt_sat_path: str,
                  db_name: str,
                  run: Union[str, tuple[str, str]],
                  workgroup: str = 'largeee',
                  buildstock_type: str = 'resstock',
-                 skip_init: bool = False):
+                 skip_init: bool = False,
+                 include_monthly: bool = True,
+                 upgrades_selection: set = set()):
         if isinstance(run, tuple):
             # Allows for separate baseline and upgrade runs
             # In this case, run[0] is the baseline run and run[1] is the upgrade run
@@ -39,24 +42,30 @@ class VizData:
                                         buildstock_type=buildstock_type,
                                         table_name=table,
                                         skip_reports=skip_init)
-        self.yaml_path = yaml_path
         self.opt_sat_path = opt_sat_path
+        self.upgrades_selection = upgrades_selection
+        self.include_monthly = include_monthly
         if not skip_init:
             self.initialize()
 
     def initialize(self):
-        self.ua = self.main_run.get_upgrades_analyzer(yaml_file=self.yaml_path,
-                                                      opt_sat_file=self.opt_sat_path)
+        available_upgrades = self.main_run.get_available_upgrades()
+        available_upgrades = [int(u) for u in available_upgrades]
+        if (unavailable_upgrades := self.upgrades_selection - set(available_upgrades)):
+            raise ValueError(f"Upgrades {unavailable_upgrades} is not available in the run")
+        available_upgrades = self.upgrades_selection
         self.report = pl.from_pandas(self.main_run.report.get_success_report(), include_index=True)
-        self.available_upgrades = list(sorted(set(self.report["upgrade"].unique()) - {0}))
-        self.upgrade2name = {indx+1: f"Upgrade {indx+1}: {upgrade['upgrade_name']}" for indx,
-                             upgrade in enumerate(self.ua.cfg.get('upgrades', []))}
-        self.upgrade2name[0] = "Upgrade 0: Baseline"
-        self.upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx,
-                                  upgrade in enumerate(self.ua.cfg.get('upgrades', []))}
+        self.available_upgrades = list(set([int(u) for u in available_upgrades]) - {0})
+        self.upgrade2name = {0: "Upgrade 0: Baseline"}
+        if self.available_upgrades:
+            upgrade_names = self.main_run.get_upgrade_names()
+            self.upgrade2name |= upgrade_names
+
+        self.upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx in range(len(self.available_upgrades) + 1)}
         self.chng2bldg = self.get_change2bldgs()
         self.init_annual_results()
-        self.init_monthly_results(self.metadata_df)
+        if self.include_monthly:
+            self.init_monthly_results(self.metadata_df)
         self.all_upgrade_plotting_df = None
 
     def run_obj(self, upgrade: int) -> BuildStockQuery:
@@ -122,10 +131,23 @@ class VizData:
             ts_cols = self._get_ts_enduse_cols(upgrade)
             print(f"Getting monthly results for {upgrade}")
             run_obj = self.run_obj(upgrade)
-            monthly_vals = run_obj.agg.aggregate_timeseries(enduses=ts_cols,
-                                                            group_by=[run_obj.bs_bldgid_column],
-                                                            upgrade_id=upgrade,
-                                                            timestamp_grouping_func='month')
+            monthly_vals_query = run_obj.agg.aggregate_timeseries(get_query_only=True,
+                                                                  enduses=ts_cols,
+                                                                  group_by=[run_obj.bs_bldgid_column],
+                                                                  upgrade_id=upgrade,
+                                                                  timestamp_grouping_func='month',
+                                                                  )
+            month_year = f"{datetime.datetime.now().strftime('%b%Y')}"
+            s3_unload_path = f"s3://resstock-core/athena_unload_results/{month_year}/"
+            if monthly_vals_query in run_obj._query_cache:
+                monthly_vals = run_obj._query_cache[monthly_vals_query].copy()
+            else:
+                pd_cursor = run_obj._conn.cursor(unload=True, s3_staging_dir=s3_unload_path).execute(
+                    monthly_vals_query,
+                    result_reuse_enable=True,
+                    result_reuse_minutes=60 * 24 * 7)
+                monthly_vals = pd_cursor.as_pandas()
+                run_obj._query_cache[monthly_vals_query] = monthly_vals
             run_obj.save_cache()
             monthly_df = pl.from_pandas(monthly_vals, include_index=True)
             monthly_df = monthly_df.with_columns(pl.col('time').dt.month().alias("month"))
@@ -193,7 +215,7 @@ class VizData:
                 .then(0)
                 .otherwise(pl.col("value"))
                 .alias("value")
-                )
+            )
         return up_df
 
     def get_all_cols(self, resolution: str) -> list[str]:
