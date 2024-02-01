@@ -247,7 +247,7 @@ def test_aggregate_annual(temp_history_file):
         db_name='buildstock_testing',
         buildstock_type='resstock',
         table_name='res_n250_hrly_v1',
-        sample_weight=29.1,
+        sample_weight_override=29.1,
         execution_history=temp_history_file,
         skip_reports=True
     )
@@ -390,7 +390,7 @@ def test_aggregate_ts(temp_history_file):
         buildstock_type='resstock',
         table_name='res_n250_hrly_v1',
         execution_history=temp_history_file,
-        sample_weight=29.1,
+        sample_weight_override=29.1,
         skip_reports=True
     )
     my_athena2.get_available_upgrades = lambda: ['0']

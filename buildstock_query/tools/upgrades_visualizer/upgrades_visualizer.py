@@ -35,8 +35,6 @@ import polars as pl
 # ])
 transforms = [MultiplexerTransform()]
 
-# yaml_path = "/Users/radhikar/Documents/eulpda/EULP-data-analysis/notebooks/EUSS-project-file-example.yml"
-yaml_path = "/Users/radhikar/Documents/largee/resstock/project_national/fact_sheets_category_1.yml"
 opt_sat_path = "/Users/radhikar/Downloads/options_saturations.csv"
 default_end_use = "fuel_use_electricity_total_m_btu"
 
@@ -56,12 +54,40 @@ def filter_cols(all_columns, prefixes=[], suffixes=[]):
     return cols
 
 
-def _get_app(yaml_path: str, opt_sat_path: str, db_name: str = 'euss-tests',
+def get_int_set(input_str):
+    """
+        Convert "1,2,3-6,8,9" to [1, 2, 3, 4, 5, 6, 8, 9]
+    """
+    if not input_str:
+        return set()
+
+    pattern = r'^(\d+(-\d+)?,)*(\d+(-\d+)?)$'
+    if not re.match(pattern, input_str):
+        raise ValueError(f"{input_str} is not a valid pattern for list")
+
+    result = set()
+    segments = input_str.split(',')
+    for segment in segments:
+        if '-' in segment:
+            start, end = map(int, segment.split('-'))
+            result |= set(range(start, end + 1))
+        else:
+            result.add(int(segment))
+
+    return result
+
+
+def _get_app(opt_sat_path: str, db_name: str = 'euss-tests',
              table_name: str = 'res_test_03_2018_10k_20220607',
              workgroup: str = 'largeee',
-             buildstock_type: str = 'resstock'):
-    viz_data = VizData(yaml_path=yaml_path, opt_sat_path=opt_sat_path, db_name=db_name,
-                       run=table_name, workgroup=workgroup, buildstock_type=buildstock_type)
+             buildstock_type: str = 'resstock',
+             include_monthly: bool = True,
+             upgrades_selection_str: str = ''):
+    viz_data = VizData(opt_sat_path=opt_sat_path, db_name=db_name,
+                       run=table_name, workgroup=workgroup, buildstock_type=buildstock_type,
+                       include_monthly=include_monthly,
+                       upgrades_selection=get_int_set(upgrades_selection_str)
+                       )
     return get_app(viz_data)
 
 
@@ -70,7 +96,6 @@ def get_app(viz_data: VizData):
     upgrade2res = viz_data.upgrade2res
     # upgrade2res_monthly = viz_data.upgrade2res_monthly
     upgrade2name = viz_data.upgrade2name
-    resolution = 'annual'
     all_cols = viz_data.upgrade2res[0].columns
     emissions_cols = filter_cols(all_cols, suffixes=['_lb'])
     # end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
@@ -93,7 +118,8 @@ def get_app(viz_data: VizData):
         return upgrade2res[int(upgrade)]['building_id'].to_list()
 
     def get_plot(end_use, value_type='mean', savings_type='', change_type='',
-                 sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=None):
+                 sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=None,
+                 resolution='annual'):
         filter_bldg = filter_bldg or []
         group_cols = group_cols or []
         sync_upgrade = sync_upgrade or 0
@@ -115,7 +141,7 @@ def get_app(viz_data: VizData):
         dbc.Row([dbc.Col(html.H1("Upgrades Visualizer"), width='auto'), dbc.Col(html.Sup("beta"))]),
         # Add a row for annual, vs monthly vs seasonal plot radio buttons
         dbc.Row([dbc.Col(dbc.Label("Resolution: "), width='auto'),
-                 dbc.Col(dcc.RadioItems(["annual", "monthly"], "annual",
+                 dbc.Col(dcc.RadioItems(["annual", "monthly"] if viz_data.include_monthly else ["annual"], "annual",
                                         inline=True, id="radio_resolution"))]),
 
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
@@ -278,7 +304,7 @@ def get_app(viz_data: VizData):
         bdf = viz_data.upgrade2res[0].filter(pl.col("building_id").is_in(set(bldg_ids))).select(char_cols)
         return dcc.send_bytes(bdf.write_csv, f"chars_{n_clicks}.csv")
 
-    def get_elligible_output_columns(category, fuel):
+    def get_elligible_output_columns(category, fuel, resolution):
         if category == 'energy':
             elligible_cols = viz_data.get_cleaned_up_end_use_cols(resolution, fuel)
         elif category == 'water':
@@ -305,15 +331,6 @@ def get_app(viz_data: VizData):
         return elligible_cols
 
     @app.callback(
-        Output('radio_resolution', 'options'),
-        Input('radio_resolution', 'value'),
-    )
-    def update_resolution(res):
-        nonlocal resolution
-        resolution = res
-        return ['annual', 'monthly']
-
-    @app.callback(
         Output('dropdown_enduse', "options"),
         Output('dropdown_enduse', "value"),
         Input('tab_view_type', "value"),
@@ -322,7 +339,7 @@ def get_app(viz_data: VizData):
         Input('radio_resolution', 'value')
     )
     def update_enduse_options(view_tab, fuel_type, current_enduse, resolution):
-        elligible_cols = get_elligible_output_columns(view_tab, fuel_type)
+        elligible_cols = get_elligible_output_columns(view_tab, fuel_type, resolution)
         enduse = current_enduse if current_enduse in elligible_cols else elligible_cols[0]
         return sorted(elligible_cols), enduse
 
@@ -772,11 +789,12 @@ def get_app(viz_data: VizData):
         Input('input_building2', 'options'),
         Input('chk-graph', 'value'),
         State("uirevision", "data"),
-        State('report_upgrade', 'value')
+        State('report_upgrade', 'value'),
+        State('radio_resolution', 'value')
     )
     def update_figure(view_tab, grp_by, fuel, enduse, graph_type, savings_type, chng_type,
                       sync_upgrade, selected_bldg, bldg_options, bldg_options2, chk_graph, uirevision,
-                      report_upgrade):
+                      report_upgrade, resolution):
         nonlocal download_csv_df
         if dash.callback_context.triggered_id == 'input_building2' and "Graph" not in chk_graph:
             raise PreventUpdate()
@@ -798,7 +816,8 @@ def get_app(viz_data: VizData):
             filter_bldg = [int(b) for b in bldg_options]
 
         new_figure, report_df = get_plot(full_name, graph_type, savings_type,
-                                         chng_type, sync_upgrade, filter_bldg, grp_by, report_upgrade)
+                                         chng_type, sync_upgrade, filter_bldg, grp_by, report_upgrade,
+                                         resolution)
 
         uirevision = uirevision or "default"
         new_figure.update_layout(uirevision=uirevision)
@@ -813,30 +832,38 @@ def get_app(viz_data: VizData):
 def main():
     print("Welcome to Upgrades Visualizer.")
     defaults = load_script_defaults("project_info")
-    yaml_file = inquirer.text(message="Please enter path to the buildstock configuration yml file: ",
-                              default=defaults.get("yaml_file", "")).execute()
-    opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file: ",
+    opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file:",
                                  default=defaults.get("opt_sat_file", "")).execute()
-    workgroup = inquirer.text(message="Please Athena workgroup name: ",
+    workgroup = inquirer.text(message="Please enter Athena workgroup name:",
                               default=defaults.get("workgroup", "")).execute()
-    db_name = inquirer.text(message="Please enter database_name "
-                            "(found in postprocessing:aws:athena in the buildstock configuration file): ",
+    db_name = inquirer.text(message="Please enter database name "
+                            "(found in postprocessing:aws:athena in the buildstock configuration file):",
                             default=defaults.get("db_name", "")).execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file). [Enter two names "
-                               "separated by comma if baseline and upgrades are in different run] :",
+                               "separated by comma if baseline and upgrades are in different run]:",
                                default=defaults.get("table_name", "")
                                ).execute()
-    defaults.update({"yaml_file": yaml_file, "opt_sat_file": opt_sat_file, "workgroup": workgroup,
-                     "db_name": db_name, "table_name": table_name})
+    monthly_default = defaults.get("include_monthly", True)
+    default_str = "Yes" if monthly_default else "No"
+    include_monthly = inquirer.confirm(f"Do you want to include monthly plots ({default_str})?",
+                                       default=monthly_default,
+                                       ).execute()
+    upgrades_selection = inquirer.text(message="Please enter upgrade ids separated by comma and dashes "
+                                       "(example: `1-3,5,7,8-9`) or leave empty to include all upgrades.",
+                                       default=defaults.get("upgrades_selection", "")).execute()
+    defaults.update({"opt_sat_file": opt_sat_file, "workgroup": workgroup,
+                     "db_name": db_name, "table_name": table_name, "include_monthly": include_monthly,
+                     "upgrades_selection": upgrades_selection})
     save_script_defaults("project_info", defaults)
     if ',' in table_name:
         table_name = table_name.split(',')
-    app = _get_app(yaml_path=yaml_file,
-                   opt_sat_path=opt_sat_file,
+    app = _get_app(opt_sat_path=opt_sat_file,
                    workgroup=workgroup,
                    db_name=db_name,
-                   table_name=table_name)
+                   table_name=table_name,
+                   include_monthly=include_monthly,
+                   upgrades_selection_str=upgrades_selection)
     app.run_server(debug=False, port=8005)
 
 
