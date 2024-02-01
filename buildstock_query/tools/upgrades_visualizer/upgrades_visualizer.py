@@ -96,7 +96,6 @@ def get_app(viz_data: VizData):
     upgrade2res = viz_data.upgrade2res
     # upgrade2res_monthly = viz_data.upgrade2res_monthly
     upgrade2name = viz_data.upgrade2name
-    resolution = 'annual'
     all_cols = viz_data.upgrade2res[0].columns
     emissions_cols = filter_cols(all_cols, suffixes=['_lb'])
     # end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
@@ -849,8 +848,8 @@ def main():
     include_monthly = inquirer.confirm(f"Do you want to include monthly data ({monthly_default})?",
                                        default=monthly_default,
                                        ).execute()
-    upgrades_selection = inquirer.text(message="Please enter upgrade ids separated by comma and dashes (example: 1-3,5,7,8-9) "
-                                       "or leave empty to include all upgrades.",
+    upgrades_selection = inquirer.text(message="Please enter upgrade ids separated by comma and dashes "
+                                       " (example: 1-3,5,7,8-9) or leave empty to include all upgrades.",
                                        default=defaults.get("upgrades_selection", "")).execute()
     defaults.update({"opt_sat_file": opt_sat_file, "workgroup": workgroup,
                      "db_name": db_name, "table_name": table_name, "include_monthly": include_monthly,
