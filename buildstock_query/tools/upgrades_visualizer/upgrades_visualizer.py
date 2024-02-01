@@ -832,24 +832,25 @@ def get_app(viz_data: VizData):
 def main():
     print("Welcome to Upgrades Visualizer.")
     defaults = load_script_defaults("project_info")
-    opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file: ",
+    opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file:",
                                  default=defaults.get("opt_sat_file", "")).execute()
-    workgroup = inquirer.text(message="Please Athena workgroup name: ",
+    workgroup = inquirer.text(message="Please enter Athena workgroup name:",
                               default=defaults.get("workgroup", "")).execute()
-    db_name = inquirer.text(message="Please enter database_name "
-                            "(found in postprocessing:aws:athena in the buildstock configuration file): ",
+    db_name = inquirer.text(message="Please enter database name "
+                            "(found in postprocessing:aws:athena in the buildstock configuration file):",
                             default=defaults.get("db_name", "")).execute()
     table_name = inquirer.text(message="Please enter table name (same as output folder name; found under "
                                "output_directory in the buildstock configuration file). [Enter two names "
-                               "separated by comma if baseline and upgrades are in different run] :",
+                               "separated by comma if baseline and upgrades are in different run]:",
                                default=defaults.get("table_name", "")
                                ).execute()
     monthly_default = defaults.get("include_monthly", True)
-    include_monthly = inquirer.confirm(f"Do you want to include monthly data ({monthly_default})?",
+    default_str = "Yes" if monthly_default else "No"
+    include_monthly = inquirer.confirm(f"Do you want to include monthly plots ({default_str})?",
                                        default=monthly_default,
                                        ).execute()
     upgrades_selection = inquirer.text(message="Please enter upgrade ids separated by comma and dashes "
-                                       " (example: 1-3,5,7,8-9) or leave empty to include all upgrades.",
+                                       "(example: `1-3,5,7,8-9`) or leave empty to include all upgrades.",
                                        default=defaults.get("upgrades_selection", "")).execute()
     defaults.update({"opt_sat_file": opt_sat_file, "workgroup": workgroup,
                      "db_name": db_name, "table_name": table_name, "include_monthly": include_monthly,
