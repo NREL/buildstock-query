@@ -165,14 +165,14 @@ class BuildStockUtility:
                                          params=params)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def aggregate_unit_counts_by_eiaid(self, *, eiaid_list: list[str],
+    def aggregate_unit_counts_by_eiaid(self, *, eiaid_list: Optional[list[str]] = None,
                                        group_by: list[Union[AnyColType, tuple[str, str]]] = [],
                                        get_query_only: bool = False):
         """
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
         provided.
         Args:
-            eiaid_list: The list of utility ids (EIAID) to aggregate for
+            eiaid_list: The list of utility ids (EIAID) to aggregate for. If not provided, all the eiaids will be used.
             group_by: Additional columns to group by
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used
@@ -185,7 +185,7 @@ class BuildStockUtility:
         group_by = group_by or []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
-        restrict = [('eiaid', eiaid_list)]
+        restrict = [('eiaid', eiaid_list)] if eiaid_list else []
         eiaid_col = self._bsq._get_column("eiaid", eiaid_map_table_name)
         result = self._agg.aggregate_annual(enduses=[], group_by=[eiaid_col] + group_by,
                                             sort=True,
