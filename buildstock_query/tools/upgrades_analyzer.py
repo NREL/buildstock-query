@@ -366,10 +366,8 @@ class UpgradesAnalyzer:
         """
 
         self._logic_cache = {}
-        max_upg = len(self.upgrade_names) + 1
-        if upgrade_num is not None:
-            if upgrade_num <= 0 or upgrade_num > max_upg:
-                raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.")
+        if upgrade_num not in self.upgrade_names:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {self.upgrade_names.keys()}.")
 
         record_dfs = []
         for indx, upgrade_names in self.upgrade_names.items():
