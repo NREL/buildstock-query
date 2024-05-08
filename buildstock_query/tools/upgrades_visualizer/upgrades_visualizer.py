@@ -22,6 +22,7 @@ from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, Va
 from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
 from buildstock_query.helpers import load_script_defaults, save_script_defaults
 import polars as pl
+from typing import Literal
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
 # from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
@@ -80,7 +81,7 @@ def get_int_set(input_str):
 def _get_app(opt_sat_path: str, db_name: str = 'euss-tests',
              table_name: str = 'res_test_03_2018_10k_20220607',
              workgroup: str = 'largeee',
-             buildstock_type: str = 'resstock',
+             buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
              include_monthly: bool = True,
              upgrades_selection_str: str = ''):
     viz_data = VizData(opt_sat_path=opt_sat_path, db_name=db_name,
@@ -96,26 +97,32 @@ def get_app(viz_data: VizData):
     upgrade2res = viz_data.upgrade2res
     # upgrade2res_monthly = viz_data.upgrade2res_monthly
     upgrade2name = viz_data.upgrade2name
-    all_cols = viz_data.upgrade2res[0].columns
+    all_cols = viz_data.upgrade2res['0'].columns
     emissions_cols = filter_cols(all_cols, suffixes=['_lb'])
-    # end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
+    end_use_cols = filter_cols(all_cols, ["end_use_", "energy_use__", "fuel_use_"])
     water_usage_cols = filter_cols(all_cols, suffixes=["_gal"])
-    load_cols = filter_cols(all_cols, ["load_", "flow_rate_"])
+    load_cols = filter_cols(all_cols, ["load_", "flow_rate_", "component_load_", "hvac_design_load_"])
     peak_cols = filter_cols(all_cols, ["peak_"])
-    unmet_cols = filter_cols(all_cols, ["unmet_"])
+    unmet_cols = filter_cols(all_cols, ["unmet_", "resilience_battery_hr"])
     area_cols = filter_cols(all_cols, suffixes=["_ft_2", ])
     size_cols = filter_cols(all_cols, ["size_"])
     qoi_cols = filter_cols(all_cols, ["qoi_"])
     cost_cols = filter_cols(all_cols, ["upgrade_cost_"])
+
     build_cols = viz_data.metadata_df.columns
+    listed_cols = emissions_cols + water_usage_cols + load_cols + peak_cols + unmet_cols + area_cols + size_cols +\
+        qoi_cols + cost_cols + build_cols + end_use_cols
+    numerical_cols = [name for name, dtype in viz_data.upgrade2res['0'].schema.items()
+                      if dtype in (pl.NUMERIC_DTYPES)]
+    other_cols = list(set(numerical_cols) - set(listed_cols))
     char_cols = [c.removeprefix(viz_data.main_run._char_prefix) for c in build_cols if 'applicable' not in c]
     char_cols += ['month']
     fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'wood_cord', 'wood_pellets']
     change_types = ["any", "no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng"]
     download_csv_df = pl.DataFrame()
 
-    def get_buildings(upgrade):
-        return upgrade2res[int(upgrade)]['building_id'].to_list()
+    def get_buildings(upgrade: str):
+        return upgrade2res[upgrade]['building_id'].to_list()
 
     def get_plot(end_use, value_type='mean', savings_type='', change_type='',
                  sync_upgrade=None, filter_bldg=None, group_cols=None, report_upgrade=None,
@@ -123,7 +130,7 @@ def get_app(viz_data: VizData):
         filter_bldg = filter_bldg or []
         group_cols = group_cols or []
         sync_upgrade = sync_upgrade or 0
-        report_upgrade = int(report_upgrade) if report_upgrade else None
+        report_upgrade = report_upgrade if report_upgrade else None
 
         params = PlotParams(enduses=end_use, value_type=ValueTypes[value_type.lower()],
                             savings_type=SavingsTypes[savings_type.lower().replace(' ', '_')],
@@ -145,7 +152,7 @@ def get_app(viz_data: VizData):
                                         inline=True, id="radio_resolution"))]),
 
         dbc.Row([dbc.Col(dbc.Label("Visualization Type: "), width='auto'),
-                 dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution", "Scatter"], "Mean",
+                 dbc.Col(dcc.RadioItems(["Mean", "Total", "Count", "Distribution", "Scatter", "Sorted"], "Mean",
                                         id="radio_graph_type",
                                         inline=True,
                                         labelClassName="pr-2"), width='auto'),
@@ -182,6 +189,8 @@ def get_app(viz_data: VizData):
                 dcc.Tab(label='emissions', value='emissions', children=[]
                         ),
                 dcc.Tab(label='Upgrade Cost', value='upgrade_cost', children=[]
+                        ),
+                dcc.Tab(label='Others', value='others', children=[]
                         ),
             ])
         )
@@ -282,7 +291,13 @@ def get_app(viz_data: VizData):
         if not n_clicks:
             raise PreventUpdate()
         nonlocal download_csv_df
-        return dcc.send_bytes(download_csv_df.write_csv, "graph_data.csv")
+        bldg_ids = set(download_csv_df['building_id'].to_list()) - {0}
+        bdf = viz_data.upgrade2res['0'].filter(pl.col("building_id").is_in(set(bldg_ids))).select(char_cols)
+        if len(bdf) > 0:
+            combined_df = download_csv_df.join(bdf, on="building_id", how="left")
+            return dcc.send_bytes(combined_df.write_csv, "graph_data.csv")
+        else:
+            return dcc.send_bytes(download_csv_df.write_csv, "graph_data.csv")
 
     @app.callback(
         Output("download-chars-csv", "data"),
@@ -301,7 +316,7 @@ def get_app(viz_data: VizData):
         else:
             bldg_ids = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
         bldg_ids = [int(b) for b in bldg_ids]
-        bdf = viz_data.upgrade2res[0].filter(pl.col("building_id").is_in(set(bldg_ids))).select(char_cols)
+        bdf = viz_data.upgrade2res['0'].filter(pl.col("building_id").is_in(set(bldg_ids))).select(char_cols)
         return dcc.send_bytes(bdf.write_csv, f"chars_{n_clicks}.csv")
 
     def get_elligible_output_columns(category, fuel, resolution):
@@ -310,7 +325,7 @@ def get_app(viz_data: VizData):
         elif category == 'water':
             elligible_cols = water_usage_cols if resolution == 'annual' else []
         elif category == 'load':
-            elligible_cols = load_cols if resolution == 'annual' else []
+            elligible_cols = load_cols
         elif category == 'peak':
             elligible_cols = peak_cols if resolution == 'annual' else []
         elif category == 'unmet_hours':
@@ -326,6 +341,8 @@ def get_app(viz_data: VizData):
                 viz_data.get_emissions_cols(resolution=resolution)
         elif category == 'upgrade_cost':
             elligible_cols = cost_cols if resolution == 'annual' else []
+        elif category == 'others':
+            elligible_cols = other_cols if resolution == 'annual' else []
         else:
             raise ValueError(f"Invalid tab {category}")
         return elligible_cols
@@ -444,18 +461,18 @@ def get_app(viz_data: VizData):
                        reset_click):
 
         if sync_upgrade and change_type:
-            valid_bldgs = set(viz_data.chng2bldg[(int(sync_upgrade), change_type)])
+            valid_bldgs = set(viz_data.chng2bldg[(sync_upgrade, change_type)])
         elif report_upgrade and change_type:
-            valid_bldgs = set(viz_data.chng2bldg[(int(report_upgrade), change_type)])
+            valid_bldgs = set(viz_data.chng2bldg[(report_upgrade, change_type)])
             buildings = get_buildings(report_upgrade)
             valid_bldgs = set(buildings).intersection(valid_bldgs)
         elif report_upgrade:
             buildings = get_buildings(report_upgrade)
             valid_bldgs = set(buildings)
         else:
-            valid_bldgs = set(viz_data.upgrade2res[0]['building_id'].to_list())
+            valid_bldgs = set(viz_data.upgrade2res['0']['building_id'].to_list())
 
-        base_res = upgrade2res[0].filter(pl.col("building_id").is_in(valid_bldgs))
+        base_res = upgrade2res['0'].filter(pl.col("building_id").is_in(valid_bldgs))
         valid_bldgs = list(base_res['building_id'].to_list())
 
         if "btn-reset" != ctx.triggered_id and current_options and len(current_options) > 0 and chk_lock:
@@ -470,7 +487,7 @@ def get_app(viz_data: VizData):
 
     def get_char_choices(char):
         if char:
-            res0 = upgrade2res[0]
+            res0 = upgrade2res['0']
             unique_choices = sorted(list(res0[char].unique()))
             return unique_choices, unique_choices[0]
         else:
@@ -610,7 +627,7 @@ def get_app(viz_data: VizData):
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options2]
         else:
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
-        run_obj = viz_data.run_obj(int(report_upgrade))
+        run_obj = viz_data.run_obj(report_upgrade)
         applied_options = run_obj.report.get_applied_options(upgrade_id=int(report_upgrade),
                                                              bldg_ids=bldg_list,
                                                              include_base_opt=True)
@@ -654,7 +671,7 @@ def get_app(viz_data: VizData):
             final_report = dmc.Accordion([get_accord_item(opt_name) for opt_name in reduced_set], multiple=True)
         else:
             final_report = ["No option got applied to the selected building(s)."]
-        up_name = upgrade2name[int(report_upgrade)]
+        up_name = upgrade2name[report_upgrade]
         return f"Options applied in {up_name}", final_report, dict(bldg_list_dict)
 
     @app.callback(
@@ -680,7 +697,7 @@ def get_app(viz_data: VizData):
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
 
         # print(bldg_list)
-        run_obj = viz_data.run_obj(int(report_upgrade))
+        run_obj = viz_data.run_obj(report_upgrade)
         dict_changed_enduses = run_obj.report.get_enduses_buildings_map_by_change(upgrade_id=int(report_upgrade),
                                                                                   change_type=enduse_change_type,
                                                                                   bldg_list=bldg_list)
@@ -864,7 +881,7 @@ def main():
                    table_name=table_name,
                    include_monthly=include_monthly,
                    upgrades_selection_str=upgrades_selection)
-    app.run_server(debug=False, port=8005)
+    app.run_server(debug=False, port=8006)
 
 
 if __name__ == '__main__':

@@ -366,7 +366,7 @@ class UpgradesAnalyzer:
         """
 
         self._logic_cache = {}
-        if upgrade_num not in self.upgrade_names:
+        if upgrade_num is not None and upgrade_num not in self.upgrade_names:
             raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {self.upgrade_names.keys()}.")
 
         record_dfs = []

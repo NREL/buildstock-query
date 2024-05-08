@@ -399,7 +399,7 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def _download_upgrades_csv(self, upgrade_id: int) -> str:
+    def _download_upgrades_csv(self, upgrade_id: Union[int, str]) -> str:
         """ Downloads the upgrades csv from s3 and returns the path to the downloaded file.
         """
         if self.up_table is None:
@@ -407,6 +407,9 @@ class BuildStockQuery(QueryCore):
 
         available_upgrades = list(self.get_available_upgrades())
         available_upgrades.remove('0')
+        if isinstance(upgrade_id, int):
+            upgrade_id = f"{upgrade_id:02}"
+
         if str(upgrade_id) not in available_upgrades:
             raise ValueError(f"Upgrade {upgrade_id} not found")
 
@@ -428,8 +431,8 @@ class BuildStockQuery(QueryCore):
             raise ValueError(f"Results parquet not found in s3 at {upgrades_path}")
         # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
         matching_files = [path['Key'] for path in s3_data['Contents']
-                          if f"up{upgrade_id:02}.parquet" in path['Key'] or
-                          f"upgrade{upgrade_id:02}.parquet" in path['Key']]
+                          if f"up{upgrade_id}.parquet" in path['Key'] or
+                          f"upgrade{upgrade_id}.parquet" in path['Key']]
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
                              f"These files matched: {matching_files}")
@@ -440,7 +443,7 @@ class BuildStockQuery(QueryCore):
         self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
         return local_copy_path
 
-    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
+    def get_upgrades_csv_full(self, upgrade_id: Union[int, str]) -> pd.DataFrame:
         """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
         restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
         athena.
