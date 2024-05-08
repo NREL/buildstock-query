@@ -3,7 +3,6 @@ from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
 import plotly.graph_objects as go
 import polars as pl
 import re
-from collections import defaultdict
 
 
 color_list = [
@@ -57,7 +56,8 @@ class UpgradesPlot:
 
     def get_plot(self, params: PlotParams):
         if len(params.group_by) >= 2 or params.upgrade is not None or \
-           (params.value_type in [ValueTypes.distribution, ValueTypes.scatter, ValueTypes.sorted] and len(params.group_by) >= 1):
+           (params.value_type in [ValueTypes.distribution, ValueTypes.scatter,
+                                  ValueTypes.sorted] and len(params.group_by) >= 1):
             params.upgrade = params.upgrade if params.upgrade else '0'
             params.group_by = ['upgrade'] if not params.group_by else params.group_by
             plot_df = self.viz_data.get_plotting_df(upgrade=params.upgrade, params=params)
@@ -165,7 +165,8 @@ class UpgradesPlot:
             try:
                 fl = flatten_list
                 if params.value_type == ValueTypes.scatter:
-                    sub_df = pl.DataFrame({xtitle: fl(xvals), ytitle: fl(yvals), 'upgrade': [f'Upgrade {grp0}'] * len(fl(xvals)),
+                    sub_df = pl.DataFrame({xtitle: fl(xvals), ytitle: fl(yvals),
+                                           'upgrade': [f'Upgrade {grp0}'] * len(fl(xvals)),
                                            'sample_count': fl(sample_counts), 'info': fl(hovervals),
                                            'second_group': fl(second_groups), 'building_id': fl(building_ids)})
                 else:
@@ -174,7 +175,8 @@ class UpgradesPlot:
                                            'second_group': second_groups, 'building_id': building_ids})
                 # sub_df = sub_df.with_columns(pl.col(ytitle).cast(pl.Float32))
                 report_dfs.append(sub_df)
-            except Exception as exp:
+            except Exception as e:
+                print(e)
                 continue
 
         if params.change_type:
@@ -292,13 +294,12 @@ class UpgradesPlot:
 
             layout_xaxis_key = f'xaxis{"" if index == 0 else index+1}'
             layout_yaxis_key = f'yaxis{"" if index == 0 else index+1}'
-            
-            mode='markers'
+
+            mode = 'markers'
             if plot_type == ValueTypes.sorted:
                 yvals, hovervals = zip(*sorted(zip(yvals, hovervals), reverse=True))
                 xvals = list(range(len(yvals)))
-                mode='lines'
-            
+                mode = 'lines'
 
             fig.add_trace(go.Scatter(x=xvals,
                                      y=yvals,

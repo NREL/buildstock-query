@@ -127,7 +127,8 @@ class BuildStockReport:
                                trim_missing_bs: bool = True) -> Union[list[int], str]:
         ...
 
-    def _get_upgrade_buildings(self, *, upgrade_id: Union[int, str], trim_missing_bs: bool = True, get_query_only: bool = False):
+    def _get_upgrade_buildings(self, *, upgrade_id: Union[int, str], trim_missing_bs: bool = True,
+                               get_query_only: bool = False):
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
         up_query = sa.select([self._bsq.up_bldgid_column])
