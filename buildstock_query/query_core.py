@@ -1065,6 +1065,7 @@ class QueryCore:
             if confirm != curtime:
                 print(f"Please pass {curtime} as confirmation to confirm you want to delete everything.")
                 continue
+            print("Proceeding with delete ...")
             self._aws_glue.batch_delete_table(DatabaseName=self.db_name, TablesToDelete=tables_to_delete)
             print("Deleted the table from athena, now will delete the data in s3")
             s3 = boto3.resource('s3')

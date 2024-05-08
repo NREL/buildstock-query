@@ -39,7 +39,7 @@ class BuildStockAggregate:
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
                             for enduse in enduse_cols]
         if params.get_quartiles:
-            enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
+            enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
                 f"{self._bsq._simple_label(enduse.name)}__quartiles") for enduse in enduse_cols]
 
         if params.get_nonzero_count:
