@@ -272,6 +272,7 @@ class BuildStockReport:
         if get_query_only:
             return self._bsq._compile(up_query)
         df = self._bsq.execute(up_query)
+        df['upgrade'] = df['upgrade'].map(str)
         df = self._rename_completed_status_column(df)
         return self._process_report(df)
 
@@ -570,7 +571,7 @@ class BuildStockReport:
         if get_query_only:
             return self._bsq._compile(ts_query)
         df = self._bsq.execute(ts_query)
-        # df['upgrade'] = df['upgrade'].map(int)
+        df['upgrade'] = df['upgrade'].map(str)
         df = df.set_index('upgrade')
         df = df.rename(columns={'count': 'success'})
         return df
