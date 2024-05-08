@@ -322,7 +322,7 @@ class BuildStockQuery(QueryCore):
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {baseline_path}")
         matching_files = [path['Key'] for path in s3_data['Contents']
-                          if "up00.parquet" in path['Key'] or 'baseline' in path['Key']]
+                          if "up00.parquet" in path['Key'] or 'baseline.parquet' in path['Key']]
 
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {baseline_path} for baseline."
