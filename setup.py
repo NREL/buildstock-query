@@ -18,6 +18,7 @@ setup(
         "pyathena == 3.0.6",
         "SQLAlchemy == 1.4.46",
         "sqlalchemy2-stubs",
+        "sqlalchemy-views",
         "pandas-stubs",
         "inquirerpy >= 0.3.4",
         "types-PyYAML >= 6.0.12.2",

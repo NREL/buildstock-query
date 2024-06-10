@@ -5,6 +5,7 @@ class TableSuffix(BaseModel):
     baseline: str
     timeseries: str
     upgrades: str
+    buildstock: str
 
 
 class ColumnPrefix(BaseModel):

@@ -2,6 +2,7 @@
 baseline = "_baseline"
 timeseries = "_timeseries"
 upgrades = "_upgrades"
+buildstock = "_buildstock_csv"
 
 [column_prefix]
 characteristics = "build_existing_model."

@@ -2,16 +2,17 @@
 baseline = "_baseline"
 timeseries = "_timeseries"
 upgrades = "_upgrades"
+buildstock = "_buildstock_csv"
 
 [column_prefix]
 characteristics = "build_existing_model."
 output = "report_simulation_output."
 
 
-[column_names]  
+[column_names]
 building_id = "building_id"
 sample_weight = "build_existing_model.sample_weight"
-sqft = "build_existing_model.geometry_floor_area"    
+sqft = "build_existing_model.geometry_floor_area"
 timestamp = "time"
 completed_status = "completed_status"
 unmet_hours_cooling_hr = "report_simulation_output.unmet_hours_cooling_hr"

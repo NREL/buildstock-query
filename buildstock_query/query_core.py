@@ -5,6 +5,7 @@ from pyathena.connection import Connection
 from pyathena.error import OperationalError
 from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
+from sqlalchemy_views import CreateView
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
@@ -278,6 +279,7 @@ class QueryCore:
                     sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
             else:
                 upgrade_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.upgrades}', missing_ok=True)
+            csv_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.buildstock}', missing_ok=True)
         else:
             baseline_table = self._get_table(f'{table_name[0]}')
             ts_table = self._get_table(f'{table_name[1]}', missing_ok=True) if table_name[1] else None
@@ -288,6 +290,26 @@ class QueryCore:
                     sa.cast(baseline_table.c['upgrade'], sa.String) == '0').alias('baseline')
             else:
                 upgrade_table = self._get_table(f'{table_name[2]}', missing_ok=True) if table_name[2] else None
+            csv_table = self._get_table(f'{table_name[3]}', missing_ok=True) if table_name[3] else None
+
+        # If there is a buildstock.csv table, make a new view with the buildstock.csv
+        # joined onto the baseline table, then point BSQ to this view instead of
+        # the raw baseline table. This gives us the additional buildstock.csv columns
+        if csv_table is not None:
+            query = sa.select("*")
+            tbljoin = baseline_table.join(csv_table,
+                                          baseline_table.c[self.building_id_column_name] == csv_table.c['building'])
+            query = query.select_from(tbljoin)
+            view_name = f'{table_name}{self.db_schema.table_suffix.baseline}_plus{self.db_schema.table_suffix.buildstock}'
+            print(f'before executing, there are {len(self._meta.tables)}')
+            view = sa.Table(view_name, self._meta)
+            create_view = CreateView(view, query, or_replace=True)
+            logger.info(f"Creating view: {view_name}")
+            self._engine.execute(create_view)
+            self._meta.remove(view)  # Drop the view because doesn't have columns at this point
+            view = sa.Table(view_name, self._meta, autoload=True)  # Reload the view to get the columns
+            baseline_table = view
+
         return baseline_table, ts_table, upgrade_table
 
     def _initialize_book_keeping(self, execution_history):
