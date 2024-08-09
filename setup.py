@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='buildstock_query',
-    version='2024.05.09',
+    version='2024.05.09.1',
     description="Python library for querying and analyzing ResStock and ComStock",
     author="Rajendra Adhikari",
     author_email='Rajendra.Adhikari@nrel.gov',
