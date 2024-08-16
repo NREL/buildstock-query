@@ -84,6 +84,8 @@ class UpgradesPlot:
             xtitle = "baseline_value"
             ytitle = f"{self.get_ylabel(params.enduses)}_{params.savings_type.value}"
         for grp0, sub_df in df.group_by(params.group_by[0], maintain_order=True):
+            if isinstance(grp0, tuple) and len(grp0) == 1:
+                grp0 = grp0[0]
             if params.upgrade is None:
                 upgrade: str = '0'
             else:
