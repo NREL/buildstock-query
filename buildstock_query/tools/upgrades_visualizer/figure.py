@@ -67,7 +67,7 @@ class UpgradesPlot:
 
         return self._get_plot(plot_df, params)
 
-    def _get_plot(self, df, params: PlotParams):
+    def _get_plot(self, df: pl.DataFrame, params: PlotParams):
         fig = go.Figure()
         counter = 0
         counter2 = 0
@@ -83,7 +83,7 @@ class UpgradesPlot:
             assert params.value_type in [ValueTypes.scatter, ValueTypes.sorted]
             xtitle = "baseline_value"
             ytitle = f"{self.get_ylabel(params.enduses)}_{params.savings_type.value}"
-        for grp0, sub_df in df.groupby(params.group_by[0], maintain_order=True):
+        for grp0, sub_df in df.group_by(params.group_by[0], maintain_order=True):
             if params.upgrade is None:
                 upgrade: str = '0'
             else:
@@ -97,7 +97,7 @@ class UpgradesPlot:
             building_ids = []
             if len(params.group_by) > 1:
                 second_plots = [(group_name, group_df) for group_name, group_df in
-                                sub_df.groupby(params.group_by[1:], maintain_order=True)]
+                                sub_df.group_by(params.group_by[1:], maintain_order=True)]
             else:
                 second_plots = [(tuple(), sub_df)]
             for second_name, second_df in second_plots:

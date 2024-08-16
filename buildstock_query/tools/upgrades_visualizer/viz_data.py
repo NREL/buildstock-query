@@ -189,7 +189,7 @@ class VizData:
         return df.select(other_cols + value_cols)
 
     def get_plotting_df(self, upgrade: str,
-                        params: PlotParams,):
+                        params: PlotParams,) -> pl.DataFrame:
         baseline_df = self.get_values(upgrade='0', params=params)
         baseline_df = baseline_df.select("building_id", "month", pl.col("value").alias("baseline_value"))
         up_df = self.get_values(upgrade=upgrade, params=params)
