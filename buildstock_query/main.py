@@ -429,10 +429,21 @@ class BuildStockQuery(QueryCore):
 
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {upgrades_path}")
+
         # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
-        matching_files = [path['Key'] for path in s3_data['Contents']
-                          if f"up{upgrade_id}.parquet" in path['Key'] or
-                          f"upgrade{upgrade_id}.parquet" in path['Key']]
+        def is_match(upgrade_id, key):
+            try:
+                upgrade_id = int(upgrade_id)
+                alternative_id = f"{upgrade_id:02}"
+            except ValueError:
+                alternative_id = str(upgrade_id)
+            for prefix in ['up', 'upgrade']:
+                if f"{prefix}{upgrade_id}.parquet" in key or f"{prefix}{alternative_id}.parquet" in key:
+                    return True
+            return False
+
+        matching_files = [path['Key'] for path in s3_data['Contents'] if is_match(upgrade_id, path['Key'])]
+
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
                              f"These files matched: {matching_files}")
