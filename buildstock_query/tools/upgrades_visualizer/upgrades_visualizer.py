@@ -771,13 +771,13 @@ def get_app(viz_data: VizData):
             bldg_list = [int(bldg_id)] if bldg_id else [int(b) for b in bldg_options]
         chars_df = viz_data.bs_res_df.filter(pl.col('building_id').is_in(
             set(bldg_list))).select(inp_char + ['building_id'])
-        char2bldgs = chars_df.groupby(inp_char).agg('building_id')
+        char2bldgs = chars_df.group_by(inp_char).agg('building_id')
         if (total_len := len(char2bldgs)) > 250:
             return [f"Sorry, this would create more than 200 ({total_len}) rows."], {}
         char_dict = {}
         total_count = 0
         contents = []
-        for char_vals, group_df in chars_df.groupby(inp_char):
+        for char_vals, group_df in chars_df.group_by(inp_char):
             bldglist = group_df['building_id'].to_list()
             but_ids = "+".join(char_vals) if isinstance(char_vals, tuple) else char_vals
             char_dict[but_ids] = [int(b) for b in bldglist]
