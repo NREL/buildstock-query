@@ -461,14 +461,15 @@ def test_aggregate_ts(temp_history_file):
                                                  get_query_only=True)
     assert_query_equal(query9, valid_query_string9)
     # Test that the agg_func is applied correctly
+
     def min_func(col):
         return safunc.min(col)
 
     query10 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
-                                                 collapse_ts=False,
-                                                 agg_func=min_func,
-                                                 timestamp_grouping_func='month',
-                                                 get_query_only=True)
+                                                  collapse_ts=False,
+                                                  agg_func=min_func,
+                                                  timestamp_grouping_func='month',
+                                                  get_query_only=True)
     valid_query_string10 = """
         select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
             count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,

@@ -1051,7 +1051,7 @@ class QueryCore:
                 total_weight *= self._get_column(weight_col)
         return total_weight
 
-    def _get_agg_func_and_weight(self, weights, agg_func = None):
+    def _get_agg_func_and_weight(self, weights, agg_func=None):
         if agg_func is None or agg_func == 'sum':
             return safunc.sum, self._get_weight(weights)
         if callable(agg_func):
