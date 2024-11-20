@@ -5,10 +5,11 @@ from pyathena.connection import Connection
 from pyathena.error import OperationalError
 from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
+from sqlalchemy.sql import func as safunc
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-from typing import Union, Optional, Literal, Sequence
+from typing import Union, Optional, Literal, Sequence, Callable
 import typing
 import time
 import logging
@@ -967,9 +968,14 @@ class QueryCore:
             tbl = self._get_table(table)
             return [col for col in tbl.columns]
 
-    def _simple_label(self, label: str):
+    def _simple_label(self, label: str, agg_func: Optional[Union[Callable, str]] = None):
         label = label.removeprefix(self.db_schema.column_prefix.characteristics)
         label = label.removeprefix(self.db_schema.column_prefix.output)
+
+        if callable(agg_func):
+            label += f"__{agg_func.__name__}"
+        elif isinstance(agg_func, str) and agg_func != 'sum':
+            label += f"__{agg_func}"
         return label
 
     def _add_restrict(self, query, restrict, *, bs_only=False):
@@ -1044,6 +1050,15 @@ class QueryCore:
             else:
                 total_weight *= self._get_column(weight_col)
         return total_weight
+
+    def _get_agg_func_and_weight(self, weights, agg_func = None):
+        if agg_func is None or agg_func == 'sum':
+            return safunc.sum, self._get_weight(weights)
+        if callable(agg_func):
+            return agg_func, 1
+        assert isinstance(agg_func, str), f"agg_func {agg_func} is not a string or callable"
+        agg_func = getattr(safunc, agg_func)
+        return agg_func, 1
 
     def delete_everything(self):
         """Deletes the athena tables and data in s3 for the run.
