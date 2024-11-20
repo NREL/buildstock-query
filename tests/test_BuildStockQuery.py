@@ -12,7 +12,7 @@ import uuid
 import time
 from typing_extensions import assert_type
 from typing import Union
-
+from sqlalchemy import func as safunc
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
 query_core.Connection = MagicMock()  # type: ignore # NOQA
@@ -261,6 +261,18 @@ def test_aggregate_annual(temp_history_file):
     """  # noqa: E501
     assert_query_equal(query5, valid_query_string5)
 
+    # Custom agg_func
+    query6 = my_athena2.agg.aggregate_annual(enduses=enduses,
+                                             agg_func='max',
+                                             get_query_only=True,
+                                             )
+    valid_query_string5 = """
+        select sum(1) as sample_count, sum(29.1) as units_count, max(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * 1) as fuel_use_electricity_net_m_btu__max,
+        max(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * 1) as
+        end_use_electricity_cooling_m_btu__max from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
+    """  # noqa: E501
+    assert_query_equal(query6, valid_query_string5)
+
 
 def test_get_upgrade_names(temp_history_file):
     my_athena = BuildStockQuery(
@@ -448,6 +460,27 @@ def test_aggregate_ts(temp_history_file):
                                                  timestamp_grouping_func='month',
                                                  get_query_only=True)
     assert_query_equal(query9, valid_query_string9)
+    # Test that the agg_func is applied correctly
+
+    def min_func(col):
+        return safunc.min(col)
+
+    query10 = my_athena2.agg.aggregate_timeseries(enduses=enduses,
+                                                  collapse_ts=False,
+                                                  agg_func=min_func,
+                                                  timestamp_grouping_func='month',
+                                                  get_query_only=True)
+    valid_query_string10 = """
+        select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
+            count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
+            (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(29.1)) / sum(1) AS units_count,
+            sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample,
+        min(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 1) as
+        "fuel use: electricity: total__min_func", min(res_n250_hrly_v1_timeseries."end use: electricity: cooling" * 1)
+        as "end use: electricity: cooling__min_func" from res_n250_hrly_v1_timeseries join res_n250_hrly_v1_baseline on
+        res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id group by 1 order by 1
+        """  # noqa: E501
+    assert_query_equal(query10, valid_query_string10)
 
 
 def test_batch_query(temp_history_file):
