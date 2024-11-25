@@ -45,13 +45,14 @@ setup(
                  "dash-mantine-components == 0.10.2",
                  "dash-iconify >= 0.1.2",
                  "plotly >= 5.10.0",
-                 "dash >= 2.6.2",
+                 "dash[diskcache] >= 2.18.2",
                  ]
 
     },
     entry_points={
         'console_scripts': ['upgrades_analyzer=buildstock_query.tools.upgrades_analyzer:main',
-                            'upgrades_visualizer=buildstock_query.tools.upgrades_visualizer:main']
+                            'upgrades_visualizer=buildstock_query.tools.visualizer:upgrades_visualizer',
+                            'timeseries_visualizer=buildstock_query.tools.visualizer:timeseries_visualizer']
     },
 
 )

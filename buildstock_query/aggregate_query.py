@@ -94,6 +94,7 @@ class BuildStockAggregate:
             new_query = params.copy()
             new_query.enduses = [enduse.name]
             new_query.split_enduses = False
+            new_query.get_query_only = True
             query = self.aggregate_timeseries(params=new_query)
             batch_queries_to_submit.append(query)
 
@@ -109,14 +110,17 @@ class BuildStockAggregate:
         result_dfs = self._bsq.get_batch_query_result(batch_id=batch_query_id, combine=False)
         logger.info("Joining the individual enduses result into a single DataFrame")
         group_by = self._bsq._clean_group_by(params.group_by)
-        for res in result_dfs:
-            res.set_index(group_by, inplace=True)
+        if not params.collapse_ts and 'time' not in group_by:
+            group_by.append('time')
+        for i, res in enumerate(result_dfs):
+            if group_by:
+                res.set_index(group_by, inplace=True)
+            if i > 0:
+                res.drop(columns=['sample_count', 'units_count'], inplace=True, errors='ignore')
         self.result_dfs = result_dfs
-        joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
-        for enduse, res in list(zip(params.enduses, result_dfs))[1:]:
-            if not isinstance(enduse, str):
-                enduse = enduse.name
-            joined_enduses_df = joined_enduses_df.join(res[[enduse]])
+        joined_enduses_df = result_dfs[0]
+        for res in result_dfs[1:]:
+            joined_enduses_df = joined_enduses_df.join(res)
 
         logger.info("Joining Completed.")
         return joined_enduses_df.reset_index()

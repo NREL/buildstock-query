@@ -17,12 +17,14 @@ from dash_extensions.enrich import MultiplexerTransform, DashProxy
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 from InquirerPy import inquirer
-from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
-from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
+from buildstock_query.tools.visualizer.viz_data import VizData
+from buildstock_query.tools.visualizer.plot_utils import PlotParams, ValueTypes, SavingsTypes
+from buildstock_query.tools.visualizer.figure import UpgradesPlot
 from buildstock_query.helpers import load_script_defaults, save_script_defaults
 import polars as pl
 from typing import Literal
+
+from buildstock_query.tools.visualizer.viz_utils import filter_cols, get_viz_data
 
 # os.chdir("/Users/radhikar/Documents/eulpda/EULP-data-analysis/eulpda/smart_query/")
 # from: https://github.com/thedirtyfew/dash-extensions/tree/1b8c6466b5b8522690442713eb421f622a1d7a59
@@ -38,58 +40,6 @@ transforms = [MultiplexerTransform()]
 
 opt_sat_path = "/Users/radhikar/Downloads/options_saturations.csv"
 default_end_use = "fuel_use_electricity_total_m_btu"
-
-
-def filter_cols(all_columns, prefixes=[], suffixes=[]):
-    cols = []
-    for col in all_columns:
-        for prefix in prefixes:
-            if col.startswith(prefix):
-                cols.append(col)
-                break
-        else:
-            for suffix in suffixes:
-                if col.endswith(suffix):
-                    cols.append(col)
-                    break
-    return cols
-
-
-def get_int_set(input_str):
-    """
-        Convert "1,2,3-6,8,9" to [1, 2, 3, 4, 5, 6, 8, 9]
-    """
-    if not input_str:
-        return set()
-
-    pattern = r'^(\d+(-\d+)?,)*(\d+(-\d+)?)$'
-    if not re.match(pattern, input_str):
-        raise ValueError(f"{input_str} is not a valid pattern for list")
-
-    result = set()
-    segments = input_str.split(',')
-    for segment in segments:
-        if '-' in segment:
-            start, end = map(int, segment.split('-'))
-            result |= set(range(start, end + 1))
-        else:
-            result.add(int(segment))
-
-    return result
-
-
-def _get_app(opt_sat_path: str, db_name: str = 'euss-tests',
-             table_name: str = 'res_test_03_2018_10k_20220607',
-             workgroup: str = 'largeee',
-             buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
-             include_monthly: bool = True,
-             upgrades_selection_str: str = ''):
-    viz_data = VizData(opt_sat_path=opt_sat_path, db_name=db_name,
-                       run=table_name, workgroup=workgroup, buildstock_type=buildstock_type,
-                       include_monthly=include_monthly,
-                       upgrades_selection=get_int_set(upgrades_selection_str)
-                       )
-    return get_app(viz_data)
 
 
 def get_app(viz_data: VizData):
@@ -875,12 +825,10 @@ def main():
     save_script_defaults("project_info", defaults)
     if ',' in table_name:
         table_name = table_name.split(',')
-    app = _get_app(opt_sat_path=opt_sat_file,
-                   workgroup=workgroup,
-                   db_name=db_name,
-                   table_name=table_name,
-                   include_monthly=include_monthly,
-                   upgrades_selection_str=upgrades_selection)
+    viz_data = get_viz_data(opt_sat_path=opt_sat_file, db_name=db_name, table_name=table_name, workgroup=workgroup,
+                            buildstock_type='resstock', include_monthly=include_monthly,
+                            upgrades_selection_str=upgrades_selection, init_query=True)
+    app = get_app(viz_data)
     app.run_server(debug=False, port=8006)
 
 

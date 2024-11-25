@@ -1,6 +1,6 @@
 from tests.utils import save_ref_pkl
-from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
+from buildstock_query.tools.visualizer.viz_data import VizData
+from buildstock_query.tools.visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
 import pathlib
 import itertools as it
 from buildstock_query import BuildStockQuery
@@ -27,6 +27,9 @@ def save_viz_data_reference_data():
         buildstock_type='resstock',
     )
     assert viz_data.baseline_run is not None
+    viz_data.init_change2bldgs()
+    viz_data.init_annual_results()
+    viz_data.init_monthly_results()
     all_cols = viz_data.get_all_end_use_cols("annual")
     for resolution, value_type, savings_type in it.product(["annual", "monthly"], ValueTypes, SavingsTypes):
         params = PlotParams(enduses=all_cols, savings_type=savings_type, value_type=value_type,

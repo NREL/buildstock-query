@@ -156,7 +156,7 @@ class QueryCore:
         pickle_path = pathlib.Path(path) if path else self._get_cache_file_path()
         before_count = len(self._query_cache)
         saved_cache = load_pickle(pickle_path)
-        logger.info(f"{len(saved_cache)} queries cache read from {path}.")
+        logger.info(f"{len(saved_cache)} queries cache read from {pickle_path}.")
         self._query_cache.update(saved_cache)
         self.last_saved_queries = set(saved_cache)
         after_count = len(self._query_cache)
@@ -519,10 +519,12 @@ class QueryCore:
             return exe_id, AthenaFutureDf(result_future)
         else:
             if query not in self._query_cache:
-                self._query_cache[query] = self._conn.cursor().execute(query,
-                                                                       result_reuse_enable=self.athena_query_reuse,
-                                                                       result_reuse_minutes=60 * 24 * 7,
-                                                                       ).as_pandas()
+                cursor = self._conn.cursor()
+                self._query_cache[query] = cursor.execute(query,
+                                                          result_reuse_enable=self.athena_query_reuse,
+                                                          result_reuse_minutes=60 * 24 * 7,
+                                                          ).as_pandas()
+                self._log_execution_cost(cursor.query_id)
             return self._query_cache[query].copy()
 
     def print_all_batch_query_status(self) -> None:

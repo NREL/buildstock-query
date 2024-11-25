@@ -1,7 +1,7 @@
 from buildstock_query import BuildStockQuery, KWH2MBTU
 from pydantic import validate_arguments
 import polars as pl
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams
+from buildstock_query.tools.visualizer.plot_utils import PlotParams
 from typing import Union
 from typing import Literal
 import datetime
@@ -20,7 +20,6 @@ class VizData:
                  workgroup: str = 'largeee',
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
                  skip_init: bool = False,
-                 include_monthly: bool = True,
                  upgrades_selection: set[str] = set()):
         if isinstance(run, tuple):
             # Allows for separate baseline and upgrade runs
@@ -45,7 +44,6 @@ class VizData:
                                         skip_reports=skip_init)
         self.opt_sat_path = opt_sat_path
         self.upgrades_selection = upgrades_selection
-        self.include_monthly = include_monthly
         if not skip_init:
             self.initialize()
 
@@ -62,13 +60,13 @@ class VizData:
         if self.available_upgrades:
             upgrade_names = self.main_run.get_upgrade_names()
             self.upgrade2name |= upgrade_names
-
-        self.upgrade2shortname = {indx+1: f"Upgrade {indx+1}" for indx in range(len(self.available_upgrades) + 1)}
-        self.chng2bldg = self.get_change2bldgs()
-        self.init_annual_results()
-        if self.include_monthly:
-            self.init_monthly_results(self.metadata_df)
+        self.upgrade2shortname = {0: "Baseline"}
+        self.upgrade2shortname |= {indx+1: f"Upgrade {indx+1}" for indx in range(len(self.available_upgrades))}
         self.all_upgrade_plotting_df = None
+        self.metadata_df = None
+
+    def init_change2bldgs(self):
+        self.chng2bldg = self.get_change2bldgs()
 
     def run_obj(self, upgrade: str) -> BuildStockQuery:
         if upgrade == '0' and self.baseline_run is not None:
@@ -110,9 +108,13 @@ class VizData:
         metadata_df = metadata_df.rename({x: x.split('.')[1] for x in metadata_df.columns if '.' in x})
         return metadata_df
 
+    def init_metadata_df(self):
+        if self.metadata_df is None:
+            self.metadata_df = self._get_metadata_df()
+
     def init_annual_results(self):
         self.bs_res_df = self._get_results_csv_clean('0')
-        self.metadata_df = self._get_metadata_df()
+        
         self.sample_weight = self.metadata_df['sample_weight'][0]
         self.upgrade2res = {'0': self.bs_res_df}
         for upgrade in self.available_upgrades:
@@ -128,7 +130,9 @@ class VizData:
         enduse_cols = filter(lambda x: x.endswith(('_kbtu', '_kwh', 'lb')), all_cols)
         return list(enduse_cols)
 
-    def init_monthly_results(self, metadata_df):
+    def init_monthly_results(self):
+        if self.metadata_df is None:
+            self.metadata_df = self._get_metadata_df()
         self.upgrade2res_monthly: dict[str, pl.DataFrame] = {}
         for upgrade in ['0'] + self.available_upgrades:
             ts_cols = self._get_ts_enduse_cols(upgrade)
@@ -169,7 +173,7 @@ class VizData:
                                          .alias(col.replace("__", "_")))
             monthly_df = monthly_df.select(['building_id', 'month'] + modified_cols
                                            + [pl.lit(upgrade).alias("upgrade")])
-            monthly_df = monthly_df.join(metadata_df, on='building_id')
+            monthly_df = monthly_df.join(self.metadata_df, on='building_id')
             self.upgrade2res_monthly[upgrade] = monthly_df
 
     def get_values(self,
