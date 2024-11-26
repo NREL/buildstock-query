@@ -1,7 +1,7 @@
 [table_suffix]
-baseline = "_metadata"
-timeseries = "_by_state"
-upgrades = "_metadata"
+baseline = "_metadata_state_vu"
+timeseries = "_by_state_vu"
+upgrades = "_metadata_state_vu"
 
 [column_prefix]
 characteristics = "in."
@@ -15,12 +15,12 @@ timestamp = "timestamp"
 completed_status = "applicability"
 unmet_hours_cooling_hr = ""
 unmet_hours_heating_hr = ""
-upgrade = "upgrade"
 fuel_totals = ["out.electricity.total.energy_consumption",
                "out.natural_gas.total.energy_consumption",
                "out.fuel_oil.total.energy_consumption",
                "out.propane.total.energy_consumption",
                ]
+upgrade="upgrade"
 
 [completion_values]
 success = "true"

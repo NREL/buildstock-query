@@ -44,6 +44,7 @@ class BuildStockQuery(QueryCore):
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
+                 skip_integrity_check: bool = True,
                  athena_query_reuse: bool = True,
                  **kwargs,
                  ) -> None:
@@ -69,6 +70,8 @@ class BuildStockQuery(QueryCore):
                 custom filename.
             skip_reports (bool, optional): If true, skips report printing during initialization. If False (default),
                 prints report from `buildstock_query.report_query.BuildStockReport.get_success_report`.
+            skip_integrity_check (bool, optional): If true, skips integrity check during initialization. If False (default),
+                checks integrity between baseline and timeseries tables. Most people don't need to check this.
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
@@ -108,7 +111,7 @@ class BuildStockQuery(QueryCore):
         if not skip_reports:
             logger.info("Getting Success counts...")
             print(self.report.get_success_report())
-            if self.ts_table is not None:
+            if self.ts_table is not None and not skip_integrity_check:
                 self.report.check_ts_bs_integrity()
             self.save_cache()
 
@@ -164,10 +167,11 @@ class BuildStockQuery(QueryCore):
     def get_upgrade_names(self, get_query_only: bool = False) -> Union[str, dict]:
         if self.up_table is None:
             raise ValueError("This run has no upgrades")
-        upgrade_table = self.up_table
+        upgrade_table = self._compile(self.up_table)
+        upgrade_col = self.db_schema.column_names.upgrade
         query = f"""
-            Select cast(upgrade as integer) as upgrade, arbitrary("apply_upgrade.upgrade_name") as upgrade_name
-            from {upgrade_table}
+            Select cast(upgrade as integer) as upgrade, arbitrary("{upgrade_col}") as upgrade_name
+            from ({upgrade_table})
             group by 1 order by 1
         """
         if get_query_only:
@@ -300,6 +304,31 @@ class BuildStockQuery(QueryCore):
         result = self.execute(query)
         return result.set_index(self.bs_bldgid_column.name)
 
+    def _get_table_location(self, db_table_name: str) -> str:
+        table_info = self._aws_glue.get_table(DatabaseName=self.db_name, Name=db_table_name)['Table']
+        if table_info.get('TableType') != 'VIRTUAL_VIEW':
+            return table_info['StorageDescriptor']['Location']
+
+        try:
+            import base64
+            import re
+            import json
+            view_original_text = table_info.get('ViewOriginalText', '')
+            view_original_text = view_original_text[len('/* Presto View: '):-len(' */')]
+            decoded_json= json.loads(base64.b64decode(view_original_text).decode('utf-8'))
+            sql_text = decoded_json['originalSql']
+            match = re.search(r'FROM\s+([^\s,]+)', sql_text, re.IGNORECASE)
+            if not match:
+                raise ValueError(f"Could not find source table in view definition for {db_table_name}")
+            source_table = match.group(1)
+            source_table_info = self._aws_glue.get_table(
+                DatabaseName=self.db_name,  # Using same database as view
+                Name=source_table
+            )['Table']
+            return source_table_info['StorageDescriptor']['Location']
+        except Exception as e:
+            raise ValueError(f"Failed to parse view definition for {db_table_name}: {str(e)}")
+
     def _download_results_csv(self) -> str:
         """Downloads the results csv from s3 and returns the path to the downloaded file.
         Returns:
@@ -313,8 +342,7 @@ class BuildStockQuery(QueryCore):
             db_table_name = f'{self.table_name}{self.db_schema.table_suffix.baseline}'
         else:
             db_table_name = self.table_name[0]
-        baseline_path = self._aws_glue.get_table(DatabaseName=self.db_name,
-                                                 Name=db_table_name)['Table']['StorageDescriptor']['Location']
+        baseline_path = self._get_table_location(db_table_name)
         bucket = baseline_path.split('/')[2]
         key = '/'.join(baseline_path.split('/')[3:])
         s3_data = self._aws_s3.list_objects(Bucket=bucket, Prefix=key)

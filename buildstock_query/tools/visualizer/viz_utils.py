@@ -41,8 +41,8 @@ def get_int_set(input_str):
     return result
 
 
-def get_viz_data(opt_sat_path, db_name, table_name, workgroup, buildstock_type, include_monthly, upgrades_selection_str, init_query):
-    viz_data = VizData(opt_sat_path=opt_sat_path, db_name=db_name,
+def get_viz_data(opt_sat_path, db_name, db_schema, table_name, workgroup, buildstock_type, include_monthly, upgrades_selection_str, init_query):
+    viz_data = VizData(opt_sat_path=opt_sat_path, db_name=db_name, db_schema=db_schema,
                        run=table_name, workgroup=workgroup, buildstock_type=buildstock_type,
                        upgrades_selection=get_int_set(upgrades_selection_str)
                        )

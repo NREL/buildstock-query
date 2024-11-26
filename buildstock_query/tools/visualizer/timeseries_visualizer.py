@@ -25,6 +25,7 @@ import time
 import diskcache
 cache = diskcache.Cache("./diskcache")
 from dash import Dash, DiskcacheManager, CeleryManager, Input, Output, html, callback, set_props
+from pathlib import Path
 
 background_callback_manager = DiskcacheManager(cache)
 
@@ -44,6 +45,37 @@ SECTION_STYLE = {
     'margin-bottom': '20px'
 }
 
+cur_file_path = Path(__file__).resolve()
+# Add after imports
+COST_FILE = cur_file_path.parent / "costs.json"
+
+def load_costs():
+    """Load costs from JSON file"""
+    if COST_FILE.exists():
+        try:
+            with open(COST_FILE, 'r') as f:
+                return defaultdict(lambda: {'dollars': 0, 'gb': 0}, json.load(f))
+        except json.JSONDecodeError:
+            print(f"Warning: Could not parse {COST_FILE}, starting with empty costs")
+    return defaultdict(lambda: {'dollars': 0, 'gb': 0})
+
+def save_costs(costs):
+    """Save costs to JSON file"""
+    try:
+        with open(COST_FILE, 'w') as f:
+            json.dump(dict(costs), f)
+    except Exception as e:
+        print(f"Warning: Failed to save costs to {COST_FILE}: {e}")
+
+# Initialize cost tracker from file
+cost_tracker = load_costs()
+
+def get_cost_key(db_name, table_name):
+    """Generate a unique key for cost tracking based on db and table names"""
+    if isinstance(table_name, list):
+        table_name = '_'.join(sorted(table_name))
+    return f"{db_name}_{table_name}"
+
 def get_app(viz_data: VizData):
     """Creates and returns the Dash application.
     
@@ -51,6 +83,8 @@ def get_app(viz_data: VizData):
         timeseries_data: Data source for timeseries values
         char_data: Data source for building characteristics
     """
+    cost_key = get_cost_key(viz_data.main_run.db_name, viz_data.main_run.table_name)
+    
     app = Dash(__name__, 
                    external_stylesheets=[dbc.themes.BOOTSTRAP],
                    )
@@ -227,7 +261,7 @@ def get_app(viz_data: VizData):
                                                 value='1'
                                             ), width=6)
                                         ], className="g-1")
-                                    ], width=6),
+                                    ], width=True),
                                     dbc.Col([
                                         html.Label("End:", className="mb-1", style={'fontSize': '14px'}),
                                         dbc.Row([
@@ -242,7 +276,45 @@ def get_app(viz_data: VizData):
                                                 value='31'
                                             ), width=6)
                                         ], className="g-1")
-                                    ], width=6)
+                                    ], width=True),
+                                    dbc.Col([
+                                        html.Label("Season:", className="mb-1", style={'fontSize': '14px'}),
+                                        dbc.Row([
+                                            dbc.Col(
+                                                dbc.Button(
+                                                    "Summer", 
+                                                    id="summer-btn", 
+                                                    color="info", 
+                                                    size="sm", 
+                                                    className="w-100",
+                                                    style={'minWidth': '80px'}
+                                                ), 
+                                                width=4
+                                            ),
+                                            dbc.Col(
+                                                dbc.Button(
+                                                    "Winter", 
+                                                    id="winter-btn", 
+                                                    color="info", 
+                                                    size="sm", 
+                                                    className="w-100",
+                                                    style={'minWidth': '80px'}
+                                                ), 
+                                                width=4
+                                            ),
+                                            dbc.Col(
+                                                dbc.Button(
+                                                    "Full Year", 
+                                                    id="full-year-btn", 
+                                                    color="info", 
+                                                    size="sm", 
+                                                    className="w-100",
+                                                    style={'minWidth': '80px'}
+                                                ), 
+                                                width=4
+                                            )
+                                        ], className="g-1"),
+                                    ], width='auto')
                                 ], className="g-2")
                             ])
                         ], className="h-100")
@@ -252,7 +324,6 @@ def get_app(viz_data: VizData):
         ], style=CARD_STYLE),
         # Keep the restrictions store
         dcc.Store(id='restrictions-store', data={'count': 0}),
-        dcc.Store(id='cost-store', data={'dollars': 0, 'gb': 0}),
 
     ], fluid=True, className="py-4", style={'background-color': '#f8f9fa'})
 
@@ -450,7 +521,6 @@ def get_app(viz_data: VizData):
         State('end-day-dropdown', 'value'),
         State({'type': 'char-name', 'index': ALL}, 'value'),
         State({'type': 'char-value', 'index': ALL}, 'value'),
-        State('cost-store', 'data'),
         prevent_initial_call=True,
         background=True,
         manager=background_callback_manager,
@@ -461,8 +531,8 @@ def get_app(viz_data: VizData):
         cancel=[Input('cancel-button', 'n_clicks')]
     )
     def update_plot(n_clicks, upgrades, plot_cols, building_aggs, time_aggs, 
-                    shape_types, resolution, start_month, start_day, 
-                    end_month, end_day, filter_names, filter_values, current_cost):
+                   shape_types, resolution, start_month, start_day, 
+                   end_month, end_day, filter_names, filter_values):
         print(f"update_plot called with n_clicks: {n_clicks}")
         if not n_clicks or not plot_cols or upgrades is None:
             raise PreventUpdate
@@ -519,6 +589,8 @@ def get_app(viz_data: VizData):
                                 restrict=restrict,
                                 agg_func=building_agg,
                             )
+                            viz_data.run_obj(upgrade).save_cache()
+                            df = df.rename(columns={'timestamp': 'time'})
 
                             # Capture costs after query and calculate difference
                             post_dollars = run_obj.execution_cost.get('Dollars', 0)
@@ -526,17 +598,16 @@ def get_app(viz_data: VizData):
                             total_added_cost += post_dollars - pre_dollars
                             total_added_gb += post_gb - pre_gb
 
-                            new_cost_data = {
-                                'dollars': current_cost['dollars'] + total_added_cost,
-                                'gb': current_cost['gb'] + total_added_gb
-                            }
-                            set_props('cost-store', {"data": new_cost_data})
-
-                            viz_data.run_obj(upgrade).save_cache()
+                            # Update server-side cost tracker
+                            cost_tracker[cost_key]['dollars'] += total_added_cost
+                            cost_tracker[cost_key]['gb'] += total_added_gb
+                            # Save costs after each update
+                            save_costs(cost_tracker)
                             if building_agg != 'sum':
                                 new_col = f"{enduse}__{building_agg}"
                             else:
-                                new_col = enduse                
+                                new_col = enduse
+                            new_col = new_col.removeprefix(run_obj.db_schema.column_prefix.output)
 
                             df = df.sort_values('time')
                             if df.empty:
@@ -547,16 +618,12 @@ def get_app(viz_data: VizData):
                             first_offset = first_date - datetime.datetime(first_date.year, 1, 1)
                             df['time'] = df['time'].dt.tz_localize(None) - first_offset
                             
-                            df = df[
-                                (df['time'].dt.month > month_to_num[start_month]) & 
-                                (df['time'].dt.month < month_to_num[end_month]) |
-                                
-                                ((df['time'].dt.month == month_to_num[start_month]) &
-                                (df['time'].dt.day >= int(start_day))) |
-
-                                ((df['time'].dt.month == month_to_num[end_month]) &
-                                (df['time'].dt.day <= int(end_day)))
-                            ]
+                            # Convert month names to numbers (1-12)
+                            start_month_num = month_to_num[start_month]
+                            end_month_num = month_to_num[end_month]
+                            
+                            # Handle year wrapping
+                            df = filter_range(df, start_day, end_day, start_month_num, end_month_num)
 
                             freq_map = {
                                 'day': '1D',
@@ -616,7 +683,30 @@ def get_app(viz_data: VizData):
         set_props('main-graph', {"figure":figure, "config": {'edits': {"titleText": True, "axisTitleText": True, 'legendText': True}}})
         return ""
 
-
+    def filter_range(df, start_day, end_day, start_month_num, end_month_num):
+        if start_month_num > end_month_num:
+            df = df[
+                                    # Include months after start_month
+                                    ((df['time'].dt.month >= start_month_num) & 
+                                     ((df['time'].dt.month > start_month_num) | 
+                                      (df['time'].dt.day >= int(start_day)))) |
+                                    # Include months before end_month
+                                    ((df['time'].dt.month <= end_month_num) & 
+                                     ((df['time'].dt.month < end_month_num) | 
+                                      (df['time'].dt.day <= int(end_day))))
+                                ]
+        else:
+            df = df[
+                                    # Standard case when start month is before end month
+                                    ((df['time'].dt.month > start_month_num) & 
+                                     (df['time'].dt.month < end_month_num)) |
+                                    ((df['time'].dt.month == start_month_num) & 
+                                     (df['time'].dt.day >= int(start_day))) |
+                                    ((df['time'].dt.month == end_month_num) & 
+                                     (df['time'].dt.day <= int(end_day)))
+                                ]
+            
+        return df
 
     @app.callback(
         Output('cancel-button', 'n_clicks'),
@@ -635,14 +725,49 @@ def get_app(viz_data: VizData):
 
     @app.callback(
         Output('cost-display', 'children'),
-        Input('cost-store', 'data'),
+        Input('cost-display', 'data-update-trigger'),  # Triggered by updates and also interval
+        Input('interval-component', 'n_intervals'),    # Regular refresh
     )
-    def update_cost_display(cost_data):
-        if not cost_data:
-            return "Query Cost: $0.000 (0.00 GB)"
+    def update_cost_display(_, __):
+        """Update cost display from server-side tracker"""
+        cost_key = get_cost_key(viz_data.main_run.db_name, viz_data.main_run.table_name)
+        loaded_cost = load_costs()
+        cost_tracker.update(loaded_cost)
+        costs = cost_tracker[cost_key]
+        return f"Query Cost: ${costs['dollars']:.3f} ({costs['gb']:.3f} GB)"
+    
+    @app.callback(
+    [Output('start-month-dropdown', 'value'),
+     Output('end-month-dropdown', 'value'),
+     Output('start-day-dropdown', 'value'),
+     Output('end-day-dropdown', 'value')],
+    [Input('summer-btn', 'n_clicks'),
+     Input('winter-btn', 'n_clicks'),
+     Input('full-year-btn', 'n_clicks')],
+    prevent_initial_call=True
+    )
+    def update_season_range(summer_clicks, winter_clicks, full_year_clicks):
+        if not dash.callback_context.triggered:
+            raise PreventUpdate
+            
+        button_id = dash.callback_context.triggered[0]['prop_id'].split('.')[0]
         
-        return f"Query Cost: ${cost_data['dollars']:.3f} ({cost_data['gb']:.2f} GB)"
+        if button_id == 'summer-btn':
+            return 'Jun', 'Sep', '1', '30'
+        elif button_id == 'winter-btn':
+            return 'Oct', 'May', '1', '31'
+        elif button_id == 'full-year-btn':
+            return 'Jan', 'Dec', '1', '31'
+        
+        raise PreventUpdate
 
+    app.layout.children.append(
+        dcc.Interval(
+            id='interval-component',
+            interval=1000,  # 1 second
+            n_intervals=0
+        )
+    )
     return app
 
 def main():
@@ -656,6 +781,7 @@ def main():
         db_name = defaults.get("db_name", "")
         table_name = defaults.get("table_name", "")
         upgrades_selection = defaults.get("upgrades_selection", "")
+        db_schema = defaults.get("db_schema", "resstock_default")
     else:
         opt_sat_file = inquirer.text(message="Please enter path to the options saturation csv file:",
                                     default=defaults.get("opt_sat_file", "")).execute().strip()
@@ -672,13 +798,15 @@ def main():
         upgrades_selection = inquirer.text(message="Please enter upgrade ids separated by comma and dashes "
                                         "(example: `1-3,5,7,8-9`) or leave empty to include all upgrades.",
                                         default=defaults.get("upgrades_selection", "")).execute()
+        db_schema = inquirer.text(message="Please enter database schema (found in db_schema/resstock_oedi_vu.toml):",
+                                default=defaults.get("db_schema", "resstock_default")).execute().strip()
         defaults.update({"opt_sat_file": opt_sat_file, "workgroup": workgroup,
                         "db_name": db_name, "table_name": table_name,
-                        "upgrades_selection": upgrades_selection})
+                        "upgrades_selection": upgrades_selection, "db_schema": db_schema})
         save_script_defaults("project_info", defaults)
     if ',' in table_name:
         table_name = table_name.split(',')
-    viz_data = get_viz_data(opt_sat_path=opt_sat_file, db_name=db_name, table_name=table_name, workgroup=workgroup,
+    viz_data = get_viz_data(opt_sat_path=opt_sat_file, db_name=db_name, db_schema=db_schema, table_name=table_name, workgroup=workgroup,
                             buildstock_type='resstock', include_monthly=False,
                             upgrades_selection_str=upgrades_selection, init_query=False)
     app = get_app(viz_data)

@@ -16,6 +16,7 @@ class VizData:
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def __init__(self, opt_sat_path: str,
                  db_name: str,
+                 db_schema: str,
                  run: Union[str, tuple[str, str]],
                  workgroup: str = 'largeee',
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
@@ -26,9 +27,11 @@ class VizData:
             # In this case, run[0] is the baseline run and run[1] is the upgrade run
             self.baseline_run = BuildStockQuery(workgroup=workgroup,
                                                 db_name=db_name,
+                                                db_schema=db_schema,
                                                 buildstock_type=buildstock_type,
                                                 table_name=run[0],
-                                                skip_reports=skip_init)
+                                                skip_reports=skip_init,
+                                                )
             baseline_table_name = run[0] + "_baseline"
             upgrade_table_name = run[1] + "_upgrades"
             ts_table_name = run[1] + "_timeseries"
@@ -39,6 +42,7 @@ class VizData:
             table = run
         self.main_run = BuildStockQuery(workgroup=workgroup,
                                         db_name=db_name,
+                                        db_schema=db_schema,
                                         buildstock_type=buildstock_type,
                                         table_name=table,
                                         skip_reports=skip_init)
