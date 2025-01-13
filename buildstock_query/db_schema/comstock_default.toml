@@ -16,6 +16,7 @@ timestamp = "time"
 completed_status = "completed_status"
 unmet_hours_cooling_hr = ""
 unmet_hours_heating_hr = ""
+upgrade = "apply_upgrade.upgrade"
 fuel_totals = [
     "simulation_output_report.total_site_electricity_kwh",
     "simulation_output_report.total_site_energy_mbtu",

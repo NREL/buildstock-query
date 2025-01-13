@@ -1,7 +1,7 @@
-from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
-from buildstock_query.tools.upgrades_visualizer.figure import UpgradesPlot
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
-from buildstock_query.tools.upgrades_visualizer.upgrades_visualizer import get_app
+from buildstock_query.tools.visualizer.viz_data import VizData
+from buildstock_query.tools.visualizer.figure import UpgradesPlot
+from buildstock_query.tools.visualizer.plot_utils import PlotParams, SavingsTypes, ValueTypes
+from buildstock_query.tools.visualizer.upgrades_visualizer import get_app
 import pathlib
 import itertools as it
 import pytest
@@ -35,6 +35,9 @@ class TestViz:
         mydata.baseline_run.load_cache()
         mydata.main_run.load_cache()
         mydata.initialize()
+        mydata.init_change2bldgs()
+        mydata.init_annual_results()
+        mydata.init_monthly_results()
         return mydata
 
     @pytest.fixture(scope='class')

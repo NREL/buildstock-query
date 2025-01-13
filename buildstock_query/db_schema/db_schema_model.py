@@ -17,6 +17,7 @@ class ColumnNames(BaseModel):
     sample_weight: str
     sqft: str
     timestamp: str
+    upgrade: str
     completed_status: str
     unmet_hours_cooling_hr: str
     unmet_hours_heating_hr: str

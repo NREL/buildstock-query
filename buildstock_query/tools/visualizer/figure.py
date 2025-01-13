@@ -1,5 +1,5 @@
-from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams, ValueTypes, human_sort_key, flatten_list
-from buildstock_query.tools.upgrades_visualizer.viz_data import VizData
+from buildstock_query.tools.visualizer.plot_utils import PlotParams, ValueTypes, human_sort_key, flatten_list
+from buildstock_query.tools.visualizer.viz_data import VizData
 import plotly.graph_objects as go
 import polars as pl
 import re

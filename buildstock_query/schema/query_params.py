@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Union, Sequence
+from typing import Optional, Union, Sequence, Callable
 from typing import Literal
 from buildstock_query.schema.utilities import AnyTableType, AnyColType
 
@@ -17,6 +17,7 @@ class AnnualQuery(BaseModel):
     get_nonzero_count: bool = False
     get_query_only: bool = False
     limit: Optional[int] = None
+    agg_func: Optional[Union[str, Callable]] = 'sum'
 
     class Config:
         arbitrary_types_allowed = True

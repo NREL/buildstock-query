@@ -1,4 +1,4 @@
-from typing import Optional, Union, Literal, Sequence
+from typing import Optional, Union, Literal, Sequence, Callable
 import pandas as pd
 import typing
 from buildstock_query.schema.query_params import TSQuery, AnnualQuery
@@ -24,6 +24,7 @@ class BuildStockAggregate:
                          avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
+                         agg_func: Optional[Union[str, Callable]] = 'sum'
                          ) -> str:
         ...
 
@@ -40,6 +41,7 @@ class BuildStockAggregate:
                          avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
+                         agg_func: Optional[Union[str, Callable]] = 'sum'
                          ) -> pd.DataFrame:
         ...
 
@@ -56,6 +58,7 @@ class BuildStockAggregate:
                          avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
+                         agg_func: Optional[Union[str, Callable]] = 'sum'
                          ) -> Union[pd.DataFrame, str]:
         """
         Aggregates the baseline annual result on select enduses.
@@ -93,6 +96,9 @@ class BuildStockAggregate:
             get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                             submitting multiple queries or debugging
 
+            agg_func: The aggregation function to use. Defaults to 'sum'.
+                      See other options in https://prestodb.io/docs/current/functions/aggregate.html
+
         Returns:
                 if get_query_only is True, returns the query_string, otherwise returns the dataframe
         """
@@ -118,7 +124,8 @@ class BuildStockAggregate:
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             limit: Optional[int] = None
+                             limit: Optional[int] = None,
+                             agg_func: Optional[Union[str, Callable]] = 'sum'
                              ) -> str:
         ...
 
@@ -136,7 +143,8 @@ class BuildStockAggregate:
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
                              get_query_only: Literal[False] = False,
-                             limit: Optional[int] = None
+                             limit: Optional[int] = None,
+                             agg_func: Optional[Union[str, Callable]] = 'sum'
                              ) -> pd.DataFrame:
         ...
 
@@ -154,7 +162,8 @@ class BuildStockAggregate:
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
-                             limit: Optional[int] = None
+                             limit: Optional[int] = None,
+                             agg_func: Optional[Union[str, Callable]] = 'sum'
                              ) -> Union[str, pd.DataFrame]:
         """
         Aggregates the timeseries result on select enduses.
@@ -188,7 +197,8 @@ class BuildStockAggregate:
         get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
                         submitting multiple queries or debugging
 
-
+        agg_func: The aggregation function to use. Defaults to 'sum'.
+                  See other options in https://prestodb.io/docs/current/functions/aggregate.html
         Returns:
                 if get_query_only is True, returns the query_string, otherwise, returns the DataFrame
 

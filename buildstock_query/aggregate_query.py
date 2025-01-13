@@ -34,9 +34,8 @@ class BuildStockAggregate:
         else:
             upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
             enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='upgrade')
-
         total_weight = self._bsq._get_weight(weights)
-        enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
+        enduse_selection = [self._bsq._agg_column(enduse, total_weight, params.agg_func)
                             for enduse in enduse_cols]
         if params.get_quartiles:
             enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
@@ -94,6 +93,7 @@ class BuildStockAggregate:
             new_query = params.copy()
             new_query.enduses = [enduse.name]
             new_query.split_enduses = False
+            new_query.get_query_only = True
             query = self.aggregate_timeseries(params=new_query)
             batch_queries_to_submit.append(query)
 
@@ -109,14 +109,17 @@ class BuildStockAggregate:
         result_dfs = self._bsq.get_batch_query_result(batch_id=batch_query_id, combine=False)
         logger.info("Joining the individual enduses result into a single DataFrame")
         group_by = self._bsq._clean_group_by(params.group_by)
-        for res in result_dfs:
-            res.set_index(group_by, inplace=True)
+        if not params.collapse_ts and 'time' not in group_by:
+            group_by.append('time')
+        for i, res in enumerate(result_dfs):
+            if group_by:
+                res.set_index(group_by, inplace=True)
+            if i > 0:
+                res.drop(columns=['sample_count', 'units_count'], inplace=True, errors='ignore')
         self.result_dfs = result_dfs
-        joined_enduses_df = result_dfs[0].drop(columns=['query_id'])
-        for enduse, res in list(zip(params.enduses, result_dfs))[1:]:
-            if not isinstance(enduse, str):
-                enduse = enduse.name
-            joined_enduses_df = joined_enduses_df.join(res[[enduse]])
+        joined_enduses_df = result_dfs[0]
+        for res in result_dfs[1:]:
+            joined_enduses_df = joined_enduses_df.join(res)
 
         logger.info("Joining Completed.")
         return joined_enduses_df.reset_index()
@@ -136,8 +139,7 @@ class BuildStockAggregate:
         [self._bsq._get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
         enduses_cols = self._bsq._get_enduse_cols(params.enduses, table='timeseries')
         total_weight = self._bsq._get_weight(params.weights)
-
-        enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
+        enduse_selection = [self._bsq._agg_column(enduse, total_weight, params.agg_func)
                             for enduse in enduses_cols]
         group_by = list(params.group_by)
         if self._bsq.timestamp_column_name not in group_by and params.collapse_ts:

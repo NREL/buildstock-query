@@ -5,10 +5,11 @@ from pyathena.connection import Connection
 from pyathena.error import OperationalError
 from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
+from sqlalchemy.sql import func as safunc
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-from typing import Union, Optional, Literal, Sequence
+from typing import Union, Optional, Literal, Sequence, Callable
 import typing
 import time
 import logging
@@ -155,7 +156,7 @@ class QueryCore:
         pickle_path = pathlib.Path(path) if path else self._get_cache_file_path()
         before_count = len(self._query_cache)
         saved_cache = load_pickle(pickle_path)
-        logger.info(f"{len(saved_cache)} queries cache read from {path}.")
+        logger.info(f"{len(saved_cache)} queries cache read from {pickle_path}.")
         self._query_cache.update(saved_cache)
         self.last_saved_queries = set(saved_cache)
         after_count = len(self._query_cache)
@@ -518,10 +519,12 @@ class QueryCore:
             return exe_id, AthenaFutureDf(result_future)
         else:
             if query not in self._query_cache:
-                self._query_cache[query] = self._conn.cursor().execute(query,
-                                                                       result_reuse_enable=self.athena_query_reuse,
-                                                                       result_reuse_minutes=60 * 24 * 7,
-                                                                       ).as_pandas()
+                cursor = self._conn.cursor()
+                self._query_cache[query] = cursor.execute(query,
+                                                          result_reuse_enable=self.athena_query_reuse,
+                                                          result_reuse_minutes=60 * 24 * 7,
+                                                          ).as_pandas()
+                self._log_execution_cost(cursor.query_id)
             return self._query_cache[query].copy()
 
     def print_all_batch_query_status(self) -> None:
@@ -967,9 +970,14 @@ class QueryCore:
             tbl = self._get_table(table)
             return [col for col in tbl.columns]
 
-    def _simple_label(self, label: str):
+    def _simple_label(self, label: str, agg_func: Optional[Union[Callable, str]] = None):
         label = label.removeprefix(self.db_schema.column_prefix.characteristics)
         label = label.removeprefix(self.db_schema.column_prefix.output)
+
+        if callable(agg_func):
+            label += f"__{agg_func.__name__}"
+        elif isinstance(agg_func, str) and agg_func != 'sum':
+            label += f"__{agg_func}"
         return label
 
     def _add_restrict(self, query, restrict, *, bs_only=False):
@@ -1035,15 +1043,27 @@ class QueryCore:
             query = query.order_by(*a)
         return query
 
-    def _get_weight(self, weights):
+    def _get_weight(self, weight_cols):
         total_weight = self.sample_wt
-        for weight_col in weights:
+        for weight_col in weight_cols:
             if isinstance(weight_col, tuple):
                 tbl = self._get_table(weight_col[1])
                 total_weight *= tbl.c[weight_col[0]]
             else:
                 total_weight *= self._get_column(weight_col)
         return total_weight
+
+    def _agg_column(self, column: DBColType, weights, agg_func=None):
+        label = self._simple_label(column.name, agg_func)
+        if callable(agg_func):
+            return agg_func(column).label(label)
+        if agg_func is None or agg_func in ['sum']:
+            return safunc.sum(column * weights).label(label)
+        if agg_func in ['avg']:
+            return (safunc.sum(column * weights) / safunc.sum(weights)).label(label)
+        assert isinstance(agg_func, str), f"agg_func {agg_func} is not a string or callable"
+        agg_func = getattr(safunc, agg_func)
+        return agg_func(column).label(label)
 
     def delete_everything(self):
         """Deletes the athena tables and data in s3 for the run.
