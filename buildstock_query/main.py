@@ -167,7 +167,10 @@ class BuildStockQuery(QueryCore):
     def get_upgrade_names(self, get_query_only: bool = False) -> Union[str, dict]:
         if self.up_table is None:
             raise ValueError("This run has no upgrades")
-        upgrade_table = self._compile(self.up_table)
+        if isinstance(self.up_table, sa.Table):
+            upgrade_table = self.up_table.name
+        else:
+            upgrade_table = self._compile(self.up_table)
         upgrade_col = self.db_schema.column_names.upgrade
         query = f"""
             Select cast(upgrade as integer) as upgrade, arbitrary("{upgrade_col}") as upgrade_name

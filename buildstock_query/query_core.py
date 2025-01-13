@@ -1043,9 +1043,9 @@ class QueryCore:
             query = query.order_by(*a)
         return query
 
-    def _get_weight(self, weights):
+    def _get_weight(self, weight_cols):
         total_weight = self.sample_wt
-        for weight_col in weights:
+        for weight_col in weight_cols:
             if isinstance(weight_col, tuple):
                 tbl = self._get_table(weight_col[1])
                 total_weight *= tbl.c[weight_col[0]]
@@ -1053,14 +1053,17 @@ class QueryCore:
                 total_weight *= self._get_column(weight_col)
         return total_weight
 
-    def _get_agg_func_and_weight(self, weights, agg_func=None):
-        if agg_func is None or agg_func == 'sum':
-            return safunc.sum, self._get_weight(weights)
+    def _agg_column(self, column: DBColType, weights, agg_func=None):
+        label = self._simple_label(column.name, agg_func)
         if callable(agg_func):
-            return agg_func, 1
+            return agg_func(column).label(label)
+        if agg_func is None or agg_func in ['sum']:
+            return safunc.sum(column * weights).label(label)
+        if agg_func in ['avg']:
+            return (safunc.sum(column * weights) / safunc.sum(weights)).label(label)
         assert isinstance(agg_func, str), f"agg_func {agg_func} is not a string or callable"
         agg_func = getattr(safunc, agg_func)
-        return agg_func, 1
+        return agg_func(column).label(label)
 
     def delete_everything(self):
         """Deletes the athena tables and data in s3 for the run.
