@@ -26,7 +26,7 @@ import diskcache
 cache = diskcache.Cache("./diskcache")
 from dash import Dash, DiskcacheManager, CeleryManager, Input, Output, html, callback, set_props
 from pathlib import Path
-
+global metadata_df
 background_callback_manager = DiskcacheManager(cache)
 
 MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -509,18 +509,19 @@ def get_app(viz_data: VizData):
     @app.callback(
         Output('loading-output', 'children'),
         Input('update-plot-button', 'n_clicks'),
-        State('upgrade-dropdown', 'value'),
-        State('plot-dropdown', 'value'),
-        State('building-agg-dropdown', 'value'),
-        State('time-agg-dropdown', 'value'),
-        State('shape-type-dropdown', 'value'),
-        State('resolution-dropdown', 'value'),
-        State('start-month-dropdown', 'value'),
-        State('start-day-dropdown', 'value'),
-        State('end-month-dropdown', 'value'),
-        State('end-day-dropdown', 'value'),
-        State({'type': 'char-name', 'index': ALL}, 'value'),
-        State({'type': 'char-value', 'index': ALL}, 'value'),
+        [State('upgrade-dropdown', 'value'),
+         State('plot-dropdown', 'value'),
+         State('building-agg-dropdown', 'value'),
+         State('time-agg-dropdown', 'value'),
+         State('shape-type-dropdown', 'value'),
+         State('resolution-dropdown', 'value'),
+         State('start-month-dropdown', 'value'),
+         State('start-day-dropdown', 'value'),
+         State('end-month-dropdown', 'value'),
+         State('end-day-dropdown', 'value'),
+         State({'type': 'char-name', 'index': ALL}, 'value'),
+         State({'type': 'char-value', 'index': ALL}, 'value'),
+         State('main-graph', 'figure')],
         prevent_initial_call=True,
         background=True,
         manager=background_callback_manager,
@@ -532,7 +533,7 @@ def get_app(viz_data: VizData):
     )
     def update_plot(n_clicks, upgrades, plot_cols, building_aggs, time_aggs, 
                    shape_types, resolution, start_month, start_day, 
-                   end_month, end_day, filter_names, filter_values):
+                   end_month, end_day, filter_names, filter_values, current_figure):
         print(f"update_plot called with n_clicks: {n_clicks}")
         if not n_clicks or not plot_cols or upgrades is None:
             raise PreventUpdate
@@ -544,15 +545,14 @@ def get_app(viz_data: VizData):
         time_aggs = [time_aggs] if not isinstance(time_aggs, list) else time_aggs
         shape_types = shape_types or [None]
         shape_types = [shape_types] if not isinstance(shape_types, list) else shape_types
-
         traces = []
         total_plots = len(upgrades) * len(plot_cols) * len(building_aggs) * len(time_aggs) * len(shape_types)
         completed = 0
         
-        # Initialize the figure structure
+        # Initialize the figure structure, preserving existing layout settings if they exist
         figure = {
             'data': [],
-            'layout': {
+            'layout': current_figure.get('layout', {}) if current_figure else {
                 'title': 'Energy Usage Over Time',
                 'xaxis': {'title': 'Time'},
                 'yaxis': {'title': 'Energy Usage'},
@@ -562,14 +562,43 @@ def get_app(viz_data: VizData):
             }
         }
         
+        # Preserve any existing axis ranges if they exist
+        if current_figure and 'layout' in current_figure:
+            for axis in ['xaxis', 'yaxis']:
+                if axis in current_figure['layout']:
+                    # Preserve range, autorange, and other axis settings
+                    if 'range' in current_figure['layout'][axis]:
+                        figure['layout'][axis]['range'] = current_figure['layout'][axis]['range']
+                    if 'autorange' in current_figure['layout'][axis]:
+                        figure['layout'][axis]['autorange'] = current_figure['layout'][axis]['autorange']
+
         total_added_cost = 0
         total_added_gb = 0
         month_to_num = {month: idx for idx, month in enumerate(MONTHS, 1)}
+        unit_to_axis = {}
+        next_axis = 1
+        num_plots = 0
         for upgrade in upgrades:
             for enduse in plot_cols:
                 for building_agg in building_aggs:
                     for time_agg in time_aggs:
                         for shape_type in shape_types:
+                            unit = enduse.split('__')[-1] if '__' in enduse else 'unknown'
+                            if unit not in unit_to_axis:
+                                if not unit_to_axis:  # First unit uses primary axis
+                                    unit_to_axis[unit] = ''  # Empty string for primary axis
+                                    figure['layout']['yaxis']['title'] = unit
+                                else:
+                                    axis_name = f'yaxis{next_axis + 1}'
+                                    unit_to_axis[unit] = next_axis + 1
+                                    # Add new axis to layout
+                                    figure['layout'][axis_name] = {
+                                        'title': unit,
+                                        'side': 'right' if next_axis % 2 else 'left',
+                                        'overlaying': 'y',
+                                        'position': 1 + (0.08 * (next_axis // 2))  # Offset each pair of axes
+                                    }
+                                    next_axis += 1
                             # Update status
                             shape_agg_str = '' if not shape_type else f"-{shape_type}_{time_agg}"
                             name = f"Upgrade {upgrade} - {enduse} ({building_agg}{shape_agg_str})"
@@ -577,8 +606,14 @@ def get_app(viz_data: VizData):
                             print(status)
                             run_obj = viz_data.run_obj(upgrade)
                             run_obj.load_cache()
-                            db_filter_names = [f"{run_obj._char_prefix}{name}" for name in filter_names if name is not None]
-                            restrict = list(zip(db_filter_names, filter_values))
+                            def get_restric_char_values(char, values):
+                                if char in ['building_id']:
+                                    values = [int(v) for v in values]
+                                return (f"{char}", values)
+                            
+                            restrict = [get_restric_char_values(char, values) for char, values
+                                         in zip(filter_names, filter_values)
+                                        if values is not None and char is not None]
 
                             pre_dollars = run_obj.execution_cost.get('Dollars', 0)
                             pre_gb = run_obj.execution_cost.get('GB', 0)
@@ -613,6 +648,7 @@ def get_app(viz_data: VizData):
                             if df.empty:
                                 print(f"No data found for {upgrade} - {enduse}")
                                 continue
+                            # Convert to period begining
                             sample_count = df['sample_count'].iloc[0] if 'sample_count' in df.columns else 'N/A'
                             first_date = df['time'].iloc[0]
                             first_offset = first_date - datetime.datetime(first_date.year, 1, 1)
@@ -639,7 +675,10 @@ def get_app(viz_data: VizData):
                                 'min': 'min',
                             }.get(time_agg, 'sum')
 
-                            df = df.groupby(pd.Grouper(key='time', freq=freq_map[resolution])).agg({new_col: 'sum'})
+                            if enduse.startswith("schedules_"):
+                                df = df.groupby(pd.Grouper(key='time', freq=freq_map[resolution])).agg({new_col: 'mean'})
+                            else:
+                                df = df.groupby(pd.Grouper(key='time', freq=freq_map[resolution])).agg({new_col: 'sum'})
 
                             if shape_type:
                                 # Create a base date using the first date from the data
@@ -663,24 +702,29 @@ def get_app(viz_data: VizData):
                                 df = pd.DataFrame({new_col: df[new_col].values}, index=time_index)
 
                             new_trace = {
-                                'x': df.index.tolist(),
-                                'y': df[new_col].tolist(),
-                                'name': name,
-                                'type': 'scatter',
-                                'mode': 'lines',
-                                'hovertemplate': f'Value: %{{y:,.2f}}<br>Time: %{{x}}<br>Sample Count: {sample_count}'
-                            }
+                                            'x': df.index.tolist(),
+                                            'y': df[new_col].tolist(),
+                                            'name': name,
+                                            'type': 'scatter',
+                                            'mode': 'lines',
+                                            'yaxis': f'y{unit_to_axis[unit]}' if unit_to_axis[unit] else 'y',
+                                            'hovertemplate': f'Value: %{{y:,.2f}}<br>Time: %{{x}}<br>Sample Count: {sample_count}'
+                                        }
                             
                             traces.append(new_trace)
                             completed += 1
+                            num_plots += 1
                             
-                            # Update the graph progressively
+                            # When updating the graph progressively
                             figure['data'] = traces
-                            figure['layout']['title'] = f"Completed {completed}/{total_plots}"
-                            set_props('main-graph', {"figure":figure})
+                            if not current_figure:  # Only update title if there's no existing figure
+                                figure['layout']['title'] = f"Completed {completed}/{total_plots}"
+                            set_props('main-graph', {"figure": figure})
 
         figure['layout']['title'] = f"Completed all {total_plots} plots."
-        set_props('main-graph', {"figure":figure, "config": {'edits': {"titleText": True, "axisTitleText": True, 'legendText': True}}})
+        # expand fig height based on number of plots
+        figure['layout']['height'] = 600 + (num_plots * 20)
+        set_props('main-graph', {"figure": figure, "config": {'edits': {"titleText": True, "axisTitleText": True, 'legendText': True}}})
         return ""
 
     def filter_range(df, start_day, end_day, start_month_num, end_month_num):
@@ -774,7 +818,7 @@ def main():
     print("Welcome to Upgrades Visualizer.")
     defaults = load_script_defaults("project_info")
     # check if variable 'done' exists and is 1
-    debug = True
+    debug = False
     if debug:
         opt_sat_file = defaults.get("opt_sat_file", "")
         workgroup = defaults.get("workgroup", "")
@@ -809,6 +853,9 @@ def main():
     viz_data = get_viz_data(opt_sat_path=opt_sat_file, db_name=db_name, db_schema=db_schema, table_name=table_name, workgroup=workgroup,
                             buildstock_type='resstock', include_monthly=False,
                             upgrades_selection_str=upgrades_selection, init_query=False)
+    viz_data.init_metadata_df()
+    global metadata_df
+    metadata_df = viz_data.metadata_df.to_pandas()
     app = get_app(viz_data)
     # get debug from env variable
     import os
