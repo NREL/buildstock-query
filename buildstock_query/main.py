@@ -40,11 +40,12 @@ class BuildStockQuery(QueryCore):
                  table_name: Union[str, tuple[str, Optional[str], Optional[str]]],
                  db_schema: Optional[str] = None,
                  buildstock_type: Literal['resstock', 'comstock'] = 'resstock',
-                 sample_weight: Optional[Union[int, float]] = None,
+                 sample_weight_override: Optional[Union[int, float]] = None,
                  region_name: str = 'us-west-2',
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
                  athena_query_reuse: bool = True,
+                 **kwargs,
                  ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -60,8 +61,8 @@ class BuildStockQuery(QueryCore):
                 It is also different between the version in OEDI and default version from BuildStockBatch. This argument
                 controls the assumed schema. Allowed values are 'resstock_default', 'resstock_oedi', 'comstock_default'
                 and 'comstock_oedi'. Defaults to 'resstock_default' for resstock and 'comstock_default' for comstock.
-            sample_weight (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for ComStock and
-                uses sample_weight in the run for ResStock.
+            sample_weight_override (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for
+                ComStock and uses sample_weight in the run for ResStock.
             region_name (str, optional): the AWS region where the database exists. Defaults to 'us-west-2'.
             execution_history (str, optional): A temporary file to record which execution is run by the user,
                 to help stop them. Will use .execution_history if not supplied. Generally, not required to supply a
@@ -71,6 +72,7 @@ class BuildStockQuery(QueryCore):
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
+            kargs: Any other extra keyword argument supported by the QueryCore can be supplied here
         """
         db_schema = db_schema or f"{buildstock_type}_default"
         self.params = BSQParams(
@@ -79,7 +81,7 @@ class BuildStockQuery(QueryCore):
             buildstock_type=buildstock_type,
             table_name=table_name,
             db_schema=db_schema,
-            sample_weight_override=sample_weight,
+            sample_weight_override=sample_weight_override,
             region_name=region_name,
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse
@@ -127,21 +129,51 @@ class BuildStockQuery(QueryCore):
         return buildstock_df
 
     @validate_arguments
-    def get_upgrades_analyzer(self, yaml_file: str, opt_sat_file: str) -> UpgradesAnalyzer:
+    def get_upgrades_analyzer(self, *,
+                              opt_sat_file: str,
+                              yaml_file: Optional[str] = None,
+                              filter_yaml_file: Optional[str] = None,
+                              upgrade_names: Optional[dict[int, str]] = None,
+                              ) -> UpgradesAnalyzer:
         """
-            Returns the UpgradesAnalyzer object with buildstock.csv downloaded from athena (see get_buildstock_df help)
-
+        Initialize the analyzer instance.
         Args:
-            yaml_file (str): The path to the buildstock configuration file.
-            opt_sat_file (str): The path to the opt_saturation.csv file for the housing characteristics.
-
-        Returns:
-            UpgradesAnalyzer: returns UpgradesAnalyzer object. See UpgradesAnalyzer.
+            opt_sat_file (str): The path to the option saturation file.
+            yaml_file (str): The path to the yaml file.
+            filter_yaml_file (str): The path to the filter yaml file.
+            upgrade_names (dict[int, str]): A dictionary of upgrade number to upgrade name. This
+                needs to be provided if only the filter_yaml_file is provided.
         """
 
         buildstock_df = self.get_buildstock_df()
-        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file)
+        if yaml_file is None and upgrade_names is None:
+            upgrade_names = self.get_upgrade_names()
+        ua = UpgradesAnalyzer(buildstock=buildstock_df, yaml_file=yaml_file, opt_sat_file=opt_sat_file,
+                              filter_yaml_file=filter_yaml_file, upgrade_names=upgrade_names)
         return ua
+
+    @typing.overload
+    def get_upgrade_names(self, get_query_only: Literal[False] = False) -> dict:
+        ...
+
+    @typing.overload
+    def get_upgrade_names(self, get_query_only: Literal[True]) -> str:
+        ...
+
+    @validate_arguments
+    def get_upgrade_names(self, get_query_only: bool = False) -> Union[str, dict]:
+        if self.up_table is None:
+            raise ValueError("This run has no upgrades")
+        upgrade_table = self.up_table
+        query = f"""
+            Select cast(upgrade as integer) as upgrade, arbitrary("apply_upgrade.upgrade_name") as upgrade_name
+            from {upgrade_table}
+            group by 1 order by 1
+        """
+        if get_query_only:
+            return query
+        up_name_dict = self.execute(query).set_index('upgrade').to_dict()['upgrade_name']
+        return up_name_dict
 
     @typing.overload
     def _get_rows_per_building(self, get_query_only: Literal[False] = False) -> int:
@@ -290,7 +322,7 @@ class BuildStockQuery(QueryCore):
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {baseline_path}")
         matching_files = [path['Key'] for path in s3_data['Contents']
-                          if "up00.parquet" in path['Key'] or 'baseline' in path['Key']]
+                          if "up00.parquet" in path['Key'] or 'baseline.parquet' in path['Key']]
 
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {baseline_path} for baseline."
@@ -367,7 +399,7 @@ class BuildStockQuery(QueryCore):
         logger.info("Making results_csv query for upgrade ...")
         return self.execute(query).set_index(self.bs_bldgid_column.name)
 
-    def _download_upgrades_csv(self, upgrade_id: int) -> str:
+    def _download_upgrades_csv(self, upgrade_id: Union[int, str]) -> str:
         """ Downloads the upgrades csv from s3 and returns the path to the downloaded file.
         """
         if self.up_table is None:
@@ -375,6 +407,9 @@ class BuildStockQuery(QueryCore):
 
         available_upgrades = list(self.get_available_upgrades())
         available_upgrades.remove('0')
+        if isinstance(upgrade_id, int):
+            upgrade_id = f"{upgrade_id:02}"
+
         if str(upgrade_id) not in available_upgrades:
             raise ValueError(f"Upgrade {upgrade_id} not found")
 
@@ -394,10 +429,21 @@ class BuildStockQuery(QueryCore):
 
         if 'Contents' not in s3_data:
             raise ValueError(f"Results parquet not found in s3 at {upgrades_path}")
+
         # out of the contents find the key with name matching the pattern results_up{upgrade_id}.parquet
-        matching_files = [path['Key'] for path in s3_data['Contents']
-                          if f"up{upgrade_id:02}.parquet" in path['Key'] or
-                          f"upgrade{upgrade_id:02}.parquet" in path['Key']]
+        def is_match(upgrade_id, key):
+            try:
+                upgrade_id = int(upgrade_id)
+                alternative_id = f"{upgrade_id:02}"
+            except ValueError:
+                alternative_id = str(upgrade_id)
+            for prefix in ['up', 'upgrade']:
+                if f"{prefix}{upgrade_id}.parquet" in key or f"{prefix}{alternative_id}.parquet" in key:
+                    return True
+            return False
+
+        matching_files = [path['Key'] for path in s3_data['Contents'] if is_match(upgrade_id, path['Key'])]
+
         if len(matching_files) > 1:
             raise ValueError(f"Multiple results parquet found in s3 at {upgrades_path} for upgrade {upgrade_id}."
                              f"These files matched: {matching_files}")
@@ -408,7 +454,7 @@ class BuildStockQuery(QueryCore):
         self._aws_s3.download_file(bucket, matching_files[0], local_copy_path)
         return local_copy_path
 
-    def get_upgrades_csv_full(self, upgrade_id: int) -> pd.DataFrame:
+    def get_upgrades_csv_full(self, upgrade_id: Union[int, str]) -> pd.DataFrame:
         """ Returns the full results csv table for upgrades. This is the same as get_upgrades_csv without any
         restrictions. It uses the stored parquet files in s3 to download the results which is faster than querying
         athena.

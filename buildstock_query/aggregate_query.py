@@ -39,7 +39,7 @@ class BuildStockAggregate:
         enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
                             for enduse in enduse_cols]
         if params.get_quartiles:
-            enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
+            enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
                 f"{self._bsq._simple_label(enduse.name)}__quartiles") for enduse in enduse_cols]
 
         if params.get_nonzero_count:
@@ -71,6 +71,7 @@ class BuildStockAggregate:
         restrict = [(self._bsq._bs_completed_status_col, [self._bsq.db_schema.completion_values.success])] + restrict
         query = self._bsq._add_join(query, join_list)
         query = self._bsq._add_restrict(query, restrict)
+        query = self._bsq._add_avoid(query, params.avoid)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
 
@@ -190,6 +191,7 @@ class BuildStockAggregate:
             params.restrict = list(params.restrict) + [(self._bsq._ts_upgrade_col, [upgrade_id])]
 
         query = self._bsq._add_restrict(query, params.restrict)
+        query = self._bsq._add_avoid(query, params.avoid)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
         query = query.limit(params.limit) if params.limit else query

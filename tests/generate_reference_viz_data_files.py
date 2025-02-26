@@ -18,10 +18,8 @@ def save_bsq_obj(bsq_obj: BuildStockQuery, cache_name=None):
 
 def save_viz_data_reference_data():
     folder_path = pathlib.Path(__file__).parent.resolve()
-    yaml_path = str(folder_path / "reference_files" / "example_category_1.yml")
     opt_sat_path = str(folder_path / "reference_files" / "options_saturations.csv")
     viz_data = VizData(
-        yaml_path=yaml_path,
         opt_sat_path=opt_sat_path,
         workgroup='largeee',
         db_name='largeee_test_runs',

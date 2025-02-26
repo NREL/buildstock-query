@@ -21,6 +21,7 @@ class BuildStockAggregate:
                          join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                         avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
                          ) -> str:
@@ -36,6 +37,7 @@ class BuildStockAggregate:
                          join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                         avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
                          ) -> pd.DataFrame:
@@ -51,6 +53,7 @@ class BuildStockAggregate:
                          join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                          weights: Sequence[Union[str, tuple]] = [],
                          restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                         avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                          get_quartiles: bool = False,
                          get_nonzero_count: bool = False,
                          ) -> Union[pd.DataFrame, str]:
@@ -79,6 +82,8 @@ class BuildStockAggregate:
 
             restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
                     Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+            avoid: Just like restrict, but the opposite. It will only include rows that do not match (any of) the
+                   conditions.
             get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
                         [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
                         is the maximum.
@@ -109,6 +114,7 @@ class BuildStockAggregate:
                              join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
                              restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                             avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
@@ -125,6 +131,7 @@ class BuildStockAggregate:
                              join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
                              restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                             avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,
@@ -143,6 +150,7 @@ class BuildStockAggregate:
                              join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = [],
                              weights: Sequence[Union[str, tuple]] = [],
                              restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
+                             avoid: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = [],
                              split_enduses: bool = False,
                              collapse_ts: bool = False,
                              timestamp_grouping_func: Optional[str] = None,

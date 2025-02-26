@@ -4,16 +4,16 @@ import pandas as pd
 import numpy as np
 import logging
 from itertools import combinations
-from typing import Union
+from typing import Union, Optional
 from InquirerPy import inquirer
 from InquirerPy.validator import PathValidator
 import os
-from typing import Optional
 from collections import defaultdict
 from pathlib import Path
-from .logic_parser import LogicParser
+from buildstock_query.tools.logic_parser import LogicParser
 from tabulate import tabulate
-from buildstock_query.helpers import read_csv
+from buildstock_query.helpers import read_csv, load_script_defaults, save_script_defaults
+from buildstock_query.file_getter import OpenOrDownload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,18 +26,45 @@ class UpgradesAnalyzer:
     Analyze the apply logic for various upgrades in the project yaml file.
     """
 
-    def __init__(self, yaml_file: str,
+    def __init__(self, *,
                  buildstock: Union[str, pd.DataFrame],
-                 opt_sat_file: str) -> None:
+                 yaml_file: Optional[str] = None,
+                 opt_sat_file: str,
+                 filter_yaml_file: Optional[str] = None,
+                 upgrade_names: Optional[dict[int, str]] = None,
+                 ) -> None:
         """
         Initialize the analyzer instance.
         Args:
-            yaml_file (str): The path to the yaml file.
             buildstock (Union[str, pd.DataFrame]): Either the buildstock dataframe, or path to the csv
             opt_sat_file (str): The path to the option saturation file.
+            yaml_file (str): The path to the yaml file.
+            filter_yaml_file (str): The path to the filter yaml file.
+            upgrade_names (dict[int, str]): A dictionary of upgrade number to upgrade name. This
+                needs to be provided if only the filter_yaml_file is provided.
         """
         self.parser = LogicParser(opt_sat_file, yaml_file)
         self.yaml_file = yaml_file
+        self.filter_yaml_file = filter_yaml_file
+        if not self.yaml_file and not self.filter_yaml_file:
+            raise ValueError("Either yaml_file or filter_yaml_file must be provided")
+
+        if self.yaml_file and upgrade_names:
+            raise ValueError("upgrade_names must not be provided if yaml_file is provided. "
+                             "It will be read from yaml file")
+
+        if not self.yaml_file and not upgrade_names:
+            raise ValueError("upgrade_names must be provided if only filter_yaml_file is provided")
+
+        self.cfg = self.get_cfg(yaml_file) if yaml_file else {}
+        if not upgrade_names:
+            self.upgrade_names = {indx + 1: upgrade["upgrade_name"]
+                                  for indx, upgrade in enumerate(self.cfg["upgrades"])}
+        else:
+            self.upgrade_names = upgrade_names
+
+        self.filter_cfg = self.get_filter_cfg(filter_yaml_file) if filter_yaml_file else {}
+
         if isinstance(buildstock, str):
             self.buildstock_df_original = read_csv(buildstock, dtype=str)
             self.buildstock_df = self.buildstock_df_original.copy()
@@ -54,15 +81,59 @@ class UpgradesAnalyzer:
         self.total_samples = len(self.buildstock_df)
         self._logic_cache: dict = {}
 
-    def get_cfg(self) -> dict:
+    def get_cfg(self, yaml_file) -> dict:
         """Get the buildstock configuration file as a dictionary object.
 
         Returns:
             dict: The buildstock configuration file.
         """
-        with open(self.yaml_file) as f:
+        with OpenOrDownload(yaml_file) as f:
             config = yaml.load(f, Loader=yaml.SafeLoader)
         return config
+
+    def get_filter_cfg(self, filter_yaml_file) -> dict:
+        """Get the filter yaml file as a dictionary object.
+
+        Returns:
+            dict: The buildstock configuration file.
+        """
+        with OpenOrDownload(filter_yaml_file) as f:
+            config = yaml.load(f, Loader=yaml.SafeLoader)
+
+        listed_upgrades = set(upgrade["upgrade_name"] for upgrade in config.get("upgrades", []))
+        missing_upgrades = set(self.upgrade_names.values()) - listed_upgrades
+        new_config = {}
+        all_upgrades_remove_logic = config.get("all_upgrades_remove_logic", {})
+        for upgrade in config.get("upgrades", []):
+            if all_upgrades_remove_logic:
+                new_config[upgrade["upgrade_name"]] = {"or": [all_upgrades_remove_logic, upgrade["remove_logic"]]}
+            else:
+                new_config[upgrade["upgrade_name"]] = upgrade['remove_logic']
+        for upgrade_name in missing_upgrades:
+            new_config[upgrade_name] = all_upgrades_remove_logic
+
+        return new_config
+
+    def get_filtered_bldgs(self, upgrade_name):
+        """Get the boolean array of filtered buildings for a given upgrade
+
+        Returns:
+            dict: The buildstock configuration file.
+        """
+        filtered_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+        if not self.filter_yaml_file:
+            return filtered_bldgs
+        with OpenOrDownload(self.filter_yaml_file) as f:
+            config = yaml.load(f, Loader=yaml.SafeLoader)
+        logic = config.get("all_upgrades_remove_logic")
+        for upgrade in config.get("upgrades", []):
+            if upgrade["upgrade_name"] == upgrade_name:
+                if logic:
+                    logic = {"and": [logic, upgrade["remove_logic"]]}
+                else:
+                    logic = upgrade["remove_logic"]
+                break
+        return self._reduce_logic(logic, parent=None)
 
     @staticmethod
     def _get_eq_str(condition):
@@ -115,7 +186,7 @@ class UpgradesAnalyzer:
             base_bldg_list (list): The set of 'normal' buildings id to compare against.
             compare_bldg_list (list): The set of buildings whose unique characteristics is to be printed.
         """
-        cfg = self.get_cfg()
+        cfg = self.cfg
         if upgrade_num == 0:
             raise ValueError(f"Upgrades are 1-indexed. Got {upgrade_num}")
 
@@ -212,6 +283,77 @@ class UpgradesAnalyzer:
             self._logic_cache[cache_key] = logic_array.copy()
         return logic_array
 
+    def _get_application_report(self, upgrade_num, upgrade_name):
+        records = []
+        logger.info(f"Analyzing upgrade {upgrade_num}")
+        all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+        all_to_remove_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+        package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+        candidate_to_remove_bldgs = np.zeros((1, self.total_samples), dtype=bool)
+        if self.cfg:
+            upgrade = self.cfg["upgrades"][upgrade_num - 1]
+        else:
+            upgrade = {"upgrade_name": upgrade_name, "options": []}
+            # If only filter_yaml_file is provided, we don't have the upgrade yaml. So, we need to
+            # get assume all the candidate to remove bldgs in the filter yaml as the final set of
+            # to remove bldgs
+            all_to_remove_bldgs = candidate_to_remove_bldgs
+
+        if "package_apply_logic" in upgrade:
+            pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
+            package_applied_bldgs = self._reduce_logic(pkg_flat_logic, parent=None)
+
+        if remove_logic := self.filter_cfg.get(upgrade["upgrade_name"]):
+            remove_logic = UpgradesAnalyzer._normalize_lists(remove_logic)
+            candidate_to_remove_bldgs |= self._reduce_logic(remove_logic, parent=None)
+
+        for opt_index, option in enumerate(upgrade["options"]):
+            applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+            if "apply_logic" in option:
+                flat_logic = UpgradesAnalyzer._normalize_lists(option["apply_logic"])
+                applied_bldgs &= self._reduce_logic(flat_logic, parent=None)
+            else:
+                applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
+
+            to_remove_buildings = np.ones((1, self.total_samples), dtype=bool)
+            to_remove_buildings &= applied_bldgs & candidate_to_remove_bldgs
+            applied_bldgs &= package_applied_bldgs
+            applied_bldgs &= ~candidate_to_remove_bldgs
+            count = applied_bldgs.sum()
+            all_applied_bldgs |= applied_bldgs
+            all_to_remove_bldgs |= to_remove_buildings
+            record = {
+                "upgrade": upgrade_num,
+                "upgrade_name": upgrade["upgrade_name"],
+                "option_num": opt_index + 1,
+                "option": option["option"],
+                "applicable_to": count,
+                "applicable_percent": self._to_pct(count),
+                "applicable_buildings": set(self.buildstock_df.loc[applied_bldgs[0]].index),
+            }
+            if remove_logic:
+                record["removal_count"] = to_remove_buildings.sum()
+                record["removal_percent"] = self._to_pct(record["removal_count"])
+                record["removal_buildings"] = set(self.buildstock_df.loc[to_remove_buildings[0]].index)
+
+            records.append(record)
+        count = all_applied_bldgs.sum()
+        record = {
+            "upgrade": upgrade_num,
+            "upgrade_name": upgrade_name,
+            "option_num": -1,
+            "option": "All",
+            "applicable_to": count,
+            "applicable_buildings": set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
+            "applicable_percent": self._to_pct(count),
+        }
+        if remove_logic:
+            record["removal_count"] = all_to_remove_bldgs.sum()
+            record["removal_percent"] = self._to_pct(record["removal_count"])
+            record["removal_buildings"] = set(self.buildstock_df.loc[all_to_remove_bldgs[0]].index)
+        records.append(record)
+        return pd.DataFrame.from_records(records)
+
     def get_report(self, upgrade_num: Optional[int] = None) -> pd.DataFrame:
         """Analyses how many buildings various options in all the upgrades is going to apply to and returns
         a report in DataFrame format.
@@ -223,68 +365,18 @@ class UpgradesAnalyzer:
 
         """
 
-        def _get_records(indx, upgrade):
-            records = []
-            logger.info(f"Analyzing upgrade {indx + 1}")
-            all_applied_bldgs = np.zeros((1, self.total_samples), dtype=bool)
-            package_applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
-            if "package_apply_logic" in upgrade:
-                pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
-                package_applied_bldgs = self._reduce_logic(pkg_flat_logic, parent=None)
-
-            for opt_index, option in enumerate(upgrade["options"]):
-                applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
-                if "apply_logic" in option:
-                    flat_logic = UpgradesAnalyzer._normalize_lists(option["apply_logic"])
-                    applied_bldgs &= self._reduce_logic(flat_logic, parent=None)
-                else:
-                    applied_bldgs = np.ones((1, self.total_samples), dtype=bool)
-
-                applied_bldgs &= package_applied_bldgs
-                count = applied_bldgs.sum()
-                all_applied_bldgs |= applied_bldgs
-                record = {
-                    "upgrade": indx + 1,
-                    "upgrade_name": upgrade["upgrade_name"],
-                    "option_num": opt_index + 1,
-                    "option": option["option"],
-                    "applicable_to": count,
-                    "applicable_percent": self._to_pct(count),
-                    "applicable_buildings": set(self.buildstock_df.loc[applied_bldgs[0]].index),
-                }
-                records.append(record)
-
-            count = all_applied_bldgs.sum()
-            record = {
-                "upgrade": indx + 1,
-                "upgrade_name": upgrade["upgrade_name"],
-                "option_num": -1,
-                "option": "All",
-                "applicable_to": count,
-                "applicable_buildings": set(self.buildstock_df.loc[all_applied_bldgs[0]].index),
-                "applicable_percent": self._to_pct(count),
-            }
-            records.append(record)
-            return records
-
-        cfg = self.get_cfg()
         self._logic_cache = {}
-        if "upgrades" not in cfg:
-            raise ValueError("The project yaml has no upgrades defined")
+        if upgrade_num is not None and upgrade_num not in self.upgrade_names:
+            raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {self.upgrade_names.keys()}.")
 
-        max_upg = len(cfg["upgrades"]) + 1
-        if upgrade_num is not None:
-            if upgrade_num <= 0 or upgrade_num > max_upg:
-                raise ValueError(f"Invalid upgrade {upgrade_num}. Valid upgrade_num = {list(range(1, max_upg))}.")
-
-        records = []
-        for indx, upgrade in enumerate(cfg["upgrades"]):
-            if upgrade_num is None or upgrade_num == indx + 1:
-                records += _get_records(indx, upgrade)
+        record_dfs = []
+        for indx, upgrade_names in self.upgrade_names.items():
+            if upgrade_num is None or upgrade_num == indx:
+                record_dfs.append(self._get_application_report(indx, upgrade_names))
             else:
                 continue
 
-        report_df = pd.DataFrame.from_records(records)
+        report_df = pd.concat(record_dfs)
         return report_df
 
     def get_upgraded_buildstock(self, upgrade_num):
@@ -353,7 +445,7 @@ class UpgradesAnalyzer:
         else:
             return logic
 
-    def _get_options_application_count_report(self, logic_dict) -> Optional[pd.DataFrame]:
+    def _get_options_application_count_report(self, logic_dict) -> pd.DataFrame:
         """
         For a given logic dictionary, this method will return a report df of options application.
         Example report below:
@@ -368,10 +460,6 @@ class UpgradesAnalyzer:
         5                  1, 6, 7, 13, 14         23 (0.0%)     254 (0.3%)    2917 (2.9%)
         5                  1, 6, 8, 13, 14         42 (0.0%)     296 (0.3%)    2959 (3.0%)
         """
-
-        n_options = len(logic_dict)
-        if n_options < 2:
-            return None
 
         logic_df = pd.DataFrame(logic_dict)
         nbldgs = len(logic_df)
@@ -396,13 +484,10 @@ class UpgradesAnalyzer:
             application_report_rows.append(record)
 
         assert cum_count_all <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
-        if application_report_rows:
-            application_report_df = pd.DataFrame(application_report_rows).set_index("Number of options")
-            return application_report_df
-        return None
+        return pd.DataFrame(application_report_rows).set_index("Number of options")
 
     def _get_left_out_report_all(self, upgrade_num):
-        cfg = self.get_cfg()
+        cfg = self.cfg
         report_str = ""
         upgrade = cfg["upgrades"][upgrade_num - 1]
         ugrade_name = upgrade.get("upgrade_name")
@@ -417,6 +502,10 @@ class UpgradesAnalyzer:
         if "package_apply_logic" in upgrade:
             logic = {"and": [logic, upgrade["package_apply_logic"]]}
         logic = {"not": logic}  # invert it
+
+        if remove_logic := self.filter_cfg.get(upgrade["upgrade_name"]):
+            logic = {"or": [logic, remove_logic]}
+
         logic = self.parser.normalize_logic(logic)
         logic_array, logic_str = self._get_logic_report(logic)
         footer_len = len(logic_str[-1])
@@ -429,7 +518,7 @@ class UpgradesAnalyzer:
         return logic_array, report_str
 
     def get_left_out_report(self, upgrade_num: int, option_num: Optional[int] = None) -> tuple[np.ndarray, str]:
-        """Prints detailed report for a particular upgrade (and optionally, an option)
+        """Prints detailed inverse report of what is left out for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
             option_num (int, optional): The 1-indexed option number for which to print report. Defaults to None, which
@@ -438,7 +527,7 @@ class UpgradesAnalyzer:
         Returns:
             (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
         """
-        cfg = self.get_cfg()
+        cfg = self.cfg
         if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
             raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
 
@@ -466,6 +555,10 @@ class UpgradesAnalyzer:
             logic = {"not": opt["apply_logic"]}
         else:
             logic = {"not": upgrade["package_apply_logic"]}
+
+        if remove_logic := self.filter_cfg.get(upgrade["upgrade_name"]):
+            logic = {"or": [logic, remove_logic]}
+
         logic = self.parser.normalize_logic(logic)
 
         logic_array, logic_str = self._get_logic_report(logic)
@@ -489,7 +582,7 @@ class UpgradesAnalyzer:
         Returns:
             (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
         """
-        cfg = self.get_cfg()
+        cfg = self.cfg
         if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
             raise ValueError(f"Invalid upgrade {upgrade_num}. Upgrade num is 1-indexed.")
 
@@ -532,6 +625,20 @@ class UpgradesAnalyzer:
             report_str += "-" * footer_len + "\n"
             logic_array = logic_array & package_logic_array
 
+        if remove_logic := self.filter_cfg.get(upgrade["upgrade_name"]):
+            remove_logic = UpgradesAnalyzer._normalize_lists(remove_logic)
+            remove_logic = self.parser.normalize_logic(remove_logic) if normalize_logic else remove_logic
+            remove_logic_array, logic_str = self._get_logic_report(remove_logic)
+            footer_len = len(logic_str[-1])
+            report_str += "Remove Logic Report" + "\n"
+            report_str += "-------------------" + "\n"
+            report_str += "\n".join(logic_str) + "\n"
+            report_str += "-" * footer_len + "\n"
+            removed_after_apply = remove_logic_array & logic_array
+            report_str += "Removed after applying => " + f"{removed_after_apply.sum()} "
+            report_str += f"({self._to_pct(removed_after_apply.sum(), logic_array.sum())}% of applied)" + "\n"
+            logic_array = logic_array & ~remove_logic_array
+
         count = logic_array.sum()
         footer_str = f"Overall applied to => {count} ({self._to_pct(count)}%)."
         report_str += footer_str + "\n"
@@ -541,7 +648,7 @@ class UpgradesAnalyzer:
     def _get_detailed_report_all(self, upgrade_num, normalize_logic: bool = False):
         conds_dict = {}
         grouped_conds_dict = {}
-        cfg = self.get_cfg()
+        cfg = self.cfg
         report_str = ""
         n_options = len(cfg["upgrades"][upgrade_num - 1]["options"])
         or_array = np.zeros((1, self.total_samples), dtype=bool)
@@ -564,20 +671,18 @@ class UpgradesAnalyzer:
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
 
         option_app_report = self._get_options_application_count_report(grouped_conds_dict)
-        if option_app_report is not None:
-            report_str += "-" * 80 + "\n"
-            report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
-            report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+        report_str += "-" * 80 + "\n"
+        report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
+        report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
 
         detailed_app_report_df = self._get_options_application_count_report(conds_dict)
-        if detailed_app_report_df is not None:
-            report_str += "-" * 80 + "\n"
-            if len(detailed_app_report_df) > 100:
-                report_str += "Detailed report is skipped because of too many rows. " + "\n"
-                report_str += "Ask the developer if this is useful to see" + "\n"
-            else:
-                report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
-                report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+        report_str += "-" * 80 + "\n"
+        if len(detailed_app_report_df) > 100:
+            report_str += "Detailed report is skipped because of too many rows. " + "\n"
+            report_str += "Ask the developer if this is useful to see" + "\n"
+        else:
+            report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
+            report_str += tabulate(detailed_app_report_df, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -630,42 +735,49 @@ class UpgradesAnalyzer:
 
         return logic_array, logic_str
 
-    def save_detailed_report_all(self, file_path: str, logic_transform=None):
+    def save_detailed_report_all(self, file_path: str, normalize_logic: bool = False):
         """Save detailed text based upgrade report.
 
         Args:
             file_path (str): Output file.
         """
-        cfg = self.get_cfg()
+        cfg = self.cfg
         all_report = ""
         for upgrade in range(1, len(cfg["upgrades"]) + 1):
             logger.info(f"Getting report for upgrade {upgrade}")
-            _, report = self.get_detailed_report(upgrade, normalize_logic=logic_transform)
+            _, report = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
             all_report += report + "\n"
         with open(file_path, "w") as file:
             file.write(all_report)
 
 
 def main():
+    defaults = load_script_defaults("project_info")
     yaml_file = inquirer.filepath(
-        message="Project configuration file (EUSS-project-file.yml):",
+        message="Project configuration file (the yaml file):",
+        default=defaults.get("yaml_file", ""),
         validate=PathValidator(),
-        filter=lambda x: x or "EUSS-project-file.yml",
     ).execute()
     buildstock_file = inquirer.filepath(
         message="Project sample file (buildstock.csv):",
+        default=defaults.get("buildstock_file", ""),
         validate=PathValidator(),
-        filter=lambda x: x or "buildstock.csv",
     ).execute()
     opt_sat_file = inquirer.filepath(
         message="Path to option_saturation.csv file",
+        default=defaults.get("opt_sat_file", ""),
         validate=PathValidator()
     ).execute()
     output_prefix = inquirer.text(
         message="output file name prefix:",
-        filter=lambda x: "" if x is None else f"{x}_",
+        default=defaults.get("output_prefix", ""),
+        filter=lambda x: "" if x is None else f"{x}",
     ).execute()
-    ua = UpgradesAnalyzer(yaml_file, buildstock_file, opt_sat_file)
+    defaults.update({"yaml_file": yaml_file, "buildstock_file": buildstock_file, "opt_sat_file": opt_sat_file,
+                     "output_prefix": output_prefix})
+    save_script_defaults("project_info", defaults)
+    ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file,
+                          opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}options_report.csv"

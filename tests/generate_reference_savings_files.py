@@ -12,6 +12,7 @@ def generate_table_and_cache(table_name: str):
             table_name=table_name,
             skip_reports=False,
         )
+        mya1.get_upgrade_names()
         mya1.get_buildstock_df()
         mya1.report.get_options_report(trim_missing_bs=False)
         mya1.report.get_options_report(trim_missing_bs=True)
