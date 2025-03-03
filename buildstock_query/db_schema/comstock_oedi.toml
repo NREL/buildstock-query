@@ -27,4 +27,4 @@ fail = ""
 unapplicable = "false"
 
 [structure]
-unapplicables_have_ts = "false"
+unapplicables_have_ts = "true"
