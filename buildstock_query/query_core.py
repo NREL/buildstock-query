@@ -115,6 +115,7 @@ class QueryCore:
 
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
+        self.db_schema_type = params.db_schema
         db_schema_file = os.path.join(os.path.dirname(__file__), 'db_schema',
                                       f'{params.db_schema}.toml')
         db_schema_dict = toml.load(db_schema_file)
