@@ -47,7 +47,7 @@ class BuildStockUtility:
     """
 
     def __init__(self, buildstock_query: 'main.BuildStockQuery',
-                 eia_mapping_year: int = 2018, eia_mapping_version: int = 1):
+                 eia_mapping_year: int = 2018, eia_mapping_version: int = 3):
         """
         Class to perform electric utility centric queries
         Args:
