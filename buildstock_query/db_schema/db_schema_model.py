@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional
 
 class TableSuffix(BaseModel):
     baseline: str
@@ -20,7 +20,7 @@ class ColumnNames(BaseModel):
     completed_status: str
     unmet_hours_cooling_hr: str
     unmet_hours_heating_hr: str
-    map_eiaid_column: str
+    map_eiaid_column: Optional[str] = None
     fuel_totals: list[str]
 
 
