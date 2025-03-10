@@ -129,9 +129,6 @@ class BuildStockUtility:
         else:
             raise ValueError("Invalid mapping_version")
 
-        # Debugging: Print map_eiaid_column to check its value
-        print(f"map_eiaid_column: {map_eiaid_column}")
-
         if map_eiaid_column is None:
             raise ValueError("map_eiaid_column is None. Check the TOML configuration or how it's being loaded.")
 
