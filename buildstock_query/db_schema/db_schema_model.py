@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
+
 class TableSuffix(BaseModel):
     baseline: str
     timeseries: str
