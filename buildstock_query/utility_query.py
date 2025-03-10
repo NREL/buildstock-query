@@ -114,20 +114,18 @@ class BuildStockUtility:
             return self._bsq.get_batch_query_result(batch_id=batch_query_id)
 
     def get_eiaid_map(self) -> tuple[str, str, str]:
-        if self._bsq.db_schema_type == 'resstock_oedi':
-            map_eiaid_column = 'gisjoin'
-        else:
-            map_eiaid_column = 'county'
-        
         if self.eia_mapping_version == 1:
             map_table_name = 'eiaid_weights'
             map_baseline_column = f'{self._bsq._char_prefix}county'
+            map_eiaid_column = self._bsq.db_schema.column_names.map_eiaid_column
         elif self.eia_mapping_version == 2:
             map_table_name = 'v2_eiaid_weights'
             map_baseline_column = f'{self._bsq._char_prefix}county'
+            map_eiaid_column = self._bsq.db_schema.column_names.map_eiaid_column
         elif self.eia_mapping_version == 3:
             map_table_name = 'v3_eiaid_weights_%d' % (self.eia_mapping_year)
             map_baseline_column = f'{self._bsq._char_prefix}county'
+            map_eiaid_column = self._bsq.db_schema.column_names.map_eiaid_column
         else:
             raise ValueError("Invalid mapping_version")
 

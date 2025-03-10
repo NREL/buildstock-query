@@ -20,6 +20,7 @@ class ColumnNames(BaseModel):
     completed_status: str
     unmet_hours_cooling_hr: str
     unmet_hours_heating_hr: str
+    map_eiaid_column: str
     fuel_totals: list[str]
 
 
