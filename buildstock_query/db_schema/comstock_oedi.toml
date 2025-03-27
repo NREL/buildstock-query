@@ -18,7 +18,6 @@ unmet_hours_heating_hr = ""
 fuel_totals = ["out.electricity.total.energy_consumption",
                "out.natural_gas.total.energy_consumption",
                "out.other_fuel.total.energy_consumption",
-               "out.site_energy.total.energy_consumption"
                ]
 
 [completion_values]
