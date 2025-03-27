@@ -12,3 +12,4 @@ build/
 *.txt
 *.csv
 *.yml
+.bsq_cache
