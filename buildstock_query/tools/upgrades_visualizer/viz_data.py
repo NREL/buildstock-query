@@ -96,7 +96,6 @@ class VizData:
                               "applicable" in col
                               or "output_format" in col])
         res_df = res_df.rename({'upgrade_costs.upgrade_cost_usd': 'upgrade_cost_total_usd'})
-        res_df = res_df.drop([col for col in res_df.columns if col.endswith('.debug')])
         res_df = res_df.rename({x: x.split('.')[1] for x in res_df.columns if '.' in x})
         res_df = res_df.with_columns(upgrade=pl.lit(upgrade))
         res_df = res_df.with_columns(count=pl.lit(1))
@@ -191,7 +190,7 @@ class VizData:
 
     def get_plotting_df(self, upgrade: str,
                         params: PlotParams,) -> pl.DataFrame:
-        baseline_df = self.get_values(upgrade=params.baseline_upgrade, params=params)
+        baseline_df = self.get_values(upgrade='0', params=params)
         baseline_df = baseline_df.select("building_id", "month", pl.col("value").alias("baseline_value"))
         up_df = self.get_values(upgrade=upgrade, params=params)
         if params.change_type:

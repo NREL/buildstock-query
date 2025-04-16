@@ -29,7 +29,6 @@ class PlotParams(BaseModel):
     sync_upgrade: Optional[int] = None
     resolution: str = "annual"
     value_type: ValueTypes
-    baseline_upgrade: str = '0'
 
 
 num2month = {1: "January", 2: "February", 3: "March", 4: "April",

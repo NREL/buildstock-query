@@ -137,7 +137,6 @@ def get_app(viz_data: VizData):
                             change_type=change_type, sync_upgrade=sync_upgrade,
                             filter_bldgs=filter_bldg, group_by=group_cols, upgrade=report_upgrade,
                             resolution=resolution)
-        params.baseline_upgrade = '1'
         return upgrades_plot.get_plot(params)
 
     external_script = ["https://tailwindcss.com/", {"src": "https://cdn.tailwindcss.com"}]
@@ -882,7 +881,7 @@ def main():
                    table_name=table_name,
                    include_monthly=include_monthly,
                    upgrades_selection_str=upgrades_selection)
-    app.run_server(debug=False, port=8016)
+    app.run_server(debug=False, port=8006)
 
 
 if __name__ == '__main__':
