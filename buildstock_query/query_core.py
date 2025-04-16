@@ -260,7 +260,7 @@ class QueryCore:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
         if len(valid_tables) > 1:
             logger.warning(
-                f"Column {column_name} found in multiple tables {[t.name for t in valid_tables]}."
+                f"Column {column_name} found in multiple tables {[t.name for t in valid_tables]}. "
                 f"Using {valid_tables[0].name}")
         return valid_tables[0].c[column_name]
 
