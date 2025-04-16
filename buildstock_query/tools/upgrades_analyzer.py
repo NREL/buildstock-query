@@ -865,20 +865,6 @@ class UpgradesAnalyzer:
         return minimal_set
 
 
-if __name__ == "__main__":
-    bldg_groups = [s for s in updf['applicable_buildings'].to_list() if s]
-    all_bldgs = set(ua.buildstock_df.index)
-    upgraded_bldgs = set.union(*updf['applicable_buildings'])
-    never_upgraded_buildings = sorted(all_bldgs - upgraded_bldgs)
-    print(f"Total buildings: {len(all_bldgs)}, Upgraded buildings: {len(upgraded_bldgs)}, Never upgraded buildings: {len(never_upgraded_buildings)}")
-    minimal_set = get_minimal_set(bldg_groups, verbose=True)
-    assert all(s & minimal_set for s in bldg_groups), "Not every set was hit — bug in algorithm!"
-    print(f"Minimal set size: {len(minimal_set)}", flush=True)
-    print("Done.", flush=True)
-    full_set = minimal_set | set(never_upgraded_buildings[0])
-    print(f"Full set size: {len(full_set)}", flush=True)
-
-
 def main():
     import argparse
     print("Welcome to BuildStock Upgrade Analyzer 2025.04.16")
