@@ -764,10 +764,10 @@ class UpgradesAnalyzer:
         self, building_groups, include_never_upgraded=False, verbose=False
     ) -> list:
         """Return a minimal set of buildings that covers all the building_groups.
-        In other words, it returns a a new set of buildings that has non-zero intersection with all sets.
+        In other words, it returns a new set of buildings that has non-zero intersection with all sets.
         It uses greedy algorithm to solve the set cover problem - while not optimal (It's a NP-complete problem),
         typical input cases results in sufficiently small output set. The tie-breaking for greedy algorithm is done by
-        chosing the last inserted building in the bucket queue, which is typically the building_id with highest index.
+        choosing the last inserted building in the bucket queue, which is typically the building_id with highest index.
         but is not always the case. This results in a deterministic output.
 
         Parameters
