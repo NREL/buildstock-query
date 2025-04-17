@@ -941,8 +941,8 @@ def main():
     ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
-    csv_name = folder_path / f"{output_prefix}options_report.csv"
-    txt_name = folder_path / f"{output_prefix}detailed_report.txt"
+    csv_name = folder_path / f"{output_prefix}option_application_report.csv"
+    txt_name = folder_path / f"{output_prefix}option_application_detailed_report.txt"
     buildstock_name = folder_path / f"{output_prefix}minimal_buildstock.csv"
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
