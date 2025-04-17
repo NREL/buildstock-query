@@ -5,7 +5,7 @@ setup(
     version='2024.05.09',
     description="Python library for querying and analyzing ResStock and ComStock",
     author="Rajendra Adhikari",
-    packages=find_packages()
+    packages=find_packages(),
     author_email='Rajendra.Adhikari@nrel.gov',
     package_dir={"buildstock_query": "buildstock_query"},
     package_data={'buildstock_query': ['**']},
