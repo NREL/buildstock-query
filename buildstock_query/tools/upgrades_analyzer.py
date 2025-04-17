@@ -948,7 +948,7 @@ def main():
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
     )
     ua.buildstock_df.loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
-    report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name)
+    report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
     ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
     print(f"Saved minimal buildstock to {buildstock_name}")
