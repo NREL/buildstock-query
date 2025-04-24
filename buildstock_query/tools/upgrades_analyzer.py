@@ -789,23 +789,26 @@ class UpgradesAnalyzer:
             if verbose:
                 logger.info(msg)
 
-        building_groups = [set(s) for s in building_groups if len(s) > 0]
+        vprint("Sorting building groups to ensure deterministic output...")
+         # sort to ensure deterministic output
+        building_groups_sorted = [tuple(sorted(s)) for s in building_groups if len(s) > 0]
+        building_groups_set = [set(s) for s in building_groups_sorted]
         all_bldgs = set(self.buildstock_df.index)
-        upgraded_bldgs = set.union(*building_groups) if building_groups else set()
+        upgraded_bldgs = set.union(*building_groups_set) if building_groups_set else set()
         never_upgraded_buildings = sorted(all_bldgs - upgraded_bldgs)
         vprint(
             f"Total buildings: {len(all_bldgs)}, Upgraded buildings: {len(upgraded_bldgs)},\
                Never upgraded buildings: {len(never_upgraded_buildings)}"
         )
 
-        vprint(f"Processing {len(building_groups)} building groups")
+        vprint(f"Processing {len(building_groups_sorted)} building groups")
 
-        n = len(building_groups)
+        n = len(building_groups_sorted)
 
         vprint("Building reverse mapping from building index to groups it belongs to ...")
         bldg2groups: dict[int, list[int]] = defaultdict(list)
-        for group_index, group in enumerate(building_groups):
-            for bldg_id in sorted(group):  # sort to ensure repeatable order
+        for group_index, group in enumerate(building_groups_sorted):
+            for bldg_id in group:
                 bldg2groups[bldg_id].append(group_index)
         vprint(f"Reverse mapping built with {len(bldg2groups)} buildings")
 
@@ -836,7 +839,7 @@ class UpgradesAnalyzer:
             if current_max == 0:
                 raise RuntimeError("No building left that fall in any remaining sets.")
 
-            bldg_id = buckets[current_max].popitem()[0]  # Gurantees FIFO order
+            bldg_id = buckets[current_max].popitem()[0]  # Gurantees LIFO order
             cnt = bldg2group_count[bldg_id]
             if cnt == 0:
                 raise RuntimeError("Counter reached zero but some sets remain uncovered.")
@@ -846,7 +849,7 @@ class UpgradesAnalyzer:
 
             if verbose:
                 covered_sets = len([1 for indx in bldg2groups[bldg_id] if active[indx]])
-                bldg_count = sum([len(building_groups[indx]) for indx in bldg2groups[bldg_id] if active[indx]])
+                bldg_count = sum([len(building_groups_sorted[indx]) for indx in bldg2groups[bldg_id] if active[indx]])
                 vprint(
                     f"{covered_sets} sets covered by this building will be removed and ~{bldg_count}"
                     "count of buildings will be decreased."
@@ -858,7 +861,7 @@ class UpgradesAnalyzer:
                 active[group_index] = False
                 remaining -= 1
 
-                for impacted_building_id in building_groups[group_index]:
+                for impacted_building_id in building_groups_sorted[group_index]:
                     if impacted_building_id == bldg_id:
                         continue  # we just chose this building; its counter will be discarded
 
@@ -874,7 +877,7 @@ class UpgradesAnalyzer:
                         buckets[new_count][impacted_building_id] = None
         vprint(f"Finished! Found minimal set of size {len(minimal_buildings)}")
         minimal_buildings_set = set(minimal_buildings)
-        assert all(s & minimal_buildings_set for s in building_groups), "Not every set was hit — bug in algorithm!"
+        assert all(s & minimal_buildings_set for s in building_groups_set), "Not every set was hit — bug in algorithm!"
         vprint(f"Minimal set size: {len(minimal_buildings)}")
         if include_never_upgraded:
             full_set = minimal_buildings + never_upgraded_buildings[-1:]
