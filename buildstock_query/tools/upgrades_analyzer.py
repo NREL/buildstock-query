@@ -790,7 +790,7 @@ class UpgradesAnalyzer:
                 logger.info(msg)
 
         vprint("Sorting building groups to ensure deterministic output...")
-         # sort to ensure deterministic output
+        # sort to ensure deterministic output
         building_groups_sorted = [tuple(sorted(s)) for s in building_groups if len(s) > 0]
         building_groups_set = [set(s) for s in building_groups_sorted]
         all_bldgs = set(self.buildstock_df.index)
@@ -833,7 +833,7 @@ class UpgradesAnalyzer:
         current_max = max_count
         while remaining:
             iteration += 1
-            vprint(f"Iteration {iteration}: {remaining} sets remaining to hit, minimal set size: {len(minimal_buildings)}")
+            vprint(f"{remaining} sets remaining to hit, minimal set size: {len(minimal_buildings)}")
             while current_max > 0 and not buckets[current_max]:
                 current_max -= 1
             if current_max == 0:
