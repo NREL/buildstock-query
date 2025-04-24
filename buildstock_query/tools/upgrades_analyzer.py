@@ -825,12 +825,12 @@ class UpgradesAnalyzer:
         # Track which sets are still active (un‑hit)
         active = [True] * n
         remaining = n
-        minimal_set: list = []
+        minimal_buildings: list = []
         iteration = 0
         current_max = max_count
         while remaining:
             iteration += 1
-            vprint(f"Iteration {iteration}: {remaining} sets remaining to hit, minimal set size: {len(minimal_set)}")
+            vprint(f"Iteration {iteration}: {remaining} sets remaining to hit, minimal set size: {len(minimal_buildings)}")
             while current_max > 0 and not buckets[current_max]:
                 current_max -= 1
             if current_max == 0:
@@ -842,7 +842,7 @@ class UpgradesAnalyzer:
                 raise RuntimeError("Counter reached zero but some sets remain uncovered.")
 
             vprint(f"Adding building: {bldg_id} to the minimal set")
-            minimal_set.append(bldg_id)
+            minimal_buildings.append(bldg_id)
 
             if verbose:
                 covered_sets = len([1 for indx in bldg2groups[bldg_id] if active[indx]])
@@ -872,21 +872,21 @@ class UpgradesAnalyzer:
                         del buckets[old_count][impacted_building_id]
                     if new_count > 0:
                         buckets[new_count][impacted_building_id] = None
-        vprint(f"Finished! Found minimal set of size {len(minimal_set)}")
-        minimal_set2 = set(minimal_set)
-        assert all(s & minimal_set2 for s in building_groups), "Not every set was hit — bug in algorithm!"
-        vprint(f"Minimal set size: {len(minimal_set)}")
+        vprint(f"Finished! Found minimal set of size {len(minimal_buildings)}")
+        minimal_buildings_set = set(minimal_buildings)
+        assert all(s & minimal_buildings_set for s in building_groups), "Not every set was hit — bug in algorithm!"
+        vprint(f"Minimal set size: {len(minimal_buildings)}")
         if include_never_upgraded:
-            full_set = minimal_set + never_upgraded_buildings[-1:]
+            full_set = minimal_buildings + never_upgraded_buildings[-1:]
             vprint(f"Full set (including never upgraded buildings) size: {len(full_set)}")
             return full_set
-        return minimal_set
+        return minimal_buildings
 
 
 def main():
     import argparse
 
-    print("Welcome to BuildStock Upgrade Analyzer 2025.04.16")
+    print("Welcome to BuildStock Upgrade Analyzer 2025.04.24")
     parser = argparse.ArgumentParser(description="Analyze BuildStock upgrades")
     parser.add_argument("--yaml_file", help="Project configuration file (the yaml file)")
     parser.add_argument("--buildstock_file", help="Project sample file (buildstock.csv)")
@@ -947,7 +947,7 @@ def main():
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
     )
-    ua.buildstock_df.loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
+    ua.buildstock_df_original.set_index('Building').loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
     report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
     ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
