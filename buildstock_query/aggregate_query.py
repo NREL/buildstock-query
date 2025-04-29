@@ -34,9 +34,9 @@ class BuildStockAggregate:
         else:
             upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
             enduse_cols = self._bsq._get_enduse_cols(params.enduses, table='upgrade')
-
         total_weight = self._bsq._get_weight(weights)
-        enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
+        agg_func, agg_weight = self._bsq._get_agg_func_and_weight(weights, params.agg_func)
+        enduse_selection = [agg_func(enduse * agg_weight).label(self._bsq._simple_label(enduse.name, params.agg_func))
                             for enduse in enduse_cols]
         if params.get_quartiles:
             enduse_selection += [sa.func.approx_percentile(enduse, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
@@ -136,8 +136,8 @@ class BuildStockAggregate:
         [self._bsq._get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
         enduses_cols = self._bsq._get_enduse_cols(params.enduses, table='timeseries')
         total_weight = self._bsq._get_weight(params.weights)
-
-        enduse_selection = [safunc.sum(enduse * total_weight).label(self._bsq._simple_label(enduse.name))
+        agg_func, agg_weight = self._bsq._get_agg_func_and_weight(params.weights, params.agg_func)
+        enduse_selection = [agg_func(enduse * agg_weight).label(self._bsq._simple_label(enduse.name, params.agg_func))
                             for enduse in enduses_cols]
         group_by = list(params.group_by)
         if self._bsq.timestamp_column_name not in group_by and params.collapse_ts:
