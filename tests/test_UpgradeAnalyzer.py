@@ -2,6 +2,8 @@ import pathlib
 import numpy as np
 from buildstock_query.tools import UpgradesAnalyzer
 import pytest
+import pandas as pd
+from unittest.mock import MagicMock, patch
 
 
 class TestUpgradesAnalyzer:
@@ -481,3 +483,56 @@ class TestUpgradesAnalyzer:
                 assert n_diff == n_unchanged, (
                     f"Only {n_unchanged} dwelling units were found to be unchanged, " f"expecting {n_diff} per report"
                 )
+
+    def test_get_minimal_representative_buildings(self):
+        # Create mock UpgradesAnalyzer instance
+        mock_buildstock_df = pd.DataFrame(index=list(range(1, 11)))  # 1 to 10
+        
+        # Create the analyzer with just the necessary components for this test
+        with patch.object(UpgradesAnalyzer, '__init__', return_value=None):
+            ua = UpgradesAnalyzer()
+            ua.buildstock_df = mock_buildstock_df
+        
+        # Test case: Basic functionality
+        building_groups = [
+            {1, 2, 3},  # Group 1
+            {2, 4, 5},  # Group 2
+            {3, 5, 6},  # Group 3
+            {6, 7, 8},  # Group 4
+            {1, 8, 9},  # Group 5
+        ]
+        
+        minimal_set = ua.get_minimal_representative_buildings(building_groups, include_never_upgraded=True)
+        assert isinstance(minimal_set, list)
+        assert minimal_set == [8, 5, 3, 10]
+        assert [8, 5, 3] == ua.get_minimal_representative_buildings(building_groups)
+        
+        # Test case: Empty input
+        assert ua.get_minimal_representative_buildings([]) == []
+        assert ua.get_minimal_representative_buildings([], include_never_upgraded=True) == [10]
+        
+        # Test case: Input with empty sets (should be ignored)
+        building_groups_with_empty = [set(), {1, 2}, set(), {3, 4}]
+        assert [4, 2] == ua.get_minimal_representative_buildings(building_groups_with_empty)
+        
+        # Test case 4: Disjoint sets requiring multiple buildings
+        disjoint_groups = [
+            {1, 2},
+            {3, 4},
+            {5, 6},
+            {7, 8},
+            {9, 10},
+        ]
+        assert [10, 8, 6, 4, 2] == ua.get_minimal_representative_buildings(disjoint_groups)
+        
+        # Test case where greedy algorithm is not optimal
+        building_groups = [
+            {1, 10, 4},
+            {1, 9, 4},
+            {1, 8},
+            {2, 7},
+            {2, 6, 4},
+            {2, 5, 4},
+        ]
+        # optimal solution is [2, 1].
+        assert [4, 2, 1] == ua.get_minimal_representative_buildings(building_groups)

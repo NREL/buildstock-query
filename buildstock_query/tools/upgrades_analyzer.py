@@ -26,13 +26,15 @@ class UpgradesAnalyzer:
     Analyze the apply logic for various upgrades in the project yaml file.
     """
 
-    def __init__(self, *,
-                 buildstock: Union[str, pd.DataFrame],
-                 yaml_file: Optional[str] = None,
-                 opt_sat_file: str,
-                 filter_yaml_file: Optional[str] = None,
-                 upgrade_names: Optional[dict[int, str]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        *,
+        buildstock: Union[str, pd.DataFrame],
+        yaml_file: Optional[str] = None,
+        opt_sat_file: str,
+        filter_yaml_file: Optional[str] = None,
+        upgrade_names: Optional[dict[int, str]] = None,
+    ) -> None:
         """
         Initialize the analyzer instance.
         Args:
@@ -50,16 +52,18 @@ class UpgradesAnalyzer:
             raise ValueError("Either yaml_file or filter_yaml_file must be provided")
 
         if self.yaml_file and upgrade_names:
-            raise ValueError("upgrade_names must not be provided if yaml_file is provided. "
-                             "It will be read from yaml file")
+            raise ValueError(
+                "upgrade_names must not be provided if yaml_file is provided. " "It will be read from yaml file"
+            )
 
         if not self.yaml_file and not upgrade_names:
             raise ValueError("upgrade_names must be provided if only filter_yaml_file is provided")
 
         self.cfg = self.get_cfg(yaml_file) if yaml_file else {}
         if not upgrade_names:
-            self.upgrade_names = {indx + 1: upgrade["upgrade_name"]
-                                  for indx, upgrade in enumerate(self.cfg["upgrades"])}
+            self.upgrade_names = {
+                indx + 1: upgrade["upgrade_name"] for indx, upgrade in enumerate(self.cfg["upgrades"])
+            }
         else:
             self.upgrade_names = upgrade_names
 
@@ -108,7 +112,7 @@ class UpgradesAnalyzer:
             if all_upgrades_remove_logic:
                 new_config[upgrade["upgrade_name"]] = {"or": [all_upgrades_remove_logic, upgrade["remove_logic"]]}
             else:
-                new_config[upgrade["upgrade_name"]] = upgrade['remove_logic']
+                new_config[upgrade["upgrade_name"]] = upgrade["remove_logic"]
         for upgrade_name in missing_upgrades:
             new_config[upgrade_name] = all_upgrades_remove_logic
 
@@ -463,8 +467,11 @@ class UpgradesAnalyzer:
 
         logic_df = pd.DataFrame(logic_dict)
         nbldgs = len(logic_df)
-        opts2count = logic_df.apply(lambda row: tuple(indx+1 for indx, val in enumerate(row) if val),
-                                    axis=1).value_counts().to_dict()
+        opts2count = (
+            logic_df.apply(lambda row: tuple(indx + 1 for indx, val in enumerate(row) if val), axis=1)
+            .value_counts()
+            .to_dict()
+        )
         cum_count_all = 0
         cum_count = defaultdict(int)
         application_report_rows = []
@@ -475,12 +482,13 @@ class UpgradesAnalyzer:
             n_applied_bldgs = opts2count[applied_opts]
             cum_count_all += n_applied_bldgs
             cum_count[num_opt] += n_applied_bldgs
-            record = {"Number of options": num_opt,
-                      "Applied options": ", ".join([f"{logic_df.columns[opt - 1]}" for opt in applied_opts]),
-                      "Applied buildings": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
-                      "Cumulative sub": f"{cum_count[num_opt]} ({self._to_pct(cum_count[num_opt], nbldgs)}%)",
-                      "Cumulative all": f"{cum_count_all} ({self._to_pct(cum_count_all, nbldgs)}%)"
-                      }
+            record = {
+                "Number of options": num_opt,
+                "Applied options": ", ".join([f"{logic_df.columns[opt - 1]}" for opt in applied_opts]),
+                "Applied buildings": f"{n_applied_bldgs} ({self._to_pct(n_applied_bldgs, nbldgs)}%)",
+                "Cumulative sub": f"{cum_count[num_opt]} ({self._to_pct(cum_count[num_opt], nbldgs)}%)",
+                "Cumulative all": f"{cum_count_all} ({self._to_pct(cum_count_all, nbldgs)}%)",
+            }
             application_report_rows.append(record)
 
         assert cum_count_all <= nbldgs, "Cumulative count of options applied is more than total number of buildings."
@@ -571,8 +579,9 @@ class UpgradesAnalyzer:
         report_str += "-" * len(footer_str) + "\n"
         return logic_array, report_str
 
-    def get_detailed_report(self, upgrade_num: int, option_num: Optional[int] = None,
-                            normalize_logic: bool = False) -> tuple[np.ndarray, str]:
+    def get_detailed_report(
+        self, upgrade_num: int, option_num: Optional[int] = None, normalize_logic: bool = False
+    ) -> tuple[np.ndarray, str]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
@@ -654,8 +663,9 @@ class UpgradesAnalyzer:
         or_array = np.zeros((1, self.total_samples), dtype=bool)
         and_array = np.ones((1, self.total_samples), dtype=bool)
         for option_indx in range(n_options):
-            logic_array, sub_report_str = self.get_detailed_report(upgrade_num, option_indx + 1,
-                                                                   normalize_logic=normalize_logic)
+            logic_array, sub_report_str = self.get_detailed_report(
+                upgrade_num, option_indx + 1, normalize_logic=normalize_logic
+            )
             opt_name, _ = self._get_para_option(cfg["upgrades"][upgrade_num - 1]["options"][option_indx]["option"])
             report_str += sub_report_str + "\n"
             conds_dict[option_indx + 1] = logic_array
@@ -673,7 +683,7 @@ class UpgradesAnalyzer:
         option_app_report = self._get_options_application_count_report(grouped_conds_dict)
         report_str += "-" * 80 + "\n"
         report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
-        report_str += tabulate(option_app_report, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+        report_str += tabulate(option_app_report, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
 
         detailed_app_report_df = self._get_options_application_count_report(conds_dict)
         report_str += "-" * 80 + "\n"
@@ -682,7 +692,7 @@ class UpgradesAnalyzer:
             report_str += "Ask the developer if this is useful to see" + "\n"
         else:
             report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
-            report_str += tabulate(detailed_app_report_df, headers='keys', tablefmt='grid', maxcolwidths=50) + "\n"
+            report_str += tabulate(detailed_app_report_df, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
         return or_array, report_str
 
     def _to_pct(self, count, total=None):
@@ -750,41 +760,201 @@ class UpgradesAnalyzer:
         with open(file_path, "w") as file:
             file.write(all_report)
 
+    def get_minimal_representative_buildings(
+        self, building_groups, include_never_upgraded=False, verbose=False
+    ) -> list:
+        """Return a minimal set of buildings that covers all the building_groups.
+        In other words, it returns a new set of buildings that has non-zero intersection with all sets.
+        It uses greedy algorithm to solve the set cover problem - while not optimal (It's a NP-complete problem),
+        typical input cases results in sufficiently small output set. The tie-breaking for greedy algorithm is done by
+        choosing the last inserted building in the bucket queue, which is typically the building_id with highest index.
+        but is not always the case. This results in a deterministic output.
+
+        Parameters
+        ----------
+        building_groups : list[set[int]]
+            List of set of buildings belonging to different apply_logic blocks for different upgrade and options.
+            One set per option per upgrade.
+
+        Returns
+        -------
+        list[int]
+            A minimal set of buildings so that when buildstock.csv is trimmed to include only these buildings,
+            then all of the options will apply to at least one building and the output set is minimal. If
+            include_never_upgraded is True, one building (of largest building_id) from never_upgraded_buildings
+            is appended to the output.
+        """
+
+        def vprint(msg):
+            if verbose:
+                logger.info(msg)
+
+        vprint("Sorting building groups to ensure deterministic output...")
+        # sort to ensure deterministic output
+        building_groups_sorted = [tuple(sorted(s)) for s in building_groups if len(s) > 0]
+        building_groups_set = [set(s) for s in building_groups_sorted]
+        all_bldgs = set(self.buildstock_df.index)
+        upgraded_bldgs = set.union(*building_groups_set) if building_groups_set else set()
+        never_upgraded_buildings = sorted(all_bldgs - upgraded_bldgs)
+        vprint(
+            f"Total buildings: {len(all_bldgs)}, Upgraded buildings: {len(upgraded_bldgs)},\
+               Never upgraded buildings: {len(never_upgraded_buildings)}"
+        )
+
+        vprint(f"Processing {len(building_groups_sorted)} building groups")
+
+        n = len(building_groups_sorted)
+
+        vprint("Building reverse mapping from building index to groups it belongs to ...")
+        bldg2groups: dict[int, list[int]] = defaultdict(list)
+        for group_index, group in enumerate(building_groups_sorted):
+            for bldg_id in group:
+                bldg2groups[bldg_id].append(group_index)
+        vprint(f"Reverse mapping built with {len(bldg2groups)} buildings")
+
+        # 2. Initialize counters and bucket heap
+        vprint("Initializing counters and bucket heap...")
+        bldg2group_count: dict[int, int] = {bldg_id: len(groups) for bldg_id, groups in bldg2groups.items()}
+        max_count = max(bldg2group_count.values()) if bldg2group_count else 0
+        # Bucket Queue to store buildings with same number of groups (count) they belong to.
+        # We are using a dictionary instead of set because dictionary returns elements in repeatable order
+        # Sets can return elements in arbitrary order and we want this algorithm to be deterministic
+        buckets = [dict() for _ in range(max_count + 1)]
+        for bldg_id, cnt in bldg2group_count.items():
+            buckets[cnt][bldg_id] = None
+
+        vprint(f"Bucket heap initialized with {len(bldg2group_count)} elements, max count: {max_count}")
+
+        # Track which sets are still active (un‑hit)
+        active = [True] * n
+        remaining = n
+        minimal_buildings: list = []
+        iteration = 0
+        current_max = max_count
+        while remaining:
+            iteration += 1
+            vprint(f"{remaining} sets remaining to hit, minimal set size: {len(minimal_buildings)}")
+            while current_max > 0 and not buckets[current_max]:
+                current_max -= 1
+            if current_max == 0:
+                raise RuntimeError("No building left that fall in any remaining sets.")
+
+            bldg_id = buckets[current_max].popitem()[0]  # Gurantees LIFO order
+            cnt = bldg2group_count[bldg_id]
+            if cnt == 0:
+                raise RuntimeError("Counter reached zero but some sets remain uncovered.")
+
+            vprint(f"Adding building: {bldg_id} to the minimal set")
+            minimal_buildings.append(bldg_id)
+
+            if verbose:
+                covered_sets = len([1 for indx in bldg2groups[bldg_id] if active[indx]])
+                bldg_count = sum([len(building_groups_sorted[indx]) for indx in bldg2groups[bldg_id] if active[indx]])
+                vprint(
+                    f"{covered_sets} sets covered by this building will be removed and ~{bldg_count}"
+                    "count of buildings will be decreased."
+                )
+
+            for group_index in bldg2groups[bldg_id]:
+                if not active[group_index]:
+                    continue  # this set was already covered earlier
+                active[group_index] = False
+                remaining -= 1
+
+                for impacted_building_id in building_groups_sorted[group_index]:
+                    if impacted_building_id == bldg_id:
+                        continue  # we just chose this building; its counter will be discarded
+
+                    # Update group count of these buildings by moving them to lower bucket
+                    old_count = bldg2group_count[impacted_building_id]
+                    bldg2group_count[impacted_building_id] -= 1
+                    new_count = bldg2group_count[impacted_building_id]
+
+                    # Move building from higher bucket to new lower bucket
+                    if impacted_building_id in buckets[old_count]:
+                        del buckets[old_count][impacted_building_id]
+                    if new_count > 0:
+                        buckets[new_count][impacted_building_id] = None
+        vprint(f"Finished! Found minimal set of size {len(minimal_buildings)}")
+        minimal_buildings_set = set(minimal_buildings)
+        assert all(s & minimal_buildings_set for s in building_groups_set), "Not every set was hit — bug in algorithm!"
+        vprint(f"Minimal set size: {len(minimal_buildings)}")
+        if include_never_upgraded:
+            full_set = minimal_buildings + never_upgraded_buildings[-1:]
+            vprint(f"Full set (including never upgraded buildings) size: {len(full_set)}")
+            return full_set
+        return minimal_buildings
+
 
 def main():
+    import argparse
+
+    print("Welcome to BuildStock Upgrade Analyzer 2025.04.24")
+    parser = argparse.ArgumentParser(description="Analyze BuildStock upgrades")
+    parser.add_argument("--yaml_file", help="Project configuration file (the yaml file)")
+    parser.add_argument("--buildstock_file", help="Project sample file (buildstock.csv)")
+    parser.add_argument("--opt_sat_file", help="Path to option_saturation.csv file")
+    parser.add_argument("--output_prefix", help="Output file name prefix", default="")
+    args = parser.parse_args()
+
     defaults = load_script_defaults("project_info")
-    yaml_file = inquirer.filepath(
-        message="Project configuration file (the yaml file):",
-        default=defaults.get("yaml_file", ""),
-        validate=PathValidator(),
-    ).execute()
-    buildstock_file = inquirer.filepath(
-        message="Project sample file (buildstock.csv):",
-        default=defaults.get("buildstock_file", ""),
-        validate=PathValidator(),
-    ).execute()
-    opt_sat_file = inquirer.filepath(
-        message="Path to option_saturation.csv file",
-        default=defaults.get("opt_sat_file", ""),
-        validate=PathValidator()
-    ).execute()
-    output_prefix = inquirer.text(
-        message="output file name prefix:",
-        default=defaults.get("output_prefix", ""),
-        filter=lambda x: "" if x is None else f"{x}",
-    ).execute()
-    defaults.update({"yaml_file": yaml_file, "buildstock_file": buildstock_file, "opt_sat_file": opt_sat_file,
-                     "output_prefix": output_prefix})
+
+    # Use command line arguments if provided, otherwise prompt user
+    yaml_file = args.yaml_file
+    if not yaml_file:
+        yaml_file = inquirer.filepath(
+            message="Project configuration file (the yaml file):",
+            default=defaults.get("yaml_file", ""),
+            validate=PathValidator(),
+        ).execute()
+
+    buildstock_file = args.buildstock_file
+    if not buildstock_file:
+        buildstock_file = inquirer.filepath(
+            message="Project sample file (buildstock.csv):",
+            default=defaults.get("buildstock_file", ""),
+            validate=PathValidator(),
+        ).execute()
+
+    opt_sat_file = args.opt_sat_file
+    if not opt_sat_file:
+        opt_sat_file = inquirer.filepath(
+            message="Path to option_saturation.csv file",
+            default=defaults.get("opt_sat_file", ""),
+            validate=PathValidator(),
+        ).execute()
+
+    output_prefix = args.output_prefix
+    if not output_prefix:  # Check if it's None, not empty string
+        output_prefix = inquirer.text(
+            message="output file name prefix:",
+            default=defaults.get("output_prefix", ""),
+            filter=lambda x: "" if x is None else f"{x}",
+        ).execute()
+
+    defaults.update(
+        {
+            "yaml_file": yaml_file,
+            "buildstock_file": buildstock_file,
+            "opt_sat_file": opt_sat_file,
+            "output_prefix": output_prefix,
+        }
+    )
     save_script_defaults("project_info", defaults)
-    ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file,
-                          opt_sat_file=opt_sat_file)
+    ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
-    csv_name = folder_path / f"{output_prefix}options_report.csv"
-    txt_name = folder_path / f"{output_prefix}detailed_report.txt"
-    report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name)
-    ua.save_detailed_report_all(txt_name)
+    csv_name = folder_path / f"{output_prefix}option_application_report.csv"
+    txt_name = folder_path / f"{output_prefix}option_application_detailed_report.txt"
+    buildstock_name = folder_path / f"{output_prefix}minimal_buildstock.csv"
+    minimal_bldgs = ua.get_minimal_representative_buildings(
+        report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
+    )
+    ua.buildstock_df_original.set_index('Building').loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
+    report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
+    ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
+    print(f"Saved minimal buildstock to {buildstock_name}")
 
 
 if __name__ == "__main__":
