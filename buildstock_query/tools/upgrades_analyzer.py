@@ -299,9 +299,12 @@ class UpgradesAnalyzer:
         else:
             upgrade = {"upgrade_name": upgrade_name, "options": []}
             # If only filter_yaml_file is provided, we don't have the upgrade yaml. So, we need to
-            # get assume all the candidate to remove bldgs in the filter yaml as the final set of
+            # assume all the candidate to remove bldgs in the filter yaml as the final set of
             # to remove bldgs
-            all_to_remove_bldgs = candidate_to_remove_bldgs.copy()
+
+            # don't copy, assign by reference because candidate_to_remove_bldgs is to be modified later
+            # with the removal logic
+            all_to_remove_bldgs = candidate_to_remove_bldgs
 
         if "package_apply_logic" in upgrade:
             pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
