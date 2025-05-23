@@ -282,7 +282,7 @@ class TestUpgradesAnalyzer:
         with pytest.raises(ValueError):
             ua.get_detailed_report(1, 0)  # option 0 is invalid. It is 1-indexed
 
-        _, report_text = ua.get_detailed_report(1)
+        _, report_text, _, _ = ua.get_detailed_report(1)
         assert "Option1:'Insulation Wall|Wood Stud, Uninsulated, R-5 Sheathing'" in report_text
         logic_cond1 = ua.buildstock_df["insulation wall"] == "Wood Stud, Uninsulated"
         cmp_str = f"Insulation Wall|Wood Stud, Uninsulated => {sum(logic_cond1)}"
@@ -301,7 +301,7 @@ class TestUpgradesAnalyzer:
         else:
             assert f"Overall applied to => {sum(logic_cond1 | logic_cond2)}" in report_text
 
-        _, report_text = ua.get_detailed_report(2)
+        _, report_text, _, _ = ua.get_detailed_report(2)
         opt1_text = "Option1:'Windows|Single, Clear, Metal, Exterior Low-E Storm'"
         opt2_text = "Option2:'Vintage|1980s'"
         opt3_text = "Option3:'Vintage|1970s'"
@@ -344,7 +344,29 @@ class TestUpgradesAnalyzer:
             overall_logic &= ~remove_logic
 
         assert f"Overall applied to => {sum(overall_logic)}" in report_text
-        # TODO: Also add test for combination report output
+
+        _, report_text, opt_app_report_df, opt_app_detailed_report_df = ua.get_detailed_report(2)
+
+        # verify opt_app_report_df
+        if ua.filter_cfg:
+            assert opt_app_report_df["Applied options"].to_list() == ['windows']
+            assert opt_app_report_df["Applied buildings"].str.split(" ").str[0].to_list() == ['28']
+        else:
+            assert opt_app_report_df["Applied options"].to_list() == ['windows', 'vintage', 'windows, vintage']
+            assert opt_app_report_df["Applied buildings"].str.split(" ").str[0].to_list() == ['29', '20', '9']
+        
+        # verify opt_app_detailed_report_df
+        for indx, row in opt_app_detailed_report_df.iterrows():
+            applied_bldgs_array = np.ones((1, ua.total_samples), dtype=bool)
+            applied_options = [int(opt) for opt in row["Applied options"].split(",")]
+            not_applied_options = [i for i in range(1, 4) if i not in applied_options]
+            for opt in applied_options:
+                logic_arr, _, _, _ = ua.get_detailed_report(2, opt)
+                applied_bldgs_array &= logic_arr
+            for opt in not_applied_options:
+                logic_arr, _, _, _ = ua.get_detailed_report(2, opt)
+                applied_bldgs_array &= ~logic_arr
+            assert applied_bldgs_array.sum() == int(row["Applied buildings"].split()[0]), f"Row \n{row}\n failed"
 
     def test_get_logic_report(self, ua: UpgradesAnalyzer):
         for logic_cfg in ["Vintage|1980s", ["Vintage|1980s"]]:

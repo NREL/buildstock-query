@@ -301,7 +301,7 @@ class UpgradesAnalyzer:
             # If only filter_yaml_file is provided, we don't have the upgrade yaml. So, we need to
             # get assume all the candidate to remove bldgs in the filter yaml as the final set of
             # to remove bldgs
-            all_to_remove_bldgs = candidate_to_remove_bldgs
+            all_to_remove_bldgs = candidate_to_remove_bldgs.copy()
 
         if "package_apply_logic" in upgrade:
             pkg_flat_logic = UpgradesAnalyzer._normalize_lists(upgrade["package_apply_logic"])
@@ -581,7 +581,7 @@ class UpgradesAnalyzer:
 
     def get_detailed_report(
         self, upgrade_num: int, option_num: Optional[int] = None, normalize_logic: bool = False
-    ) -> tuple[np.ndarray, str]:
+    ) -> tuple[np.ndarray, str, Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
@@ -589,7 +589,11 @@ class UpgradesAnalyzer:
                                         will print report for all options.
             normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
         Returns:
-            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+            (np.ndarray, str, Optional[pd.DataFrame], Optional[pd.DataFrame]): Returns a tuple with 4 elements
+                logic array of buildings to which the any of the option applied
+                the report in string format.
+                Optionally (if option_num is None), option combination report where same parameters are grouped
+                Optionally (if option_num is None), option combination detailed report where options are kept separate.
         """
         cfg = self.cfg
         if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
@@ -652,7 +656,7 @@ class UpgradesAnalyzer:
         footer_str = f"Overall applied to => {count} ({self._to_pct(count)}%)."
         report_str += footer_str + "\n"
         report_str += "-" * len(footer_str) + "\n"
-        return logic_array, report_str
+        return logic_array, report_str, None, None
 
     def _get_detailed_report_all(self, upgrade_num, normalize_logic: bool = False):
         conds_dict = {}
@@ -663,7 +667,7 @@ class UpgradesAnalyzer:
         or_array = np.zeros((1, self.total_samples), dtype=bool)
         and_array = np.ones((1, self.total_samples), dtype=bool)
         for option_indx in range(n_options):
-            logic_array, sub_report_str = self.get_detailed_report(
+            logic_array, sub_report_str, _, _ = self.get_detailed_report(
                 upgrade_num, option_indx + 1, normalize_logic=normalize_logic
             )
             opt_name, _ = self._get_para_option(cfg["upgrades"][upgrade_num - 1]["options"][option_indx]["option"])
@@ -680,10 +684,10 @@ class UpgradesAnalyzer:
         report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
 
-        option_app_report = self._get_options_application_count_report(grouped_conds_dict)
+        option_app_report_df = self._get_options_application_count_report(grouped_conds_dict)
         report_str += "-" * 80 + "\n"
         report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
-        report_str += tabulate(option_app_report, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
+        report_str += tabulate(option_app_report_df, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
 
         detailed_app_report_df = self._get_options_application_count_report(conds_dict)
         report_str += "-" * 80 + "\n"
@@ -693,7 +697,7 @@ class UpgradesAnalyzer:
         else:
             report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
             report_str += tabulate(detailed_app_report_df, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
-        return or_array, report_str
+        return or_array, report_str, option_app_report_df, detailed_app_report_df
 
     def _to_pct(self, count, total=None):
         total = total or self.total_samples
@@ -755,7 +759,7 @@ class UpgradesAnalyzer:
         all_report = ""
         for upgrade in range(1, len(cfg["upgrades"]) + 1):
             logger.info(f"Getting report for upgrade {upgrade}")
-            _, report = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
+            _, report, _, _ = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
             all_report += report + "\n"
         with open(file_path, "w") as file:
             file.write(all_report)
@@ -885,6 +889,25 @@ class UpgradesAnalyzer:
             return full_set
         return minimal_buildings
 
+    def check_parameter_overlap(self, report_df: pd.DataFrame):
+        """
+        Check if any parameter (like "HVAC Heating Efficiency") is applied multiple times (via multiple options) to
+        the same building within the same upgrade.
+        """
+        report_df['parameter'] = report_df['option'].str.partition('|')[0]
+        # down select to parameters that appear more than once per upgrade in the report
+        param_count_df = report_df.groupby(['upgrade', 'parameter']).size().to_frame(name='count')
+        param_count_df = param_count_df[param_count_df['count'] > 1]
+        if param_count_df.empty:
+            return
+        filtered_report_df = param_count_df.join(report_df.set_index(['upgrade', 'parameter'])).reset_index()
+        filtered_report_df['bldg_count'] = filtered_report_df['applicable_buildings'].apply(lambda x: len(x))
+        union_df = filtered_report_df.groupby(['upgrade', 'parameter']).agg({'applicable_buildings': lambda x: set.union(*x), 'bldg_count': 'sum'})
+        union_df['union_count'] = union_df['applicable_buildings'].apply(lambda x: len(x))
+        problem_df = union_df[union_df['union_count'] < union_df['bldg_count']]
+        return problem_df
+        
+
 
 def main():
     import argparse
@@ -943,6 +966,7 @@ def main():
     save_script_defaults("project_info", defaults)
     ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
+    problems = ua.check_parameter_overlap(report_df)
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}option_application_report.csv"
     txt_name = folder_path / f"{output_prefix}option_application_detailed_report.txt"
