@@ -53,7 +53,7 @@ class UpgradesAnalyzer:
 
         if self.yaml_file and upgrade_names:
             raise ValueError(
-                "upgrade_names must not be provided if yaml_file is provided. " "It will be read from yaml file"
+                "upgrade_names must not be provided if yaml_file is provided. It will be read from yaml file"
             )
 
         if not self.yaml_file and not upgrade_names:
@@ -175,7 +175,7 @@ class UpgradesAnalyzer:
             all_params = []
             for el in logic:
                 all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
-            return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
+            return list(dict.fromkeys(all_params))  # remove duplicates while maintaining order
         elif isinstance(logic, dict):
             return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
         else:
@@ -254,7 +254,7 @@ class UpgradesAnalyzer:
 
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, "and", "or", "not"]:
-            raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
+            raise ValueError(f"Logic can only include and, or, not blocks. {parent} found in {logic}.")
 
         if isinstance(logic, str):
             para, opt = UpgradesAnalyzer._get_para_option(logic)
@@ -406,7 +406,7 @@ class UpgradesAnalyzer:
         n_applied = report_df.loc[cond, "applicable_to"].iloc[0]
         n_applied_pct = report_df.loc[cond, "applicable_percent"].iloc[0]
         logger.info(
-            f"   Upgrade package has {len(report_df)-1} options and "
+            f"   Upgrade package has {len(report_df) - 1} options and "
             f"was applied to {n_applied} / {n_total} dwelling units ( {n_applied_pct} % )"
         )
 
@@ -419,7 +419,7 @@ class UpgradesAnalyzer:
             )
         elif n_diff < 0:
             logger.warning(
-                f"Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows "
+                f"Relative to baseline buildstock, upgraded buildstock has {-1 * n_diff} fewer rows "
                 "of difference than reported. This is okay, but indicates that some parameters are "
                 "being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional."
             )
@@ -826,7 +826,7 @@ class UpgradesAnalyzer:
         # Bucket Queue to store buildings with same number of groups (count) they belong to.
         # We are using a dictionary instead of set because dictionary returns elements in repeatable order
         # Sets can return elements in arbitrary order and we want this algorithm to be deterministic
-        buckets = [dict() for _ in range(max_count + 1)]
+        buckets = [{} for _ in range(max_count + 1)]
         for bldg_id, cnt in bldg2group_count.items():
             buckets[cnt][bldg_id] = None
 
@@ -846,7 +846,7 @@ class UpgradesAnalyzer:
             if current_max == 0:
                 raise RuntimeError("No building left that fall in any remaining sets.")
 
-            bldg_id = buckets[current_max].popitem()[0]  # Gurantees LIFO order
+            bldg_id = buckets[current_max].popitem()[0]  # Guarantees LIFO order
             cnt = bldg2group_count[bldg_id]
             if cnt == 0:
                 raise RuntimeError("Counter reached zero but some sets remain uncovered.")
@@ -891,25 +891,6 @@ class UpgradesAnalyzer:
             vprint(f"Full set (including never upgraded buildings) size: {len(full_set)}")
             return full_set
         return minimal_buildings
-
-    def check_parameter_overlap(self, report_df: pd.DataFrame):
-        """
-        Check if any parameter (like "HVAC Heating Efficiency") is applied multiple times (via multiple options) to
-        the same building within the same upgrade.
-        """
-        report_df['parameter'] = report_df['option'].str.partition('|')[0]
-        # down select to parameters that appear more than once per upgrade in the report
-        param_count_df = report_df.groupby(['upgrade', 'parameter']).size().to_frame(name='count')
-        param_count_df = param_count_df[param_count_df['count'] > 1]
-        if param_count_df.empty:
-            return
-        filtered_report_df = param_count_df.join(report_df.set_index(['upgrade', 'parameter'])).reset_index()
-        filtered_report_df['bldg_count'] = filtered_report_df['applicable_buildings'].apply(lambda x: len(x))
-        union_df = filtered_report_df.groupby(['upgrade', 'parameter']).agg({'applicable_buildings': lambda x: set.union(*x), 'bldg_count': 'sum'})
-        union_df['union_count'] = union_df['applicable_buildings'].apply(lambda x: len(x))
-        problem_df = union_df[union_df['union_count'] < union_df['bldg_count']]
-        return problem_df
-        
 
 
 def main():
@@ -969,7 +950,6 @@ def main():
     save_script_defaults("project_info", defaults)
     ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
-    problems = ua.check_parameter_overlap(report_df)
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}option_application_report.csv"
     txt_name = folder_path / f"{output_prefix}option_application_detailed_report.txt"
@@ -977,7 +957,7 @@ def main():
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
     )
-    ua.buildstock_df_original.set_index('Building').loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
+    ua.buildstock_df_original.set_index("Building").loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
     report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
     ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
