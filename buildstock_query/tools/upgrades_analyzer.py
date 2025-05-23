@@ -902,7 +902,7 @@ class UpgradesAnalyzer:
         param_count_df = report_df.groupby(["upgrade", "parameter"]).size().to_frame(name="count")
         param_count_df = param_count_df[param_count_df["count"] > 1]
         if param_count_df.empty:
-            return
+            return ""
         filtered_report_df = param_count_df.join(report_df.set_index(["upgrade", "parameter"])).reset_index()
         filtered_report_df["bldg_count"] = filtered_report_df["applicable_buildings"].apply(lambda x: len(x))
 
