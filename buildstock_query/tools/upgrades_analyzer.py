@@ -53,7 +53,7 @@ class UpgradesAnalyzer:
 
         if self.yaml_file and upgrade_names:
             raise ValueError(
-                "upgrade_names must not be provided if yaml_file is provided. " "It will be read from yaml file"
+                "upgrade_names must not be provided if yaml_file is provided. It will be read from yaml file"
             )
 
         if not self.yaml_file and not upgrade_names:
@@ -175,7 +175,7 @@ class UpgradesAnalyzer:
             all_params = []
             for el in logic:
                 all_params.extend(UpgradesAnalyzer.get_mentioned_parameters(el))
-            return list(dict.fromkeys(all_params))  # remove duplicates while maintainig order
+            return list(dict.fromkeys(all_params))  # remove duplicates while maintaining order
         elif isinstance(logic, dict):
             return UpgradesAnalyzer.get_mentioned_parameters(list(logic.values())[0])
         else:
@@ -254,7 +254,7 @@ class UpgradesAnalyzer:
 
         logic_array = np.ones((1, self.total_samples), dtype=bool)
         if parent not in [None, "and", "or", "not"]:
-            raise ValueError(f"Logic can only inlcude and, or, not blocks. {parent} found in {logic}.")
+            raise ValueError(f"Logic can only include and, or, not blocks. {parent} found in {logic}.")
 
         if isinstance(logic, str):
             para, opt = UpgradesAnalyzer._get_para_option(logic)
@@ -299,8 +299,11 @@ class UpgradesAnalyzer:
         else:
             upgrade = {"upgrade_name": upgrade_name, "options": []}
             # If only filter_yaml_file is provided, we don't have the upgrade yaml. So, we need to
-            # get assume all the candidate to remove bldgs in the filter yaml as the final set of
+            # assume all the candidate to remove bldgs in the filter yaml as the final set of
             # to remove bldgs
+
+            # don't copy, assign by reference because candidate_to_remove_bldgs is to be modified later
+            # with the removal logic
             all_to_remove_bldgs = candidate_to_remove_bldgs
 
         if "package_apply_logic" in upgrade:
@@ -403,7 +406,7 @@ class UpgradesAnalyzer:
         n_applied = report_df.loc[cond, "applicable_to"].iloc[0]
         n_applied_pct = report_df.loc[cond, "applicable_percent"].iloc[0]
         logger.info(
-            f"   Upgrade package has {len(report_df)-1} options and "
+            f"   Upgrade package has {len(report_df) - 1} options and "
             f"was applied to {n_applied} / {n_total} dwelling units ( {n_applied_pct} % )"
         )
 
@@ -416,7 +419,7 @@ class UpgradesAnalyzer:
             )
         elif n_diff < 0:
             logger.warning(
-                f"Relative to baseline buildstock, upgraded buildstock has {-1*n_diff} fewer rows "
+                f"Relative to baseline buildstock, upgraded buildstock has {-1 * n_diff} fewer rows "
                 "of difference than reported. This is okay, but indicates that some parameters are "
                 "being upgraded to the same incumbent option (e.g., LEDs to LEDs). Check that this is intentional."
             )
@@ -581,7 +584,7 @@ class UpgradesAnalyzer:
 
     def get_detailed_report(
         self, upgrade_num: int, option_num: Optional[int] = None, normalize_logic: bool = False
-    ) -> tuple[np.ndarray, str]:
+    ) -> tuple[np.ndarray, str, Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """Prints detailed report for a particular upgrade (and optionally, an option)
         Args:
             upgrade_num (int): The 1-indexed upgrade for which to print the report.
@@ -589,7 +592,11 @@ class UpgradesAnalyzer:
                                         will print report for all options.
             normalize_logic (bool, optional): Whether to normalize the logic structure. Defaults to False.
         Returns:
-            (np.ndarray, str): Returns a logic array of buildings to which the any of the option applied and report str.
+            (np.ndarray, str, Optional[pd.DataFrame], Optional[pd.DataFrame]): Returns a tuple with 4 elements
+                logic array of buildings to which the any of the option applied
+                the report in string format.
+                Optionally (if option_num is None), option combination report where same parameters are grouped
+                Optionally (if option_num is None), option combination detailed report where options are kept separate.
         """
         cfg = self.cfg
         if upgrade_num <= 0 or upgrade_num > len(cfg["upgrades"]) + 1:
@@ -652,7 +659,7 @@ class UpgradesAnalyzer:
         footer_str = f"Overall applied to => {count} ({self._to_pct(count)}%)."
         report_str += footer_str + "\n"
         report_str += "-" * len(footer_str) + "\n"
-        return logic_array, report_str
+        return logic_array, report_str, None, None
 
     def _get_detailed_report_all(self, upgrade_num, normalize_logic: bool = False):
         conds_dict = {}
@@ -663,14 +670,14 @@ class UpgradesAnalyzer:
         or_array = np.zeros((1, self.total_samples), dtype=bool)
         and_array = np.ones((1, self.total_samples), dtype=bool)
         for option_indx in range(n_options):
-            logic_array, sub_report_str = self.get_detailed_report(
+            logic_array, sub_report_str, _, _ = self.get_detailed_report(
                 upgrade_num, option_indx + 1, normalize_logic=normalize_logic
             )
             opt_name, _ = self._get_para_option(cfg["upgrades"][upgrade_num - 1]["options"][option_indx]["option"])
             report_str += sub_report_str + "\n"
-            conds_dict[option_indx + 1] = logic_array
+            conds_dict[option_indx + 1] = logic_array.copy()
             if opt_name not in grouped_conds_dict:
-                grouped_conds_dict[opt_name] = logic_array
+                grouped_conds_dict[opt_name] = logic_array.copy()
             else:
                 grouped_conds_dict[opt_name] |= logic_array
             or_array |= logic_array
@@ -680,10 +687,10 @@ class UpgradesAnalyzer:
         report_str += f"All of the options (and-ing) were applied to: {and_count} ({self._to_pct(and_count)}%)" + "\n"
         report_str += f"Any of the options (or-ing) were applied to: {or_count} ({self._to_pct(or_count)}%)" + "\n"
 
-        option_app_report = self._get_options_application_count_report(grouped_conds_dict)
+        option_app_report_df = self._get_options_application_count_report(grouped_conds_dict)
         report_str += "-" * 80 + "\n"
         report_str += f"Report of how the {len(grouped_conds_dict)} options were applied to the buildings." + "\n"
-        report_str += tabulate(option_app_report, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
+        report_str += tabulate(option_app_report_df, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
 
         detailed_app_report_df = self._get_options_application_count_report(conds_dict)
         report_str += "-" * 80 + "\n"
@@ -693,7 +700,7 @@ class UpgradesAnalyzer:
         else:
             report_str += f"Detailed report of how the {n_options} options were applied to the buildings." + "\n"
             report_str += tabulate(detailed_app_report_df, headers="keys", tablefmt="grid", maxcolwidths=50) + "\n"
-        return or_array, report_str
+        return or_array, report_str, option_app_report_df, detailed_app_report_df
 
     def _to_pct(self, count, total=None):
         total = total or self.total_samples
@@ -755,7 +762,7 @@ class UpgradesAnalyzer:
         all_report = ""
         for upgrade in range(1, len(cfg["upgrades"]) + 1):
             logger.info(f"Getting report for upgrade {upgrade}")
-            _, report = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
+            _, report, _, _ = self.get_detailed_report(upgrade, normalize_logic=normalize_logic)
             all_report += report + "\n"
         with open(file_path, "w") as file:
             file.write(all_report)
@@ -819,7 +826,7 @@ class UpgradesAnalyzer:
         # Bucket Queue to store buildings with same number of groups (count) they belong to.
         # We are using a dictionary instead of set because dictionary returns elements in repeatable order
         # Sets can return elements in arbitrary order and we want this algorithm to be deterministic
-        buckets = [dict() for _ in range(max_count + 1)]
+        buckets = [{} for _ in range(max_count + 1)]
         for bldg_id, cnt in bldg2group_count.items():
             buckets[cnt][bldg_id] = None
 
@@ -839,7 +846,7 @@ class UpgradesAnalyzer:
             if current_max == 0:
                 raise RuntimeError("No building left that fall in any remaining sets.")
 
-            bldg_id = buckets[current_max].popitem()[0]  # Gurantees LIFO order
+            bldg_id = buckets[current_max].popitem()[0]  # Guarantees LIFO order
             cnt = bldg2group_count[bldg_id]
             if cnt == 0:
                 raise RuntimeError("Counter reached zero but some sets remain uncovered.")
@@ -950,7 +957,7 @@ def main():
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
     )
-    ua.buildstock_df_original.set_index('Building').loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
+    ua.buildstock_df_original.set_index("Building").loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
     report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
     ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
