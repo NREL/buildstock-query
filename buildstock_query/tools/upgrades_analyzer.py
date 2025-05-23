@@ -892,6 +892,78 @@ class UpgradesAnalyzer:
             return full_set
         return minimal_buildings
 
+    def get_parameter_overlap_report(self, report_df: pd.DataFrame):
+        """
+        Check if any parameter (like "HVAC Heating Efficiency") is applied multiple times (via multiple options) to
+        the same building within the same upgrade. If any such case is found, return a report with the details.
+        """
+        report_df["parameter"] = report_df["option"].str.partition("|")[0]
+        # down select to parameters that appear more than once per upgrade in the report
+        param_count_df = report_df.groupby(["upgrade", "parameter"]).size().to_frame(name="count")
+        param_count_df = param_count_df[param_count_df["count"] > 1]
+        if param_count_df.empty:
+            return ""
+        filtered_report_df = param_count_df.join(report_df.set_index(["upgrade", "parameter"])).reset_index()
+        filtered_report_df["bldg_count"] = filtered_report_df["applicable_buildings"].apply(lambda x: len(x))
+
+        # down select to parameters that applies to at least one building more than once
+        # i.e. size of set-union of applicable buildings is not equal to sum of applicable buildings
+        union_df = filtered_report_df.groupby(["upgrade", "parameter"]).agg(
+            {"applicable_buildings": lambda x: set.union(*x), "bldg_count": "sum"}
+        )
+        union_df["union_count"] = union_df["applicable_buildings"].apply(lambda x: len(x))
+        problem_param_df = union_df[union_df["union_count"] != union_df["bldg_count"]]
+
+        if problem_param_df.empty:
+            return ""
+
+        overlap_report_text = ""
+
+        # Generate the detailed overlap report table
+        for (upgrade, parameter), row in problem_param_df.iterrows():
+            overlap_report_text += f"Parameter '{parameter}' in upgrade '{upgrade}' has overlapping applications\n"
+            options = filtered_report_df[
+                (filtered_report_df["upgrade"] == upgrade) & (filtered_report_df["parameter"] == parameter)
+            ]
+
+            # Use combinations to avoid checking both A->B and B->A
+            for i, j in combinations(options.index, 2):
+                option_row = options.loc[i]
+                other_row = options.loc[j]
+
+                option = f"Option {option_row['option_num']}:{option_row['option']}"
+                other_option = f"Option {other_row['option_num']}:{other_row['option']}"
+
+                option_bldgs = option_row["applicable_buildings"]
+                other_bldgs = other_row["applicable_buildings"]
+
+                overlap = option_bldgs.intersection(other_bldgs)
+                assert overlap, (
+                    f"No overlap found between {option} and {other_option} although "
+                    "they should have overlapped based on problem_df"
+                )
+                example_bldgs = list(overlap)[:5]  # Show up to 5 example buildings
+                overlap_report_text += f"{option} overlaps with {other_option} on {len(overlap)} buildings\n"
+                overlap_report_text += f"Example buildings: {example_bldgs}\n"
+
+                # Show the subset of buildstock_df using the example overlap buildings
+                # and the relevant columns used in the apply logics
+                upgrade_cfg = self.cfg["upgrades"][option_row["upgrade"] - 1]
+                option_cfg = upgrade_cfg["options"][option_row["option_num"] - 1]
+                other_option_cfg = upgrade_cfg["options"][other_row["option_num"] - 1]
+                parameter_list = []
+                parameter_list.append(UpgradesAnalyzer._get_para_option(option_cfg["option"])[0])
+                parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(option_cfg.get("apply_logic")))
+                parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(other_option_cfg.get("apply_logic")))
+                parameter_list.extend(UpgradesAnalyzer.get_mentioned_parameters(upgrade_cfg.get("package_apply_logic")))
+                parameter_list = list(set(parameter_list))
+                example_buildstock_df = self.buildstock_df.loc[example_bldgs][parameter_list]
+                overlap_report_text += tabulate(example_buildstock_df, headers="keys", tablefmt="grid", maxcolwidths=50)
+                overlap_report_text += "\n"
+        if overlap_report_text:
+            Path("parameter_overlap_report.txt").write_text(overlap_report_text)
+        return overlap_report_text
+
 
 def main():
     import argparse
@@ -953,6 +1025,16 @@ def main():
     folder_path = Path.cwd()
     csv_name = folder_path / f"{output_prefix}option_application_report.csv"
     txt_name = folder_path / f"{output_prefix}option_application_detailed_report.txt"
+    param_overlap_path = folder_path / f"{output_prefix}parameter_overlap_report.txt"
+    print("Checking for parameter overlap...")
+    param_overlap_report = ua.get_parameter_overlap_report(report_df)
+    if param_overlap_report:
+        print("Some parameters are applied multiple times to the same building within the same upgrade.")
+        print(f"Please check the {param_overlap_path} file for details.")
+        param_overlap_path.write_text(param_overlap_report)
+    else:
+        print("All good! No parameter applies multiple times in the same upgrade.")
+
     buildstock_name = folder_path / f"{output_prefix}minimal_buildstock.csv"
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df["applicable_buildings"].to_list(), include_never_upgraded=True, verbose=True
