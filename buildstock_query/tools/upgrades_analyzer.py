@@ -918,8 +918,8 @@ class UpgradesAnalyzer:
             return ""
 
         overlap_report_text = ""
-        # Using the original report_df for these upgrade and parameter, sequentially for each option for those parameter,
-        # list the other options it overlaps with along with example buildings
+
+        # Generate the detailed overlap report table
         for (upgrade, parameter), row in problem_param_df.iterrows():
             overlap_report_text += f"Parameter '{parameter}' in upgrade '{upgrade}' has overlapping applications\n"
             options = filtered_report_df[
@@ -939,11 +939,15 @@ class UpgradesAnalyzer:
 
                 overlap = option_bldgs.intersection(other_bldgs)
                 assert overlap, (
-                    f"No overlap found between {option} and {other_option} although they should have overlapped based on problem_df"
+                    f"No overlap found between {option} and {other_option} although "
+                    "they should have overlapped based on problem_df"
                 )
                 example_bldgs = list(overlap)[:5]  # Show up to 5 example buildings
                 overlap_report_text += f"{option} overlaps with {other_option} on {len(overlap)} buildings\n"
                 overlap_report_text += f"Example buildings: {example_bldgs}\n"
+
+                # Show the subset of buildstock_df using the example overlap buildings
+                # and the relevant columns used in the apply logics
                 upgrade_cfg = self.cfg["upgrades"][option_row["upgrade"] - 1]
                 option_cfg = upgrade_cfg["options"][option_row["option_num"] - 1]
                 other_option_cfg = upgrade_cfg["options"][other_row["option_num"] - 1]
