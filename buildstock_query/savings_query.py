@@ -89,6 +89,9 @@ class BuildStockSavings:
     ) -> Union[pd.DataFrame, str]:
         [self._bsq._get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
 
+        if params.agg_func != 'sum':
+            raise ValueError("Only 'sum' is supported for savings_shape")
+
         upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
         if params.timestamp_grouping_func and \
                 params.timestamp_grouping_func not in ['hour', 'day', 'month']:
