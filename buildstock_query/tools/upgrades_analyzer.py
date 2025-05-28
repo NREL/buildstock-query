@@ -897,6 +897,7 @@ class UpgradesAnalyzer:
         Check if any parameter (like "HVAC Heating Efficiency") is applied multiple times (via multiple options) to
         the same building within the same upgrade. If any such case is found, return a report with the details.
         """
+        report_df = report_df.copy()
         report_df["parameter"] = report_df["option"].str.partition("|")[0]
         # down select to parameters that appear more than once per upgrade in the report
         param_count_df = report_df.groupby(["upgrade", "parameter"]).size().to_frame(name="count")
