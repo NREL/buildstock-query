@@ -604,6 +604,9 @@ class BuildStockQuery(QueryCore):
             try:
                 return self._get_column(column).label(self._simple_label(column))
             except ValueError as e:
+                if column.startswith(self._char_prefix):
+                    new_name = column.removeprefix(self._char_prefix)
+                    return self._get_column(new_name).label(column)
                 if not column.startswith(self._char_prefix):
                     new_name = f"{self._char_prefix}{column}"
                     return self._get_column(new_name).label(column)
