@@ -482,32 +482,32 @@ class BuildStockAggregate:
                 else:
                     upgrade_col = baseline_col
                 savings_col = baseline_col - upgrade_col
-            query_cols.append(agg_func(upgrade_col * agg_weight).label(f"{self._bsq._simple_label(col.name)}"))
+            query_cols.append(agg_func(upgrade_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}"))
             if params.include_savings:
                 query_cols.append(
-                    agg_func(savings_col * agg_weight).label(f"{self._bsq._simple_label(col.name)}__savings")
+                    agg_func(savings_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}__savings")
                 )
             if params.include_baseline:
                 query_cols.append(
-                    agg_func(baseline_col * agg_weight).label(f"{self._bsq._simple_label(col.name)}__baseline")
+                    agg_func(baseline_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline")
                 )
 
             if params.get_quartiles:
                 query_cols.append(
                     sa.func.approx_percentile(upgrade_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
-                        f"{self._bsq._simple_label(col.name)}__quartiles"
+                        f"{self._bsq._simple_label(col.name, params.agg_func)}__quartiles"
                     )
                 )
                 if params.include_savings:
                     query_cols.append(
                         sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
-                            f"{self._bsq._simple_label(col.name)}__savings__quartiles"
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__savings__quartiles"
                         )
                     )
                 if params.include_baseline:
                     query_cols.append(
                         sa.func.approx_percentile(baseline_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
-                            f"{self._bsq._simple_label(col.name)}__baseline__quartiles"
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline__quartiles"
                         )
                     )
 
@@ -557,9 +557,9 @@ class BuildStockAggregate:
         query_cols = group_by_selection + grouping_metrics_selection + query_cols
         query = sa.select(query_cols).select_from(tbljoin)
         query = self._bsq._add_join(query, params.join_list)
-        query = self._bsq._add_restrict(query, params.restrict)
         if params.annual_only:
             query = query.where(self._bsq._bs_successful_condition)
+        query = self._bsq._add_restrict(query, params.restrict)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
 

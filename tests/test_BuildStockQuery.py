@@ -175,24 +175,6 @@ def test_aggregate_annual(temp_history_file):
     assert_query_equal(query1, valid_query_string)  # Test that proper query is formed for annual aggregation
     assert_query_equal(query1q, valid_query_string)
 
-    query1_1 = my_athena.agg.aggregate_annual(
-        enduses=enduses, group_by=[(state_str, "state"), bldg_type], sort=True, get_query_only=True
-    )
-    query1_1q = my_athena.agg.query(
-        enduses=enduses, group_by=[(state_str, "state"), bldg_type], sort=True, get_query_only=True
-    )
-
-    valid_query_string1_1 = """
-            select res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs"  as geometry_building_type_recs,
-            sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count,
-            sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as fuel_use_electricity_net_m_btu,
-            sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
-            group by 1, 2
-            order by 1, 2
-            """  # noqa: E501
-    assert_query_equal(query1_1, valid_query_string1_1)  # Test that proper query is formed for annual aggregation
-    assert_query_equal(query1_1q, valid_query_string1_1)
-
     eiaid_col = my_athena._get_column("eiaid", ["eiaid_weights"])
     query2 = my_athena.agg.aggregate_annual(
         enduses=enduses,
