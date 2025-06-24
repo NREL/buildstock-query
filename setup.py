@@ -27,7 +27,7 @@ setup(
         "tabulate",
         "toml",
         "requests",
-        "sqlparse",
+        "sqlglot",
     ],
     extras_require={
         "dev": [
