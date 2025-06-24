@@ -35,6 +35,7 @@ class TSQuery(BaseQuery):
 
 class SavingsQuery(TSQuery):
     annual_only: bool = True
+    applied_only: bool = False
     unload_to: str = ""
     partition_by: Sequence[str] = Field(default_factory=list)
 

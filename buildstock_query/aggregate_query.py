@@ -37,7 +37,23 @@ class BuildStockAggregate:
             raise ValueError("No timeseries table found in database.")
 
         if upgrade_id == "0":
-            return self._bsq.ts_table, self._bsq.ts_table, self._bsq.ts_table
+            tbljoin = self._bsq.ts_table.join(
+                self._bsq.bs_table,
+                self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
+            )
+            if self._bsq.up_table is None:  # There are no upgrades so just return the timeseries table as is
+                tbljoin = self._bsq._add_restrict(tbljoin, restrict)
+            else:
+                tbljoin = self._bsq._add_restrict(tbljoin, [[self._bsq._ts_upgrade_col, upgrade_id], *restrict])
+            return self._bsq.ts_table, self._bsq.ts_table, tbljoin
+
+        ts = self._bsq.ts_table
+        base = self._bsq.bs_table
+        sa_ts_cols = [ts.c[self._bsq.building_id_column_name],
+                      ts.c[self._bsq.timestamp_column_name], *ts_group_by]
+        enduse_cols = [enduse for enduse in enduses if enduse not in sa_ts_cols]
+        sa_ts_cols.extend(enduse_cols)
+        ucol = self._bsq._ts_upgrade_col
 
         ts_b = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, "0"], *restrict]).alias("ts_b")
         ts_u = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, upgrade_id], *restrict]).alias("ts_u")
@@ -424,7 +440,7 @@ class BuildStockAggregate:
             lower_vals[enduses] = lower_vals[enduses] * avg_lower_weight + upper_vals[enduses] * avg_upper_weight
             return lower_vals
 
-    def _validate_partition_by(self, partition_by: Sequence[str]):
+    def validate_partition_by(self, partition_by: Sequence[str]):
         if not partition_by:
             return []
         [self._bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
@@ -442,9 +458,13 @@ class BuildStockAggregate:
         enduse_cols = self._bsq._get_enduse_cols(
             params.enduses, table="baseline" if params.annual_only else "timeseries"
         )
-        partition_by = self._validate_partition_by(params.partition_by)
+        partition_by = self.validate_partition_by(params.partition_by)
         total_weight = self._bsq._get_weight(params.weights)
         agg_func, agg_weight = self._bsq._get_agg_func_and_weight(params.weights, params.agg_func)
+        time_indx = 0
+        if "time" in params.group_by:  # time will be added as necessary later
+            time_indx = params.group_by.index("time")
+            params.group_by = [g for g in params.group_by if g != "time"]
         group_by_selection = self._bsq._process_groupby_cols(params.group_by, annual_only=params.annual_only)
 
         if params.annual_only:
@@ -524,13 +544,13 @@ class BuildStockAggregate:
             colname = self._bsq.timestamp_column_name
             # sa.func.dis
             grouping_metrics_selection = [
-                safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column)).label("sample_count"),
+                safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column)).label("sample_count"),
                 (
-                    safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))
+                    safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column))
                     * safunc.sum(total_weight)
                     / safunc.sum(1)
                 ).label("units_count"),
-                (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))).label("rows_per_sample"),
+                (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column))).label("rows_per_sample"),
             ]
             sim_info = self._bsq._get_simulation_info()
             time_col = bs_tbl.c[self._bsq.timestamp_column_name]
@@ -541,16 +561,14 @@ class BuildStockAggregate:
                 ).label(colname)
             else:
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func, time_col).label(colname)
-            grouping_metrics_selection.insert(0, new_col)
-            group_by_selection.append(new_col)
+            group_by_selection.insert(time_indx, new_col)
         else:
             time_col = bs_tbl.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
             grouping_metrics_selection = [
-                time_col,
                 safunc.sum(1).label("sample_count"),
-                safunc.sum(1 * total_weight).label("units_count"),
+                safunc.sum(total_weight).label("units_count"),
             ]
-            group_by_selection.append(time_col)
+            group_by_selection.insert(time_indx, time_col)
 
         query_cols = group_by_selection + grouping_metrics_selection + query_cols
         query = sa.select(query_cols).select_from(tbljoin)

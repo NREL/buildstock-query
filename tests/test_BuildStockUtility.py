@@ -144,7 +144,7 @@ def test_get_buildings_by_eiaid(temp_history_file: str):
 
     expected_query = """
     select distinct res_n250_hrly_v1_baseline.building_id from res_n250_hrly_v1_baseline join eiaid_weights on
-    res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where eiaid_weights.eiaid in ('1123', '1234') and eiaid_weights.weight > 0 order by res_n250_hrly_v1_baseline.building_id
+    res_n250_hrly_v1_baseline."build_existing_model.county" = eiaid_weights.county where eiaid_weights.eiaid in ('1123', '1234') and eiaid_weights.weight > 0
     """  # noqa: E501
 
     assert_query_equal(query, expected_query)

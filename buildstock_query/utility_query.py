@@ -27,11 +27,11 @@ class TimeTuple(BaseModel):
         return hash((self.month, self.is_weekend, self.hour))
 
 
-class YOURate(BaseModel):
+class TOURate(BaseModel):
     data: dict[TimeTuple, float] = Field(..., example={TimeTuple(month=1, is_weekend=0, hour=3): 0.5})
-    raw_dict: dict[Tuple[int, int, int], float] = Field(..., example={(1, 0, 3): 0.5})
+    raw_dict: dict[tuple[int, int, int], float] = Field(..., example={(1, 0, 3): 0.5})
 
-    def __init__(self, rate_dict: dict[Tuple[int, int, int], float]):
+    def __init__(self, rate_dict: dict[tuple[int, int, int], float]):
         data: dict[TimeTuple, float] = {}
         for key, value in rate_dict.items():
             try:
@@ -393,26 +393,26 @@ class BuildStockUtility:
     ):
         if isinstance(rate_map, tuple):
             rate_map = self.get_rate_map(*rate_map)
-        user_rate = YOURate(rate_map)
+        user_rate = TOURate(rate_map)
         if self._bsq.ts_table is None:
             raise ValueError("No timeseries table found")
 
         TOU_enduse = {}
         if meter_col is None:
-            TOU_enduse["fuel_use__electricity__net__kwh__YOU"] = self._bsq.ts_table.c[
+            TOU_enduse["fuel_use__electricity__net__kwh__TOU"] = self._bsq.ts_table.c[
                 "fuel_use__electricity__total__kwh"
             ] + safunc.coalesce(self._bsq.ts_table.c["end_use__electricity__pv__kwh"], 0)
         elif isinstance(meter_col, tuple):
             for col in meter_col:
-                TOU_enduse[f"{col}__YOU"] = self._bsq._get_column(col)
+                TOU_enduse[f"{col}__TOU"] = self._bsq._get_column(col)
         else:
-            TOU_enduse[f"{meter_col}__YOU"] = self._bsq._get_column(meter_col)
+            TOU_enduse[f"{meter_col}__TOU"] = self._bsq._get_column(meter_col)
 
         month_col, is_weekend_col, hour_col = (
             self._bsq._get_special_column(col) for col in ("month", "is_weekend", "hour")
         )
         rate_col = MappedColumn(
-            bsq=self._bsq, name="you_rate", mapping_dict=user_rate.raw_dict, key=(month_col, is_weekend_col, hour_col)
+            bsq=self._bsq, name="tou_rate", mapping_dict=user_rate.raw_dict, key=(month_col, is_weekend_col, hour_col)
         )
 
         enduses_list = []

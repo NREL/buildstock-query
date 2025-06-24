@@ -257,7 +257,7 @@ class QueryCore:
 
     @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
     def _get_column(
-        self, column_name: AnyColType, candidate_tables: list[AnyTableType | None] | None = None
+        self, column_name: AnyColType, candidate_tables: Sequence[AnyTableType | None] | None = None
     ) -> DBColType:
         if isinstance(column_name, SACol):
             return column_name.label(self._simple_label(column_name.name))  # already a col

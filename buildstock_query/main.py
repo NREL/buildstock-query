@@ -617,7 +617,7 @@ class BuildStockQuery(QueryCore):
             raise ValueError(f"Unknown special column type: {column_type}")
 
     def _get_gcol(
-        self, column: AnyColType, tables: Optional[list[AnyTableType]] = None
+        self, column: AnyColType, tables: Sequence[AnyTableType] | None = None
     ) -> DBColType:  # gcol => group by col
         """Get a DB column for the purpose of grouping. If the provided column doesn't exist as is,
         tries to get the column by prepending self._char_prefix."""

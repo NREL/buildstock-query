@@ -243,7 +243,6 @@ class BuildStockAggregate:
         get_nonzero_count: bool = False,
         unload_to: str = "",
         partition_by: Sequence[str] | None = None,
-        collapse_ts: bool = False,
         timestamp_grouping_func: str | None = None,
         limit: int | None = None,
         agg_func: str | Callable | None = "sum",
@@ -268,7 +267,6 @@ class BuildStockAggregate:
         get_nonzero_count: bool = False,
         unload_to: str = "",
         partition_by: Sequence[str] | None = None,
-        collapse_ts: bool = False,
         timestamp_grouping_func: str | None = None,
         limit: int | None = None,
         agg_func: str | Callable | None = "sum",
@@ -293,7 +291,6 @@ class BuildStockAggregate:
         get_nonzero_count: bool = False,
         unload_to: str = "",
         partition_by: Sequence[str] | None = None,
-        collapse_ts: bool = False,
         timestamp_grouping_func: str | None = None,
         limit: int | None = None,
         agg_func: str | Callable | None = "sum",
@@ -327,10 +324,9 @@ class BuildStockAggregate:
             unload_to: Writes the output of the query to this location in s3. Consider using run_async = True with this
                        to unload multiple queries simulataneuosly
             partition_by: List of columns to partition when writing to s3. To be used with unload_to.
-            collapse_ts: Only used when annual_only=False. When collapse_ts=True, the timeseries values are summed into
-                         a single annual value. Useful for quality checking and comparing with annual values.
-            timestamp_grouping_func: One of 'hour', 'day' or 'month' or None. If provided, perform timeseries
-                        aggregation of specified granularity.
+            timestamp_grouping_func: One of 'hour', 'day' or 'month' or 'year' or None. If provided, perform timeseries
+                        aggregation of specified granularity. For 'year' - it collapses the timeseries into a single
+                        annual value. Useful for quality checking or finding the annual max and min.
          Returns:
                 if get_query_only is True, returns the query_string, otherwise returns a pandas dataframe
         """
