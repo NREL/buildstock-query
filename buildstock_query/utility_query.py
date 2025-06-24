@@ -375,7 +375,7 @@ class BuildStockUtility:
         return rate_map
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
-    def calculate_you_bill(
+    def calculate_tou_bill(
         self,
         *,
         rate_map: Union[tuple[str, str], dict[tuple[int, int, int], float]],
@@ -397,16 +397,16 @@ class BuildStockUtility:
         if self._bsq.ts_table is None:
             raise ValueError("No timeseries table found")
 
-        YOU_enduse = {}
+        TOU_enduse = {}
         if meter_col is None:
-            YOU_enduse["fuel_use__electricity__net__kwh__YOU"] = self._bsq.ts_table.c[
+            TOU_enduse["fuel_use__electricity__net__kwh__YOU"] = self._bsq.ts_table.c[
                 "fuel_use__electricity__total__kwh"
             ] + safunc.coalesce(self._bsq.ts_table.c["end_use__electricity__pv__kwh"], 0)
         elif isinstance(meter_col, tuple):
             for col in meter_col:
-                YOU_enduse[f"{col}__YOU"] = self._bsq._get_column(col)
+                TOU_enduse[f"{col}__YOU"] = self._bsq._get_column(col)
         else:
-            YOU_enduse[f"{meter_col}__YOU"] = self._bsq._get_column(meter_col)
+            TOU_enduse[f"{meter_col}__YOU"] = self._bsq._get_column(meter_col)
 
         month_col, is_weekend_col, hour_col = (
             self._bsq._get_special_column(col) for col in ("month", "is_weekend", "hour")
@@ -416,8 +416,8 @@ class BuildStockUtility:
         )
 
         enduses_list = []
-        for col in YOU_enduse:
-            enduses_list.append((YOU_enduse[col] * rate_col / 100).label(f"{col}__dollars"))
+        for col in TOU_enduse:
+            enduses_list.append((TOU_enduse[col] * rate_col / 100).label(f"{col}__dollars"))
 
         ts_query = TSQuery(
             enduses=enduses_list,
