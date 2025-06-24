@@ -150,6 +150,7 @@ def test_aggregate_annual(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True,
     )
+    my_athena.get_available_upgrades = lambda : ["0", "1"]
 
     enduses = [
         "report_simulation_output.fuel_use_electricity_net_m_btu",
@@ -320,6 +321,10 @@ def test_aggregate_ts(temp_history_file):
     query1 = my_athena.agg.aggregate_timeseries(
         enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True
     )
+    query1q = my_athena.agg.query(
+        enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True,
+        annual_only=False
+    )
     valid_query_string1 = """
     select res_n250_hrly_v1_timeseries.time as time, res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,  sum(1) as
     sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" *
@@ -330,6 +335,7 @@ def test_aggregate_ts(temp_history_file):
     res_n250_hrly_v1_timeseries.building_id  group by 1, 2, 3 order by 1, 2, 3
     """  # noqa: E501
     assert_query_equal(query1, valid_query_string1)  # Test that proper query is formed for timeseries aggregation
+
 
     query1_1 = my_athena.agg.aggregate_timeseries(
         enduses=enduses, group_by=["time", (state_str, "state"), bldg_type], sort=True, get_query_only=True
