@@ -36,11 +36,9 @@ class BuildStockAggregate:
         if self._bsq.ts_table is None:
             raise ValueError("No timeseries table found in database.")
 
-        ts = self._bsq.ts_table
-        base = self._bsq.bs_table
-        sa_ts_cols = [ts.c[self._bsq.building_id_column_name], ts.c[self._bsq.timestamp_column_name], *ts_group_by]
-        sa_ts_cols.extend(enduses)
-        ucol = self._bsq._ts_upgrade_col
+        if upgrade_id == "0":
+            return self._bsq.ts_table, self._bsq.ts_table, self._bsq.ts_table
+
         ts_b = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, "0"], *restrict]).alias("ts_b")
         ts_u = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, upgrade_id], *restrict]).alias("ts_u")
 
