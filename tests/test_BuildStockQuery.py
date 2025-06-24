@@ -150,7 +150,7 @@ def test_aggregate_annual(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True,
     )
-    my_athena.get_available_upgrades = lambda : ["0", "1"]
+    my_athena.get_available_upgrades = lambda : ["0"]
 
     enduses = [
         "report_simulation_output.fuel_use_electricity_net_m_btu",
@@ -255,6 +255,7 @@ def test_aggregate_annual(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True,
     )
+    my_athena2.get_available_upgrades = lambda: ["0"]
     query5 = my_athena2.agg.aggregate_annual(
         enduses=enduses,
         get_query_only=True,
