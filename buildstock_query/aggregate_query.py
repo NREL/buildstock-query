@@ -500,14 +500,20 @@ class BuildStockAggregate:
                 else:
                     upgrade_col = baseline_col
                 savings_col = baseline_col - upgrade_col
-            query_cols.append(agg_func(upgrade_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}"))
+            query_cols.append(
+                agg_func(upgrade_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}")
+            )
             if params.include_savings:
                 query_cols.append(
-                    agg_func(savings_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}__savings")
+                    agg_func(savings_col * agg_weight).label(
+                        f"{self._bsq._simple_label(col.name, params.agg_func)}__savings"
+                    )
                 )
             if params.include_baseline:
                 query_cols.append(
-                    agg_func(baseline_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline")
+                    agg_func(baseline_col * agg_weight).label(
+                        f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline"
+                    )
                 )
 
             if params.get_quartiles:

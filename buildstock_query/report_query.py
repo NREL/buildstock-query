@@ -376,7 +376,7 @@ class BuildStockReport:
         """Finds out the number and list of buildings each of the options applied to.
 
         Args:
-            trim_missing_bs (bool, optional): Whether the buildings that are not available in baseline should be dropped.
+            trim_missing_bs (bool, optional): Whether the buildings not available in baseline should be dropped.
                                               Defaults to True.
         Returns:
             pd.DataFrame: The list of options the corresponding set of building ids the option applied to.

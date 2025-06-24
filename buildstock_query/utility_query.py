@@ -83,7 +83,7 @@ class BuildStockUtility:
         params.join_list = [(new_table, baseline_column, new_column), *params.join_list]
         logger.info(f"Will submit request for {id_list}")
         gs = params.query_group_size
-        id_list_batches = [id_list[i : i + gs] for i in range(0, len(id_list), gs)]
+        id_list_batches = [id_list[i: i + gs] for i in range(0, len(id_list), gs)]
         results_array = []
         for current_ids in id_list_batches:
             if len(current_ids) == 1:
