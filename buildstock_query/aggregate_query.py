@@ -549,7 +549,6 @@ class BuildStockAggregate:
                         )
                     )
 
-
         if params.annual_only:  # Use annual tables
             grouping_metrics_selection = [
                 safunc.sum(1).label("sample_count"),
