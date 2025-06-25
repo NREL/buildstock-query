@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from buildstock_query.main import BuildStockQuery, SimInfo
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
+from buildstock_query.schema.query_params import Query
 import buildstock_query.query_core as query_core
 from buildstock_query.helpers import KWH2MBTU
 import re
@@ -86,6 +87,63 @@ class TestResStockSavings:
         assert np.isclose(ts_full_savings, 69690252.003256, rtol=1e-3)
         assert np.isclose(annual_savings_full[f"{enduses[0]}__savings"], 69670293.34012, rtol=1e-3)
 
+    def test_savings_shape_with_query(self, my_athena: BuildStockQuery):
+        enduses = ['fuel_use_electricity_total_m_btu']
+        success_report = my_athena.report.get_success_report()
+        annual_savings_full = my_athena.agg.query(upgrade_id='1', enduses=enduses, include_baseline=True, include_savings=True, include_upgrade=False, applied_only=False)
+        annual_savings_applied = my_athena.agg.query(upgrade_id='1', enduses=enduses, include_baseline=True, include_savings=True, include_upgrade=False, applied_only=True)
+        annual_bs_consumtion = my_athena.agg.query(enduses=enduses)
+        annual_up_consumption = my_athena.agg.query(upgrade_id='1', enduses=enduses)
+        
+        assert len(annual_savings_full) == len(annual_savings_applied) == 1
+        assert annual_savings_full['sample_count'].iloc[0] == success_report.loc['0'].success
+        assert annual_savings_applied['sample_count'].iloc[0] == success_report.loc['1'].success
+        assert annual_up_consumption['sample_count'].iloc[0] == success_report.loc['1'].success
+        assert np.isclose(annual_savings_full[f"{enduses[0]}__baseline"],
+                          annual_bs_consumtion[f"{enduses[0]}"],
+                          rtol=1e-3)
+        # Absolute savings between applied and full should be same
+        assert np.isclose(annual_savings_applied[f"{enduses[0]}__savings"],
+                          annual_savings_full[f"{enduses[0]}__savings"], rtol=1e-3)
+        # The savings for applied buildings must equal diff of upgrade vs corresponding baseline
+        diff = annual_savings_applied[f"{enduses[0]}__baseline"] - annual_up_consumption[f"{enduses[0]}"]
+        assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        ts_savings_full = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            annual_only=False,
+            applied_only=False,
+        )
+        ts_savings_applied = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            annual_only=False,
+            applied_only=True,
+        )
+        assert len(ts_savings_full) == len(ts_savings_applied) == 35040
+        assert ts_savings_full['sample_count'].iloc[0] == success_report.loc['0'].success
+        assert ts_savings_applied['sample_count'].iloc[0] == success_report.loc['1'].success
+        # Match with annual result
+        ts_full_bsline = ts_savings_full[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
+        assert np.isclose(ts_full_bsline, annual_savings_full[f"{enduses[0]}__baseline"], rtol=1e-3)
+        ts_applied_bsline = ts_savings_applied[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
+        assert np.isclose(ts_applied_bsline, annual_savings_applied[f"{enduses[0]}__baseline"], rtol=1e-3)
+        # Match savings with annual savings
+        ts_full_savings = ts_savings_full[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
+        assert np.isclose(ts_full_savings, annual_savings_full[f"{enduses[0]}__savings"], rtol=1e-3)
+        ts_applied_savings = ts_savings_applied[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
+        assert np.isclose(ts_applied_savings, annual_savings_applied[f"{enduses[0]}__savings"], rtol=1e-3)
+        # Verify that the absolute value is correct
+        assert np.isclose(ts_full_savings, 69690252.003256, rtol=1e-3)
+        assert np.isclose(annual_savings_full[f"{enduses[0]}__savings"], 69670293.34012, rtol=1e-3)
+
     def test_savings_shape_with_grouping(self, my_athena: BuildStockQuery):
         enduses = ['fuel_use_electricity_total_m_btu']
         group_by = ["geometry_building_type_recs"]
@@ -122,6 +180,78 @@ class TestResStockSavings:
                                                           group_by=group_by)
         ts_savings_applied = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, applied_only=True,
                                                              annual_only=False, group_by=group_by)
+        assert len(ts_savings_full) == len(ts_savings_applied) == 35040 * n_groups
+        assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc['0'].success
+        assert ts_savings_applied.groupby(group_by)['sample_count'].mean().sum() == success_report.loc['1'].success
+        # Match with annual result
+        ts_full_bsline = ts_savings_full.groupby(group_by)[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
+        assert np.isclose(ts_full_bsline, annual_savings_full[f"{enduses[0]}__baseline"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        ts_applied_bsline = ts_savings_applied.groupby(group_by)[f"{ts_enduses[0]}__baseline"].sum() * KWH2MBTU
+        assert np.isclose(ts_applied_bsline, annual_savings_applied[f"{enduses[0]}__baseline"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        # Match savings with annual savings
+        ts_full_savings = ts_savings_full.groupby(group_by)[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
+        assert np.isclose(ts_full_savings, annual_savings_full[f"{enduses[0]}__savings"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        ts_applied_savings = ts_savings_applied.groupby(group_by)[f"{ts_enduses[0]}__savings"].sum() * KWH2MBTU
+        assert np.isclose(ts_applied_savings, annual_savings_applied[f"{enduses[0]}__savings"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+
+    def test_savings_shape_with_grouping_using_query(self, my_athena: BuildStockQuery):
+        enduses = ['fuel_use_electricity_total_m_btu']
+        group_by = ["geometry_building_type_recs"]
+        n_groups = 4  # Number of groups available in the dataset for the given group_by
+        rtol = 2e-3  # 0.2% relative tolerance for matching annual values to timeseries values
+        mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
+        # group_by = [my_athena.bs_bldgid_column]
+        success_report = my_athena.report.get_success_report()
+        annual_savings_full = my_athena.agg.query(upgrade_id='1', enduses=enduses, group_by=group_by,
+                                                              include_baseline=True,
+                                                              include_savings=True,
+                                                              include_upgrade=False,
+                                                              annual_only=True,
+                                                              applied_only=False,
+                                                              sort=True)
+        annual_savings_applied = my_athena.agg.query(upgrade_id='1', enduses=enduses, group_by=group_by,
+                                                                 include_baseline=True,
+                                                                 include_savings=True,
+                                                                 include_upgrade=False,
+                                                                 annual_only=True,
+                                                                 applied_only=True,
+                                                                 sort=True)
+        annual_bs_consumtion = my_athena.agg.query(enduses=enduses, group_by=group_by, sort=True)
+        annual_up_consumption = my_athena.agg.query(upgrade_id='1', enduses=enduses, group_by=group_by,
+                                                               sort=True)
+        assert len(annual_savings_full) == len(annual_savings_applied) == n_groups
+        assert annual_savings_full['sample_count'].sum() == success_report.loc['0'].success
+        assert annual_savings_applied['sample_count'].sum() == success_report.loc['1'].success
+        assert annual_up_consumption['sample_count'].sum() == success_report.loc['1'].success
+        applied_units = annual_savings_applied['units_count'].iloc[0]
+        assert np.isclose(annual_savings_full[f"{enduses[0]}__baseline"],
+                          annual_bs_consumtion[f"{enduses[0]}"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        # Absolute savings between applied and full should be same
+        assert np.isclose(annual_savings_applied[f"{enduses[0]}__savings"],
+                          annual_savings_full[f"{enduses[0]}__savings"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        # The savings for applied buildings must equal diff of upgrade vs corresponding baseline
+        diff = annual_savings_applied[f"{enduses[0]}__baseline"] - annual_up_consumption[f"{enduses[0]}"]
+        assert np.isclose(diff, annual_savings_applied[f"{enduses[0]}__savings"],
+                          rtol=rtol, atol=mbtu_atol * applied_units).all()
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        ts_savings_full = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses, annual_only=False,
+                                                          include_baseline=True,
+                                                          include_savings=True,
+                                                          include_upgrade=False,
+                                                          applied_only=False,
+                                                          group_by=group_by)
+        ts_savings_applied = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses, applied_only=True,
+                                                          annual_only=False,
+                                                          include_baseline=True,
+                                                          include_savings=True,
+                                                          include_upgrade=False,
+                                                          group_by=group_by)
         assert len(ts_savings_full) == len(ts_savings_applied) == 35040 * n_groups
         assert ts_savings_full.groupby(group_by)['sample_count'].mean().sum() == success_report.loc['0'].success
         assert ts_savings_applied.groupby(group_by)['sample_count'].mean().sum() == success_report.loc['1'].success

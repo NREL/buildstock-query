@@ -482,63 +482,80 @@ class BuildStockAggregate:
             if params.annual_only:
                 baseline_col = bs_tbl.c[col.name]
                 if upgrade_id != "0":
-                    upgrade_col = safunc.coalesce(
-                        sa.case(
+                    # "and not params.include_savings" is added to restore the behavior of savings_shape query.
+                    # Can be removed once savings_shape is removed.
+                    if params.applied_only and not params.include_savings:
+                        upgrade_col = up_tbl.c[col.name]
+                    else:
+                        upgrade_col = sa.case(
                             (self._bsq._get_success_condition(up_tbl), up_tbl.c[col.name]), else_=bs_tbl.c[col.name]
                         )
-                    )
                 else:
                     upgrade_col = baseline_col
-                savings_col = baseline_col - upgrade_col
+                savings_col = safunc.coalesce(baseline_col, 0) - safunc.coalesce(upgrade_col, 0)
             else:
                 baseline_col = bs_tbl.c[col.name]
                 if upgrade_id != "0":
-                    upgrade_col = sa.case(
-                        (up_tbl.c[self._bsq.building_id_column_name] == None, bs_tbl.c[col.name]),  # noqa E711
-                        else_=up_tbl.c[col.name],
-                    )
+                    # "and not params.include_savings" is added to restore the behavior of savings_shape query.
+                    # Can be removed once savings_shape is removed.
+                    if params.applied_only and not params.include_savings:
+                        upgrade_col = up_tbl.c[col.name]
+                    else:
+                        upgrade_col = sa.case(
+                            (up_tbl.c[self._bsq.building_id_column_name] == None, bs_tbl.c[col.name]),  # noqa: E711
+                            else_=up_tbl.c[col.name],
+                        )
                 else:
                     upgrade_col = baseline_col
-                savings_col = baseline_col - upgrade_col
-            query_cols.append(
-                agg_func(upgrade_col * agg_weight).label(f"{self._bsq._simple_label(col.name, params.agg_func)}")
-            )
-            if params.include_savings:
-                query_cols.append(
-                    agg_func(savings_col * agg_weight).label(
-                        f"{self._bsq._simple_label(col.name, params.agg_func)}__savings"
-                    )
-                )
+                savings_col = safunc.coalesce(baseline_col, 0) - safunc.coalesce(upgrade_col, 0)
+
             if params.include_baseline:
                 query_cols.append(
                     agg_func(baseline_col * agg_weight).label(
                         f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline"
                     )
                 )
-
-            if params.get_quartiles:
+            if params.include_upgrade:
+                suffix = "__upgrade" if params.include_savings or params.include_baseline else ""
                 query_cols.append(
-                    sa.func.approx_percentile(upgrade_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
-                        f"{self._bsq._simple_label(col.name, params.agg_func)}__quartiles"
+                    agg_func(upgrade_col * agg_weight).label(
+                        f"{self._bsq._simple_label(col.name, params.agg_func)}{suffix}"
                     )
                 )
-                if params.include_savings:
-                    query_cols.append(
-                        sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
-                            f"{self._bsq._simple_label(col.name, params.agg_func)}__savings__quartiles"
-                        )
+            if params.include_savings:
+                query_cols.append(
+                    agg_func(savings_col * agg_weight).label(
+                        f"{self._bsq._simple_label(col.name, params.agg_func)}__savings"
                     )
+                )
+
+            if params.get_quartiles:
                 if params.include_baseline:
                     query_cols.append(
                         sa.func.approx_percentile(baseline_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
                             f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline__quartiles"
                         )
                     )
+                if params.include_upgrade:
+                    query_cols.append(
+                        sa.func.approx_percentile(upgrade_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__upgrade__quartiles"
+                        )
+                    )
+                if params.include_savings:
+                    query_cols.append(
+                        sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__savings__quartiles"
+                        )
+                    )
+
 
         if params.annual_only:  # Use annual tables
             grouping_metrics_selection = [
                 safunc.sum(1).label("sample_count"),
-                safunc.sum(total_weight).label("units_count"),
+                # '1 *' included in savings query to match existing behavior for testing.
+                # Can be removed after saving_shape is removed.
+                safunc.sum(1 * total_weight if params.include_savings else total_weight).label("units_count"),
             ]
         elif params.timestamp_grouping_func == "year":  # Use timeseries tables but collapse timeseries
             rows_per_building = self._bsq._get_rows_per_building()
@@ -567,16 +584,33 @@ class BuildStockAggregate:
                 ).label(colname)
             else:
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func, time_col).label(colname)
-            group_by_selection.insert(time_indx, new_col)
+            if params.include_savings:
+                group_by_selection.append(new_col)
+            else:
+                group_by_selection.insert(time_indx, new_col)
         else:
             time_col = bs_tbl.c[self._bsq.timestamp_column_name].label(self._bsq.timestamp_column_name)
             grouping_metrics_selection = [
                 safunc.sum(1).label("sample_count"),
-                safunc.sum(total_weight).label("units_count"),
+                # '1 *' included in savings query to match existing behavior for testing.
+                # Can be removed after saving_shape is removed.
+                safunc.sum(1 * total_weight if params.include_savings else total_weight).label("units_count"),
             ]
-            group_by_selection.insert(time_indx, time_col)
+            if params.include_savings:
+                group_by_selection.append(time_col)
+            else:
+                group_by_selection.insert(time_indx, time_col)
 
-        query_cols = group_by_selection + grouping_metrics_selection + query_cols
+        # If include_savings is True, then the order of the columns is different. Do this
+        # to match the behavior of savings_shape query. Can be simplified after savings_shape function is removed.
+        if params.include_savings:
+            if params.annual_only or params.timestamp_grouping_func == "year":
+                query_cols = grouping_metrics_selection + query_cols + group_by_selection
+            else:  # time is the first column
+                query_cols = [group_by_selection[-1], *grouping_metrics_selection, *query_cols,
+                              *group_by_selection[:-1]]
+        else:
+            query_cols = group_by_selection + grouping_metrics_selection + query_cols
         query = sa.select(query_cols).select_from(tbljoin)
         query = self._bsq._add_join(query, params.join_list)
         if params.annual_only:

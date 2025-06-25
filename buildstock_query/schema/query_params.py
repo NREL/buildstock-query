@@ -49,13 +49,13 @@ class Query(BaseQuery):
     annual_only: bool = True
     include_savings: bool = False
     include_baseline: bool = False
+    include_upgrade: bool = True
     timestamp_grouping_func: Optional[Literal["year", "month", "day", "hour"]] = None
     partition_by: Sequence[str] = Field(default_factory=list)
-    applied_only: Optional[bool] = False
+    applied_only: Optional[bool] = Field(default=None)
     unload_to: Optional[str] = None
 
     # validate that include_savings is False if upgrade_id is '0'
-    @classmethod
     @validator("include_savings")
     def validate_include_savings(cls, include_savings, values):
         if include_savings and values.get("upgrade_id") == "0":
@@ -63,7 +63,6 @@ class Query(BaseQuery):
         return include_savings
 
     # validate that annual_only is False if timestamp_grouping_func is not None
-    @classmethod
     @validator("annual_only")
     def validate_annual_only(cls, annual_only, values):
         if values.get("timestamp_grouping_func") is not None and annual_only:
@@ -71,15 +70,15 @@ class Query(BaseQuery):
         return annual_only
 
     # validate that applied_only is False if upgrade_id is '0'
-    @classmethod
-    @validator("applied_only")
+    @validator("applied_only", pre=True, always=True)
     def validate_applied_only(cls, applied_only, values):
+        if applied_only is None:
+            return values.get("upgrade_id") != "0"  # default to False if upgrade_id is '0', True otherwise
         if applied_only and values.get("upgrade_id") == "0":
             raise ValueError("applied_only cannot be set when upgrade_id is '0'")
         return applied_only
 
     # validate that include_baseline is False if upgrade_id is '0'
-    @classmethod
     @validator("include_baseline")
     def validate_include_baseline(cls, include_baseline, values):
         if include_baseline and values.get("upgrade_id") == "0":
