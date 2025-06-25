@@ -49,8 +49,7 @@ class BuildStockAggregate:
 
         ts = self._bsq.ts_table
         base = self._bsq.bs_table
-        sa_ts_cols = [ts.c[self._bsq.building_id_column_name],
-                      ts.c[self._bsq.timestamp_column_name], *ts_group_by]
+        sa_ts_cols = [ts.c[self._bsq.building_id_column_name], ts.c[self._bsq.timestamp_column_name], *ts_group_by]
         enduse_cols = [enduse for enduse in enduses if enduse not in sa_ts_cols]
         sa_ts_cols.extend(enduse_cols)
         ucol = self._bsq._ts_upgrade_col
@@ -583,6 +582,9 @@ class BuildStockAggregate:
                 ).label(colname)
             else:
                 new_col = sa.func.date_trunc(params.timestamp_grouping_func, time_col).label(colname)
+
+            # If include_savings is True, then the order of the columns is different. Do this
+            # to match the behavior of savings_shape query. Can be simplified after savings_shape function is removed.
             if params.include_savings:
                 group_by_selection.append(new_col)
             else:
@@ -605,9 +607,14 @@ class BuildStockAggregate:
         if params.include_savings:
             if params.annual_only or params.timestamp_grouping_func == "year":
                 query_cols = grouping_metrics_selection + query_cols + group_by_selection
-            else:  # time is the first column
-                query_cols = [group_by_selection[-1], *grouping_metrics_selection, *query_cols,
-                              *group_by_selection[:-1]]
+            else:  # time is the first column in this case and needs to be moved to the front to match
+                # the behavior of savings_shape query
+                query_cols = [
+                    group_by_selection[-1],
+                    *grouping_metrics_selection,
+                    *query_cols,
+                    *group_by_selection[:-1],
+                ]
         else:
             query_cols = group_by_selection + grouping_metrics_selection + query_cols
         query = sa.select(query_cols).select_from(tbljoin)
