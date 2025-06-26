@@ -5,11 +5,12 @@ from buildstock_query.tools.upgrades_visualizer.upgrades_visualizer import get_a
 import pathlib
 import itertools as it
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from tests.utils import load_tbl_from_pkl
 
 
-@pytest.fixture(autouse=True)
-def _mock_query_core(monkeypatch):
+@pytest.fixture(scope="module", autouse=True)
+def _mock_query_core():
     """
     Monkey-patch SQLAlchemy, boto3 and other dependencies so instead of db, data is
     read from pkl files. The patch is automatically rolled back after each test, ensuring other test
@@ -18,10 +19,13 @@ def _mock_query_core(monkeypatch):
     import buildstock_query.query_core as _qc  # local import to avoid circular issues
     from unittest.mock import MagicMock
 
-    monkeypatch.setattr(_qc.sa, "Table", load_tbl_from_pkl, raising=False)
-    monkeypatch.setattr(_qc.sa, "create_engine", MagicMock(), raising=False)
-    monkeypatch.setattr(_qc, "Connection", MagicMock(), raising=False)
-    monkeypatch.setattr(_qc, "boto3", MagicMock(), raising=False)
+    mp = MonkeyPatch()
+    mp.setattr(_qc.sa, "Table", load_tbl_from_pkl, raising=False)
+    mp.setattr(_qc.sa, "create_engine", MagicMock(), raising=False)
+    mp.setattr(_qc, "Connection", MagicMock(), raising=False)
+    mp.setattr(_qc, "boto3", MagicMock(), raising=False)
+    yield
+    mp.undo()
 
 
 class TestViz:
