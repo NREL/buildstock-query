@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field, Extra
+from pydantic import ConfigDict, BaseModel, Field
 from typing import Optional, Union, Callable
 from collections.abc import Sequence
 from typing import Literal
 from buildstock_query.schema.utilities import AnyTableType, AnyColType
-from pydantic import validator, root_validator
+from pydantic import model_validator
+from typing_extensions import Self
 
 
 class BaseQuery(BaseModel):
@@ -20,11 +21,7 @@ class BaseQuery(BaseModel):
     get_query_only: bool = False
     limit: Optional[int] = None
     agg_func: Optional[Union[str, Callable]] = "sum"
-
-    class Config:
-        arbitrary_types_allowed = True
-        smart_union = True
-        extra = Extra.forbid
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
 class TSQuery(BaseQuery):
@@ -55,40 +52,19 @@ class Query(BaseQuery):
     applied_only: Optional[bool] = Field(default=None)
     unload_to: Optional[str] = None
 
-    # validate that include_savings is False if upgrade_id is '0'
-    @validator("include_savings")
-    def validate_include_savings(cls, include_savings, values):
-        if include_savings and values.get("upgrade_id") == "0":
+    @model_validator(mode="after")
+    def validate_consistency(self) -> Self:
+        if self.include_savings and self.upgrade_id == "0":
             raise ValueError("include_savings cannot be True when upgrade_id is '0'")
-        return include_savings
-
-    # validate that annual_only is False if timestamp_grouping_func is not None
-    @validator("timestamp_grouping_func")
-    def validate_timestamp_grouping_func(cls, timestamp_grouping_func, values):
-        if timestamp_grouping_func is not None and values.get("annual_only"):
-            raise ValueError("annual_only must be False when timestamp_grouping_func is provided")
-        return timestamp_grouping_func
-
-    # validate that applied_only is False if upgrade_id is '0'
-    @validator("applied_only", pre=True, always=True)
-    def validate_applied_only(cls, applied_only, values):
-        if applied_only is None:
-            return values.get("upgrade_id") != "0"  # default to False if upgrade_id is '0', True otherwise
-        if applied_only and values.get("upgrade_id") == "0":
-            raise ValueError("applied_only cannot be set when upgrade_id is '0'")
-        return applied_only
-
-    # validate that include_baseline is False if upgrade_id is '0'
-    @validator("include_baseline")
-    def validate_include_baseline(cls, include_baseline, values):
-        if include_baseline and values.get("upgrade_id") == "0":
+        if self.include_baseline and self.upgrade_id == "0":
             raise ValueError("include_baseline cannot be set when upgrade_id is '0'")
-        return include_baseline
-
-    @root_validator
-    def check_nonzero_vs_annual(cls, values):
-        if values.get("get_nonzero_count") and not values.get("annual_only"):
-            raise ValueError(
-                "get_nonzero_count cannot be True when annual_only is False"
-            )
-        return values
+        if self.timestamp_grouping_func and self.annual_only:
+            raise ValueError("annual_only must be False when timestamp_grouping_func is provided")
+        if self.applied_only and self.upgrade_id == "0":
+            raise ValueError("applied_only cannot be set when upgrade_id is '0'")
+        if self.get_nonzero_count and not self.annual_only:
+            raise ValueError("get_nonzero_count cannot be True when annual_only is False")
+        if self.applied_only is None:
+            self.applied_only = self.upgrade_id != "0"  # False for baseline, True otherwise
+        return self
+        

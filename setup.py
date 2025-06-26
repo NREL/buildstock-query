@@ -22,7 +22,7 @@ setup(
         "pandas-stubs",
         "inquirerpy >= 0.3.4",
         "types-PyYAML >= 6.0.12.2",
-        "pydantic<2",
+        "pydantic>=2",
         "PyYAML",
         "tabulate",
         "toml",

@@ -28,8 +28,8 @@ class TimeTuple(BaseModel):
 
 
 class TOURate(BaseModel):
-    data: dict[TimeTuple, float] = Field(..., example={TimeTuple(month=1, is_weekend=0, hour=3): 0.5})
-    raw_dict: dict[tuple[int, int, int], float] = Field(..., example={(1, 0, 3): 0.5})
+    data: dict[TimeTuple, float] = Field(..., examples=[{TimeTuple(month=1, is_weekend=0, hour=3): 0.5}])
+    raw_dict: dict[tuple[int, int, int], float] = Field(..., examples=[{(1, 0, 3): 0.5}])
 
     def __init__(self, rate_dict: dict[tuple[int, int, int], float]):
         data: dict[TimeTuple, float] = {}

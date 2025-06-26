@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Union, Any
 from collections.abc import Sequence
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 import sqlalchemy as sa
 from sqlalchemy.sql.elements import Label, ColumnElement
 from sqlalchemy.sql.selectable import Subquery
@@ -17,14 +17,11 @@ AnyTableType = Union[DBTableType, str]
 
 
 class MappedColumn(BaseModel):
-    bsq: Any  # BuildStockQuery
+    bsq: Any = None  # BuildStockQuery
     name: str
     mapping_dict: dict
     key: DBColType | str | Sequence[DBColType | str]
-
-    class Config:
-        arbitrary_types_allowed = True
-        smart_union = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 AnyColType = DBColType | str | MappedColumn
