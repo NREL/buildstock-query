@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='buildstock_query',
-    version='2024.05.09',
+    version='v0.1.0',
     description="Python library for querying and analyzing ResStock and ComStock",
     author="Rajendra Adhikari",
     packages=find_packages(),
