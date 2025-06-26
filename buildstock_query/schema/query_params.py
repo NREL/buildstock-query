@@ -21,7 +21,7 @@ class BaseQuery(BaseModel):
     get_query_only: bool = False
     limit: Optional[int] = None
     agg_func: Optional[Union[str, Callable]] = "sum"
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", coerce_numbers_to_str=True)
 
 
 class TSQuery(BaseQuery):
