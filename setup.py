@@ -28,6 +28,7 @@ setup(
         "toml",
         "requests",
         "sqlglot",
+        "deprecated"
     ],
     extras_require={
         "dev": [

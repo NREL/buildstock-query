@@ -12,7 +12,6 @@ import uuid
 import time
 from typing_extensions import assert_type
 from typing import Union
-from sqlalchemy import func as safunc
 
 query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
 query_core.sa.create_engine = MagicMock()  # mock creating engine
@@ -163,7 +162,7 @@ def test_aggregate_annual(temp_history_file):
     query1 = my_athena.agg.aggregate_annual(
         enduses=enduses, group_by=[state_str, bldg_type], sort=True, get_query_only=True
     )
-    query1q = my_athena.agg.query(enduses=enduses, group_by=[state_str, bldg_type], sort=True, get_query_only=True)
+    query1q = my_athena.query(enduses=enduses, group_by=[state_str, bldg_type], sort=True, get_query_only=True)
 
     valid_query_string = """
         select res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,
@@ -186,7 +185,7 @@ def test_aggregate_annual(temp_history_file):
         restrict=[("eiaid", ["1167", "3249"]), (state_str, ["AL", "VA", "TX"])],
         get_query_only=True,
     )
-    query2q = my_athena.agg.query(
+    query2q = my_athena.query(
         enduses=enduses,
         group_by=[eiaid_col, state_str, bldg_type],
         sort=True,
@@ -212,7 +211,7 @@ def test_aggregate_annual(temp_history_file):
     assert_query_equal(query2q, valid_query_string2)
 
     query3 = my_athena.agg.aggregate_annual(enduses=enduses, get_query_only=True)
-    query3q = my_athena.agg.query(enduses=enduses, get_query_only=True)
+    query3q = my_athena.query(enduses=enduses, get_query_only=True)
     valid_query_string3 = """
         select sum(1) as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as units_count, sum(res_n250_hrly_v1_baseline."report_simulation_output.fuel_use_electricity_net_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as fuel_use_electricity_net_m_btu,
         sum(res_n250_hrly_v1_baseline."report_simulation_output.end_use_electricity_cooling_m_btu" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as end_use_electricity_cooling_m_btu from res_n250_hrly_v1_baseline where res_n250_hrly_v1_baseline.completed_status = 'Success'
@@ -235,7 +234,7 @@ def test_aggregate_annual(temp_history_file):
         restrict=[("eiaid", ["1167", "3249"]), (state_str, ["AL", "VA", "TX"])],
         get_query_only=True,
     )
-    query4q = my_athena.agg.query(
+    query4q = my_athena.query(
         enduses=enduses,
         join_list=[("eiaid_weights", "build_existing_model.county", "county")],
         weights=[("weight", "eiaid_weights")],
@@ -260,7 +259,7 @@ def test_aggregate_annual(temp_history_file):
         enduses=enduses,
         get_query_only=True,
     )
-    query5q = my_athena2.agg.query(
+    query5q = my_athena2.query(
         enduses=enduses,
         get_query_only=True,
     )
@@ -277,7 +276,7 @@ def test_aggregate_annual(temp_history_file):
         agg_func="max",
         get_query_only=True,
     )
-    query6q = my_athena2.agg.query(
+    query6q = my_athena2.query(
         enduses=enduses,
         agg_func="max",
         get_query_only=True,
@@ -322,7 +321,7 @@ def test_aggregate_ts(temp_history_file):
     query1 = my_athena.agg.aggregate_timeseries(
         enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True
     )
-    query1q = my_athena.agg.query(
+    query1q = my_athena.query(
         enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True,
         annual_only=False
     )
@@ -350,7 +349,7 @@ def test_aggregate_ts(temp_history_file):
         restrict=[("eiaid", ["1167", "3249"]), (state_str, ["AL", "VA", "TX"])],
         get_query_only=True,
     )
-    query2q = my_athena.agg.query(
+    query2q = my_athena.query(
         enduses=enduses,
         group_by=["eiaid", state_str, bldg_type, "time"],
         sort=True,
@@ -378,7 +377,7 @@ def test_aggregate_ts(temp_history_file):
     my_athena._get_rows_per_building = lambda: 35040  # type: ignore
 
     query3 = my_athena.agg.aggregate_timeseries(enduses=enduses, collapse_ts=True, get_query_only=True)
-    query3q = my_athena.agg.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
+    query3q = my_athena.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
     valid_query_string3 = """
         select sum(1) / 35040 as sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 35040) as units_count,
         sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") as "fuel use: electricity: total",
@@ -398,7 +397,7 @@ def test_aggregate_ts(temp_history_file):
         collapse_ts=True,
         get_query_only=True,
     )
-    query4q = my_athena.agg.query(
+    query4q = my_athena.query(
         annual_only=False,
         enduses=enduses,
         join_list=[("eiaid_weights", "build_existing_model.county", "county")],
@@ -433,7 +432,7 @@ def test_aggregate_ts(temp_history_file):
     my_athena2._get_rows_per_building = lambda: 35040  # type: ignore
 
     query5 = my_athena2.agg.aggregate_timeseries(enduses=enduses, collapse_ts=True, get_query_only=True)
-    query5q = my_athena2.agg.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
+    query5q = my_athena2.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
     valid_query_string5 = """
             select sum(1) / 35040 as sample_count, sum(29.1 / 35040) as units_count,
             sum(res_n250_hrly_v1_timeseries."fuel use: electricity: total" * 29.1) as
@@ -448,7 +447,7 @@ def test_aggregate_ts(temp_history_file):
     query6 = my_athena2.agg.aggregate_timeseries(
         enduses=enduses, collapse_ts=True, timestamp_grouping_func="month", get_query_only=True
     )
-    query6q = my_athena2.agg.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
+    query6q = my_athena2.query(annual_only=False, enduses=enduses, timestamp_grouping_func="year", get_query_only=True)
     assert_query_equal(query6, valid_query_string5)
     assert_query_equal(query6q, valid_query_string5)
 
@@ -466,7 +465,7 @@ def test_aggregate_ts(temp_history_file):
     query7 = my_athena2.agg.aggregate_timeseries(
         enduses=enduses, collapse_ts=False, timestamp_grouping_func="month", get_query_only=True
     )
-    query7q = my_athena2.agg.query(annual_only=False, enduses=enduses, timestamp_grouping_func="month", get_query_only=True)
+    query7q = my_athena2.query(annual_only=False, enduses=enduses, timestamp_grouping_func="month", get_query_only=True)
     assert_query_equal(query7, valid_query_string7)
     assert_query_equal(query7q, valid_query_string7)
 
@@ -484,7 +483,7 @@ def test_aggregate_ts(temp_history_file):
     query9 = my_athena2.agg.aggregate_timeseries(
         enduses=enduses, collapse_ts=False, timestamp_grouping_func="month", get_query_only=True
     )
-    query9q = my_athena2.agg.query(annual_only=False, enduses=enduses, timestamp_grouping_func="month", get_query_only=True)
+    query9q = my_athena2.query(annual_only=False, enduses=enduses, timestamp_grouping_func="month", get_query_only=True)
     assert_query_equal(query9, valid_query_string9)
     assert_query_equal(query9q, valid_query_string9)
     # Test that the agg_func is applied correctly
@@ -492,7 +491,7 @@ def test_aggregate_ts(temp_history_file):
     query10 = my_athena2.agg.aggregate_timeseries(
         enduses=enduses, collapse_ts=False, agg_func="min", timestamp_grouping_func="month", get_query_only=True
     )
-    query10q = my_athena2.agg.query(annual_only=False, enduses=enduses, agg_func="min", timestamp_grouping_func="month", get_query_only=True)
+    query10q = my_athena2.query(annual_only=False, enduses=enduses, agg_func="min", timestamp_grouping_func="month", get_query_only=True)
     valid_query_string10 = """
         select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
             count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,

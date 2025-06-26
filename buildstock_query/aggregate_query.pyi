@@ -1,4 +1,4 @@
-from typing import Literal, Callable
+from typing import Literal
 from collections.abc import Sequence
 import pandas as pd
 import typing
@@ -6,10 +6,12 @@ from buildstock_query.schema.query_params import TSQuery, BaseQuery, Query
 from buildstock_query import main
 from buildstock_query.schema.utilities import AnyColType, AnyTableType
 from pydantic import Field
+from typing_extensions import deprecated
 
 class BuildStockAggregate:
     def __init__(self, buildstock_query: main.BuildStockQuery) -> None: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=True.")
     def aggregate_annual(
         self,
         *,
@@ -24,9 +26,10 @@ class BuildStockAggregate:
         avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = [],
         get_quartiles: bool = False,
         get_nonzero_count: bool = False,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> str: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=True.")
     def aggregate_annual(
         self,
         *,
@@ -41,9 +44,10 @@ class BuildStockAggregate:
         avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = [],
         get_quartiles: bool = False,
         get_nonzero_count: bool = False,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> pd.DataFrame: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=True.")
     def aggregate_annual(
         self,
         *,
@@ -58,7 +62,7 @@ class BuildStockAggregate:
         avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = [],
         get_quartiles: bool = False,
         get_nonzero_count: bool = False,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> pd.DataFrame | str:
         """
         Aggregates the baseline annual result on select enduses.
@@ -104,8 +108,10 @@ class BuildStockAggregate:
         """
 
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=True.")
     def aggregate_annual(self, *, params: BaseQuery) -> str | pd.DataFrame: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=False.")
     def aggregate_timeseries(
         self,
         *,
@@ -122,9 +128,10 @@ class BuildStockAggregate:
         collapse_ts: bool = False,
         timestamp_grouping_func: str | None = None,
         limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> str: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=False.")
     def aggregate_timeseries(
         self,
         *,
@@ -141,9 +148,10 @@ class BuildStockAggregate:
         timestamp_grouping_func: str | None = None,
         get_query_only: Literal[False] = False,
         limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> pd.DataFrame: ...
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=False.")
     def aggregate_timeseries(
         self,
         *,
@@ -160,7 +168,7 @@ class BuildStockAggregate:
         collapse_ts: bool = False,
         timestamp_grouping_func: str | None = None,
         limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
+        agg_func: str | None = "sum",
     ) -> str | pd.DataFrame:
         """
         Aggregates the timeseries result on select enduses.
@@ -202,6 +210,7 @@ class BuildStockAggregate:
         """
 
     @typing.overload
+    @deprecated("Please use my_run.query with annual_only=False.")
     def aggregate_timeseries(
         self,
         *,
@@ -223,119 +232,6 @@ class BuildStockAggregate:
         enduses: Sequence[str],
         get_query_only: Literal[True],
     ) -> str: ...
-    @typing.overload
-    def query(
-        self,
-        *,
-        get_query_only: Literal[True],
-        upgrade_id: int | str = "0",
-        enduses: Sequence[AnyColType],
-        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
-        annual_only: bool = True,
-        include_upgrade: bool = True,
-        include_savings: bool = False,
-        include_baseline: bool = False,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[str | tuple] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        get_nonzero_count: bool = False,
-        unload_to: str = "",
-        partition_by: Sequence[str] | None = None,
-        timestamp_grouping_func: str | None = None,
-        limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
-    ) -> str: ...
-    @typing.overload
-    def query(
-        self,
-        *,
-        upgrade_id: int | str = "0",
-        get_query_only: Literal[False] = False,
-        enduses: Sequence[AnyColType],
-        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
-        annual_only: bool = True,
-        include_upgrade: bool = True,
-        include_savings: bool = False,
-        include_baseline: bool = False,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[str | tuple] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        get_nonzero_count: bool = False,
-        unload_to: str = "",
-        partition_by: Sequence[str] | None = None,
-        timestamp_grouping_func: str | None = None,
-        limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
-    ) -> pd.DataFrame: ...
-    @typing.overload
-    def query(
-        self,
-        *,
-        get_query_only: bool,
-        upgrade_id: int | str = "0",
-        enduses: Sequence[AnyColType],
-        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
-        annual_only: bool = True,
-        include_upgrade: bool = True,
-        include_savings: bool = False,
-        include_baseline: bool = False,
-        sort: bool = True,
-        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
-        weights: Sequence[str | tuple] = Field(default_factory=list),
-        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
-        applied_only: bool = False,
-        get_quartiles: bool = False,
-        get_nonzero_count: bool = False,
-        unload_to: str = "",
-        partition_by: Sequence[str] | None = None,
-        timestamp_grouping_func: str | None = None,
-        limit: int | None = None,
-        agg_func: str | Callable | None = "sum",
-    ) -> str | pd.DataFrame:
-        """Calculate savings shape for an upgrade
-        Args:
-            upgrade_id: id of the upgrade scenario from the ResStock analysis
-            enduses: Enduses to query, defaults to ['fuel_use__electricity__total']
-            group_by: Building characteristics columns to group by, defaults to []
-            annual_only: If true, calculates only the annual savings using baseline and upgrades table
-            sort: Whether the result should be sorted. Sorting takes extra time.
-            join_list: Additional table to join to baseline table to perform operation. All the inputs (`enduses`,
-                  `group_by` etc) can use columns from these additional tables. It should be specified as a list of
-                  tuples.
-                  Example: `[(new_table_name, baseline_column_name, new_column_name), ...]`
-                        where baseline_column_name and new_column_name are the columns on which the new_table
-                        should be joined to baseline table.
-            applied_only: Calculate savings shape based on only buildings to which the upgrade applied
-            weights: The additional columns to use as weight. The "build_existing_model.sample_weight" is already used.
-                     It is specified as either list of string or list of tuples. When only string is used, the string
-                     is the column name, when tuple is passed, the second element is the table name.
 
-            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
-                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
-
-            get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
-                            submitting multiple queries or debugging
-            get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
-                           [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
-                           is the maximum.
-            unload_to: Writes the output of the query to this location in s3. Consider using run_async = True with this
-                       to unload multiple queries simulataneuosly
-            partition_by: List of columns to partition when writing to s3. To be used with unload_to.
-            timestamp_grouping_func: One of 'hour', 'day' or 'month' or 'year' or None. If provided, perform timeseries
-                        aggregation of specified granularity. For 'year' - it collapses the timeseries into a single
-                        annual value. Useful for quality checking or finding the annual max and min.
-         Returns:
-                if get_query_only is True, returns the query_string, otherwise returns a pandas dataframe
-        """
-
-    @typing.overload
-    def query(self, *, params: Query) -> str | pd.DataFrame: ...
+    def _query(self, *args, **kwargs) -> str | pd.DataFrame:
+        ...

@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 from sqlalchemy.sql import sqltypes
-from typing import List, Union
+from typing import Union
 from collections.abc import Sequence
 import logging
 import re
@@ -16,6 +16,8 @@ from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType, AnyTableType
 from buildstock_query.schema.utilities import MappedColumn
+from buildstock_query.schema.query_params import Query
+
 import os
 from dataclasses import dataclass
 
@@ -93,7 +95,6 @@ class BuildStockQuery(QueryCore):
         from buildstock_query.aggregate_query import BuildStockAggregate
         from buildstock_query.savings_query import BuildStockSavings
         from buildstock_query.utility_query import BuildStockUtility
-
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -110,7 +111,7 @@ class BuildStockQuery(QueryCore):
             logger.info("Getting Success counts...")
             print(self.report.get_success_report())
             if self.ts_table is not None:
-                self.report.check_ts_bs_integrity()
+                self.report.check_ts_bs_integrity(  )
             self.save_cache()
 
     def get_buildstock_df(self) -> pd.DataFrame:
@@ -293,7 +294,7 @@ class BuildStockQuery(QueryCore):
         """
         Returns the results_csv table for the BuildStock run
         Args:
-            restrict (List[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
+            restrict (list[Tuple[str, Union[List, str, int]]], optional): The list of where condition to restrict the
                 results to. It should be specified as a list of tuple.
                       Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
             get_query_only (bool): If set to true, returns the list of queries to run instead of the result.
@@ -535,7 +536,7 @@ class BuildStockQuery(QueryCore):
         """
         Returns the list of buildings based on the restrict list
         Args:
-            restrict (List[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
+            restrict (list[Tuple[str, List]], optional): The list of where condition to restrict the results to. It
                     should be specified as a list of tuple.
                     Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
             get_query_only (bool): If set to true, returns the query string instead of the result. Default is False.
@@ -665,11 +666,11 @@ class BuildStockQuery(QueryCore):
                 assert_never(enduse)
         return enduse_cols
 
-    def get_groupby_cols(self) -> List[str]:
+    def get_groupby_cols(self) -> list[str]:
         """Find list of building characteristics that can be used for grouping.
 
         Returns:
-            List[str]: List of building characteristics.
+            list[str]: List of building characteristics.
         """
         cols = {y.removeprefix(self._char_prefix) for y in self.bs_table.c.keys() if y.startswith(self._char_prefix)}
         return list(cols)
@@ -774,22 +775,22 @@ class BuildStockQuery(QueryCore):
 
     @typing.overload
     def get_buildings_by_locations(
-        self, location_col: str, locations: List[str], get_query_only: Literal[False] = False
+        self, location_col: str, locations: list[str], get_query_only: Literal[False] = False
     ) -> pd.DataFrame: ...
 
     @typing.overload
     def get_buildings_by_locations(
-        self, location_col: str, locations: List[str], get_query_only: Literal[True]
+        self, location_col: str, locations: list[str], get_query_only: Literal[True]
     ) -> str: ...
 
     @typing.overload
     def get_buildings_by_locations(
-        self, location_col: str, locations: List[str], get_query_only: bool
+        self, location_col: str, locations: list[str], get_query_only: bool
     ) -> Union[str, pd.DataFrame]: ...
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
     def get_buildings_by_locations(
-        self, location_col: str, locations: List[str], get_query_only: bool = False
+        self, location_col: str, locations: list[str], get_query_only: bool = False
     ) -> Union[str, pd.DataFrame]:
         """
         Returns the list of buildings belonging to given list of locations.
@@ -862,3 +863,125 @@ class BuildStockQuery(QueryCore):
 
     def _get_success_condition(self, table: AnyTableType):
         return self._get_completed_status_col(table) == self.db_schema.completion_values.success
+
+    @typing.overload
+    def query(
+        self,
+        *,
+        get_query_only: Literal[True],
+        upgrade_id: int | str = "0",
+        enduses: Sequence[AnyColType],
+        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
+        annual_only: bool = True,
+        include_upgrade: bool = True,
+        include_savings: bool = False,
+        include_baseline: bool = False,
+        sort: bool = True,
+        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
+        weights: Sequence[str | tuple] = Field(default_factory=list),
+        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        applied_only: bool = False,
+        get_quartiles: bool = False,
+        get_nonzero_count: bool = False,
+        unload_to: str = "",
+        partition_by: Sequence[str] | None = None,
+        timestamp_grouping_func: str | None = None,
+        limit: int | None = None,
+        agg_func: str | None = "sum",
+    ) -> str: ...
+    @typing.overload
+    def query(
+        self,
+        *,
+        upgrade_id: int | str = "0",
+        get_query_only: Literal[False] = False,
+        enduses: Sequence[AnyColType],
+        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
+        annual_only: bool = True,
+        include_upgrade: bool = True,
+        include_savings: bool = False,
+        include_baseline: bool = False,
+        sort: bool = True,
+        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
+        weights: Sequence[str | tuple] = Field(default_factory=list),
+        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        applied_only: bool = False,
+        get_quartiles: bool = False,
+        get_nonzero_count: bool = False,
+        unload_to: str = "",
+        partition_by: Sequence[str] | None = None,
+        timestamp_grouping_func: str | None = None,
+        limit: int | None = None,
+        agg_func: str | None = "sum",
+    ) -> pd.DataFrame: ...
+    @typing.overload
+    def query(
+        self,
+        *,
+        get_query_only: bool,
+        upgrade_id: int | str = "0",
+        enduses: Sequence[AnyColType],
+        group_by: Sequence[AnyColType | tuple[str, str]] = Field(default_factory=list),
+        annual_only: bool = True,
+        include_upgrade: bool = True,
+        include_savings: bool = False,
+        include_baseline: bool = False,
+        sort: bool = True,
+        join_list: Sequence[tuple[AnyTableType, AnyColType, AnyColType]] = Field(default_factory=list),
+        weights: Sequence[str | tuple] = Field(default_factory=list),
+        restrict: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        avoid: Sequence[tuple[AnyColType, str | int | Sequence[int | str]]] = Field(default_factory=list),
+        applied_only: bool = False,
+        get_quartiles: bool = False,
+        get_nonzero_count: bool = False,
+        unload_to: str = "",
+        partition_by: Sequence[str] | None = None,
+        timestamp_grouping_func: str | None = None,
+        limit: int | None = None,
+        agg_func: str | None = "sum",
+    ) -> str | pd.DataFrame: ...
+        
+    @typing.overload
+    def query(self, *, params: Query) -> str | pd.DataFrame: ...
+
+    def query(self, *args, **kwargs) -> str | pd.DataFrame:
+        """Query the run to obtain either the results dataframe or the query string.
+        Args:
+            upgrade_id: id of the upgrade scenario from the ResStock analysis
+            enduses: Enduses to query, defaults to ['fuel_use__electricity__total']
+            group_by: Building characteristics columns to group by, defaults to []
+            annual_only: If true, calculates only the annual savings using baseline and upgrades table
+            sort: Whether the result should be sorted. Sorting takes extra time.
+            join_list: Additional table to join to baseline table to perform operation. All the inputs (`enduses`,
+                  `group_by` etc) can use columns from these additional tables. It should be specified as a list of
+                  tuples.
+                  Example: `[(new_table_name, baseline_column_name, new_column_name), ...]`
+                        where baseline_column_name and new_column_name are the columns on which the new_table
+                        should be joined to baseline table.
+            applied_only: Calculate savings shape based on only buildings to which the upgrade applied
+            weights: The additional columns to use as weight. The "build_existing_model.sample_weight" is already used.
+                     It is specified as either list of string or list of tuples. When only string is used, the string
+                     is the column name, when tuple is passed, the second element is the table name.
+
+            restrict: The list of where condition to restrict the results to. It should be specified as a list of tuple.
+                      Example: `[('state',['VA','AZ']), ("build_existing_model.lighting",['60% CFL']), ...]`
+
+            get_query_only: Skips submitting the query to Athena and just returns the query string. Useful for batch
+                            submitting multiple queries or debugging
+            get_quartiles: If true, return the following quartiles in addition to the sum for each enduses:
+                           [0, 0.02, .25, .5, .75, .98, 1]. The 0% quartile is the minimum and the 100% quartile
+                           is the maximum.
+            unload_to: Writes the output of the query to this location in s3. Consider using run_async = True with this
+                       to unload multiple queries simulataneuosly
+            partition_by: List of columns to partition when writing to s3. To be used with unload_to.
+            timestamp_grouping_func: One of 'hour', 'day' or 'month' or 'year' or None. If provided, perform timeseries
+                        aggregation of specified granularity. For 'year' - it collapses the timeseries into a single
+                        annual value. Useful for quality checking or finding the annual max and min.
+         Returns:
+                if get_query_only is True, returns the query_string, otherwise returns a pandas dataframe
+        """
+        # TODO: Replace with contents of agg._query(*args, **kwargs) when aggregate_query module is deprecated
+        # or implement via a Mixin
+        return self.agg._query(*args, **kwargs)

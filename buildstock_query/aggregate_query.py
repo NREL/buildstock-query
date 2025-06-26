@@ -459,7 +459,7 @@ class BuildStockAggregate:
         return partition_by
 
     @gather_params(Query)
-    def query(
+    def _query(
         self,
         *,
         params: Query,
