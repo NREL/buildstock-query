@@ -67,4 +67,3 @@ class Query(BaseQuery):
         if self.applied_only is None:
             self.applied_only = self.upgrade_id != "0"  # False for baseline, True otherwise
         return self
-        
