@@ -5,7 +5,6 @@ import tempfile
 import pytest
 from tests.utils import assert_query_equal, load_tbl_from_pkl, load_cache_from_pkl
 from buildstock_query.helpers import CachedFutureDf
-import buildstock_query.query_core as query_core
 from buildstock_query.main import BuildStockQuery, SimInfo
 import pandas as pd
 import uuid
@@ -13,10 +12,21 @@ import time
 from typing_extensions import assert_type
 from typing import Union
 
-query_core.sa.Table = load_tbl_from_pkl  # mock the sqlalchemy table loading
-query_core.sa.create_engine = MagicMock()  # mock creating engine
-query_core.Connection = MagicMock()  # type: ignore # NOQA
-query_core.boto3 = MagicMock()
+
+@pytest.fixture(autouse=True)
+def _mock_query_core(monkeypatch):
+    """
+    Monkey-patch SQLAlchemy, boto3 and other dependencies so instead of db, data is
+    read from pkl files. The patch is automatically rolled back after each test, ensuring other test
+    modules use the real objects.
+    """
+    import buildstock_query.query_core as _qc  # local import to avoid circular issues
+    from unittest.mock import MagicMock
+
+    monkeypatch.setattr(_qc.sa, "Table", load_tbl_from_pkl, raising=False)
+    monkeypatch.setattr(_qc.sa, "create_engine", MagicMock(), raising=False)
+    monkeypatch.setattr(_qc, "Connection", MagicMock(), raising=False)
+    monkeypatch.setattr(_qc, "boto3", MagicMock(), raising=False)
 
 
 @pytest.fixture
@@ -149,7 +159,7 @@ def test_aggregate_annual(temp_history_file):
         execution_history=temp_history_file,
         skip_reports=True,
     )
-    my_athena.get_available_upgrades = lambda : ["0"]
+    my_athena.get_available_upgrades = lambda: ["0"]
 
     enduses = [
         "report_simulation_output.fuel_use_electricity_net_m_btu",
@@ -322,8 +332,7 @@ def test_aggregate_ts(temp_history_file):
         enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True
     )
     query1q = my_athena.query(
-        enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True,
-        annual_only=False
+        enduses=enduses, group_by=["time", state_str, bldg_type], sort=True, get_query_only=True, annual_only=False
     )
     valid_query_string1 = """
     select res_n250_hrly_v1_timeseries.time as time, res_n250_hrly_v1_baseline."build_existing_model.state" as state, res_n250_hrly_v1_baseline."build_existing_model.geometry_building_type_recs" as geometry_building_type_recs,  sum(1) as
@@ -491,7 +500,9 @@ def test_aggregate_ts(temp_history_file):
     query10 = my_athena2.agg.aggregate_timeseries(
         enduses=enduses, collapse_ts=False, agg_func="min", timestamp_grouping_func="month", get_query_only=True
     )
-    query10q = my_athena2.query(annual_only=False, enduses=enduses, agg_func="min", timestamp_grouping_func="month", get_query_only=True)
+    query10q = my_athena2.query(
+        annual_only=False, enduses=enduses, agg_func="min", timestamp_grouping_func="month", get_query_only=True
+    )
     valid_query_string10 = """
         select date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time,
             count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count,
