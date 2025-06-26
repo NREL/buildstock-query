@@ -11,6 +11,7 @@ from buildstock_query.schema.utilities import AnyColType
 from pydantic import Field
 from typing_extensions import deprecated
 
+
 class BuildStockSavings:
     """Class for doing savings query (both timeseries and annual)."""
 
