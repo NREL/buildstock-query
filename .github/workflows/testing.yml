@@ -26,6 +26,8 @@ jobs:
           aws-region: us-east-2
           role-duration-seconds: 1200
           role-session-name: MySession
+      - name: Who am I?
+        run: aws sts get-caller-identity
       - name: Install buildstock_query
         run: pip install -e .[dev]
       - name: Pytest
