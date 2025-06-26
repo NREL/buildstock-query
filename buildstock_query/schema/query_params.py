@@ -3,7 +3,7 @@ from typing import Optional, Union, Callable
 from collections.abc import Sequence
 from typing import Literal
 from buildstock_query.schema.utilities import AnyTableType, AnyColType
-from pydantic import validator
+from pydantic import validator, root_validator
 
 
 class BaseQuery(BaseModel):
@@ -63,11 +63,11 @@ class Query(BaseQuery):
         return include_savings
 
     # validate that annual_only is False if timestamp_grouping_func is not None
-    @validator("annual_only")
-    def validate_annual_only(cls, annual_only, values):
-        if values.get("timestamp_grouping_func") is not None and annual_only:
+    @validator("timestamp_grouping_func")
+    def validate_timestamp_grouping_func(cls, timestamp_grouping_func, values):
+        if timestamp_grouping_func is not None and values.get("annual_only"):
             raise ValueError("annual_only must be False when timestamp_grouping_func is provided")
-        return annual_only
+        return timestamp_grouping_func
 
     # validate that applied_only is False if upgrade_id is '0'
     @validator("applied_only", pre=True, always=True)
@@ -84,3 +84,11 @@ class Query(BaseQuery):
         if include_baseline and values.get("upgrade_id") == "0":
             raise ValueError("include_baseline cannot be set when upgrade_id is '0'")
         return include_baseline
+    
+    @root_validator
+    def check_nonzero_vs_annual(cls, values):
+        if values.get("get_nonzero_count") and not values.get("annual_only"):
+            raise ValueError(
+                "get_nonzero_count cannot be True when annual_only is False"
+            )
+        return values

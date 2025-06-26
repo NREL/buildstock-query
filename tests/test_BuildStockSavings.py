@@ -304,6 +304,73 @@ class TestResStockSavings:
                               ts_savings_applied.groupby(group_by)[value_col].sum(),
                               rtol=rtol, atol=mbtu_atol * applied_units).all()
 
+    def test_collapse_ts_with_query(self, my_athena: BuildStockQuery):
+        group_by = ["geometry_building_type_recs"]
+        n_groups = 4  # Number of groups available in the dataset for the given group_by
+        rtol = 2e-3  # 0.2% relative tolerance for matching annual values to timeseries values
+        mbtu_atol = 0.01  # absolute mbtu tolerance per unit for closeness comparison
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        ts_savings_full = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            annual_only=False,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            sort=True,
+            group_by=group_by,
+        )
+        ts_savings_applied = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            applied_only=True,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            annual_only=False,
+            group_by=group_by,
+            sort=True,
+        )
+        ts_savings_full_collapsed = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            annual_only=False,
+            group_by=group_by,
+            sort=True,
+            timestamp_grouping_func="year",
+        )
+        ts_savings_applied_collapsed = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            applied_only=True,
+            annual_only=False,
+            group_by=group_by,
+            sort=True,
+            timestamp_grouping_func="year",
+        )
+
+        assert len(ts_savings_applied_collapsed) == n_groups
+        assert len(ts_savings_full_collapsed) == n_groups
+        assert (ts_savings_full_collapsed['sample_count'].values ==
+                ts_savings_full.groupby(group_by)['sample_count'].mean().values).all()  # type: ignore
+        assert (ts_savings_applied_collapsed['sample_count'].values ==
+                ts_savings_applied.groupby(group_by)['sample_count'].mean().values).all()  # type: ignore
+        applied_units = ts_savings_applied_collapsed['units_count'].iloc[0]
+        value_cols = [f"{ts_enduses[0]}__baseline", f"{ts_enduses[0]}__savings"]
+        for value_col in value_cols:
+            assert np.isclose(ts_savings_full_collapsed[value_col],
+                              ts_savings_full.groupby(group_by)[value_col].sum(),
+                              rtol=rtol, atol=mbtu_atol * applied_units).all()
+            assert np.isclose(ts_savings_applied_collapsed[value_col],
+                              ts_savings_applied.groupby(group_by)[value_col].sum(),
+                              rtol=rtol, atol=mbtu_atol * applied_units).all()
+
     def test_restrict(self, my_athena: BuildStockQuery):
         group_by = ["state", "geometry_building_type_recs"]
         n_groups = 1  # There is only one building type in CO in the test dataset
@@ -313,6 +380,26 @@ class TestResStockSavings:
                                                      annual_only=False,
                                                      group_by=group_by, sort=True,
                                                      restrict=restrict)
+        assert len(ts_savings) == n_groups * 35040
+        assert (ts_savings['state'] == 'CO').all()
+
+    def test_restrict_with_query(self, my_athena: BuildStockQuery):
+        group_by = ["state", "geometry_building_type_recs"]
+        n_groups = 1  # There is only one building type in CO in the test dataset
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        restrict = [('state', ['CO'])]
+        ts_savings = my_athena.agg.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            applied_only=True,
+            annual_only=False,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            group_by=group_by,
+            sort=True,
+            restrict=restrict,
+        )
         assert len(ts_savings) == n_groups * 35040
         assert (ts_savings['state'] == 'CO').all()
 
@@ -340,7 +427,41 @@ class TestResStockSavings:
                                                            get_query_only=True)
         assert_query_equal(ts_savings_query, match.groups()[0])
 
+    def test_unload_with_query(self, my_athena: BuildStockQuery):
+        group_by = ["state", "geometry_building_type_recs"]
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        restrict = [('state', ['CO'])]
+        part_by = ["geometry_building_type_recs"]
+        unload_loc = "buildstock-testing/unload_test/test1/state=CO"
+        ts_savings_unload_query = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses,
+                                                                  applied_only=True,
+                                                                  annual_only=False,
+                                                                  include_baseline=True,
+                                                                  include_savings=True,
+                                                                  include_upgrade=False,
+                                                                  group_by=group_by, sort=True,
+                                                                  unload_to=unload_loc,
+                                                                  partition_by=part_by,
+                                                                  restrict=restrict,
+                                                                  get_query_only=True)
+        pattern = r"UNLOAD\s+\((.*)\)\s+TO 's3://" + unload_loc + r".* partitioned_by = ARRAY\['" + part_by[0] + r"'\]"
+        match = re.match(pattern, ts_savings_unload_query, re.DOTALL)
+        assert match
+        ts_savings_query = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses, applied_only=True,
+                                                           annual_only=False,
+                                                           include_baseline=True,
+                                                           include_savings=True,
+                                                           include_upgrade=False,
+                                                           group_by=group_by, sort=True,
+                                                           restrict=restrict,
+                                                           get_query_only=True)
+        assert_query_equal(ts_savings_query, match.groups()[0])
+
     def static_test_savings_shape_return_type(self, my_athena: BuildStockQuery):
+        """
+        This test doesn't run. If there are any type related error, it should show up in the IDE through 
+        type checking interface. Make sure to either run mypy or have type checking enabled in your IDE.
+        """
         enduses = ['fuel_use_electricity_total_m_btu']
 
         my_bool = 3 < 5
@@ -352,6 +473,23 @@ class TestResStockSavings:
                     pd.DataFrame)
         assert_type(my_athena.savings.savings_shape(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
                     Union[str, pd.DataFrame])
+    
+    def static_test_savings_shape_return_type_with_query(self, my_athena: BuildStockQuery):
+        """
+        This test doesn't run. If there are any type related error, it should show up in the IDE through 
+        type checking interface. Make sure to either run mypy or have type checking enabled in your IDE.
+        """
+        enduses = ['fuel_use_electricity_total_m_btu']
+
+        my_bool = 3 < 5
+        assert_type(my_athena.agg.query(upgrade_id='1', enduses=enduses),
+                    pd.DataFrame)
+        assert_type(my_athena.agg.query(upgrade_id='1', enduses=enduses, get_query_only=True),
+                    str)
+        assert_type(my_athena.agg.query(upgrade_id='1', enduses=enduses, get_query_only=False),
+                    pd.DataFrame)
+        assert_type(my_athena.agg.query(upgrade_id='1', enduses=enduses, get_query_only=my_bool),
+                    Union[str, pd.DataFrame])
 
     def test_savings_shape_with_timestamp_grouping(self, my_athena: BuildStockQuery):
         ts_enduses = ["fuel_use__electricity__total__kwh"]
@@ -361,11 +499,19 @@ class TestResStockSavings:
                                                                timestamp_grouping_func='hour', get_query_only=True,
                                                                annual_only=False,
                                                                sort=True)
+        annual_savings_query_2 = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
+                                                                annual_only=False,
+                                                                include_baseline=True,
+                                                                include_savings=True,
+                                                                include_upgrade=False,
+                                                                applied_only=False,
+                                                                timestamp_grouping_func='hour', get_query_only=True,
+                                                                sort=True)
         expected_query = """
         SELECT date_trunc('hour', date_add('second', -900, ts_b.time)) AS time,
-        count(distinct(res_n250_15min_v19_baseline.building_id)) AS sample_count,
-        (count(distinct(res_n250_15min_v19_baseline.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
-        sum(1) / count(distinct(res_n250_15min_v19_baseline.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
+        count(distinct(ts_b.building_id)) AS sample_count,
+        (count(distinct(ts_b.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
+        sum(1) / count(distinct(ts_b.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
         res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__baseline,
         sum((coalesce(ts_b.fuel_use__electricity__total__kwh, 0) - coalesce(CASE WHEN (ts_u.building_id IS NULL) THEN
         ts_b.fuel_use__electricity__total__kwh ELSE ts_u.fuel_use__electricity__total__kwh END, 0)) *
@@ -381,17 +527,26 @@ class TestResStockSavings:
         res_n250_15min_v19_baseline ON ts_b.building_id = res_n250_15min_v19_baseline.building_id GROUP BY 7, 1 ORDER BY 7, 1
         """   # noqa: E501
         assert_query_equal(annual_savings_query, expected_query)
+        assert_query_equal(annual_savings_query_2, expected_query)
 
         my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, 'second')  # type: ignore
         annual_savings_query = my_athena.savings.savings_shape(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
                                                                timestamp_grouping_func='hour', get_query_only=True,
                                                                annual_only=False,
                                                                sort=True)
+        annual_savings_query_2 = my_athena.agg.query(upgrade_id='1', enduses=ts_enduses, group_by=group_by,
+                                                                annual_only=False,
+                                                                include_baseline=True,
+                                                                include_savings=True,
+                                                                include_upgrade=False,
+                                                                applied_only=False,
+                                                                timestamp_grouping_func='hour', get_query_only=True,
+                                                                sort=True)
         expected_query = """
         SELECT date_trunc('hour', ts_b.time) AS time,
-        count(distinct(res_n250_15min_v19_baseline.building_id)) AS sample_count,
-        (count(distinct(res_n250_15min_v19_baseline.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
-        sum(1) / count(distinct(res_n250_15min_v19_baseline.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
+        count(distinct(ts_b.building_id)) AS sample_count,
+        (count(distinct(ts_b.building_id)) * sum(res_n250_15min_v19_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count,
+        sum(1) / count(distinct(ts_b.building_id)) AS rows_per_sample, sum(ts_b.fuel_use__electricity__total__kwh *
         res_n250_15min_v19_baseline."build_existing_model.sample_weight") AS fuel_use__electricity__total__kwh__baseline,
         sum((coalesce(ts_b.fuel_use__electricity__total__kwh, 0) - coalesce(CASE WHEN (ts_u.building_id IS NULL) THEN
         ts_b.fuel_use__electricity__total__kwh ELSE ts_u.fuel_use__electricity__total__kwh END, 0)) *
@@ -407,3 +562,4 @@ class TestResStockSavings:
         res_n250_15min_v19_baseline ON ts_b.building_id = res_n250_15min_v19_baseline.building_id GROUP BY 7, 1 ORDER BY 7, 1
         """   # noqa: E501
         assert_query_equal(annual_savings_query, expected_query)
+        assert_query_equal(annual_savings_query_2, expected_query)

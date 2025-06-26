@@ -1029,30 +1029,43 @@ class QueryCore:
             label += f"__{agg_func}"
         return label
 
-    def _add_restrict(self, query, restrict, *, bs_only=False):
-        if not restrict:
-            return query
-        where_clauses = []
+    def _get_restrict_clauses(self, restrict, bs_only=False):
+        clauses = []
+        if bs_only:
+            candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
+        else:
+            candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
+        
         for col_str, criteria in restrict:
-            col = self._get_column(col_str, candidate_tables=[self.bs_table]) if bs_only else self._get_column(col_str)
+            col = self._get_column(col_str, candidate_tables=candidate_tables)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
-                    where_clauses.append(col.in_(criteria))
+                    clauses.append(col.in_(criteria))
                 elif len(criteria) == 1:
-                    where_clauses.append(col == criteria[0])
+                    clauses.append(col == criteria[0])
                 else:
                     raise ValueError(f"Invalid criteria {criteria}")
             else:
-                where_clauses.append(col == criteria)
-        query = query.where(*where_clauses)
+                clauses.append(col == criteria)
+        return clauses
+
+    def _add_restrict(self, query, restrict, *, bs_only=False):
+        if not restrict:
+            return query
+        restrict_clauses = self._get_restrict_clauses(restrict, bs_only=bs_only)
+        query = query.where(*restrict_clauses)
         return query
 
     def _add_avoid(self, query, avoid, *, bs_only=False):
         if not avoid:
             return query
+        if bs_only:
+            candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
+        else:
+            candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
         where_clauses = []
         for col_str, criteria in avoid:
-            col = self._get_column(col_str, candidate_tables=[self.bs_table]) if bs_only else self._get_column(col_str)
+            col = self._get_column(col_str, candidate_tables=candidate_tables)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
                     where_clauses.append(col.not_in(criteria))
@@ -1107,6 +1120,7 @@ class QueryCore:
         return total_weight
 
     def _get_agg_func_and_weight(self, weights, agg_func=None):
+        # from: https://trino.io/docs/current/functions.html
         if agg_func is None or agg_func == "sum":
             return safunc.sum, self._get_weight(weights)
         if agg_func == "count":
@@ -1118,7 +1132,7 @@ class QueryCore:
         if agg_func == "min":
             return safunc.min, 1
         if agg_func == "arbitrary":
-            return safunc.arbitrary, 1
+            return safunc.arbitrary, None
         if agg_func == "stddev_pop":
             return safunc.stddev_pop, 1
         if agg_func == "stddev_samp":
@@ -1128,9 +1142,9 @@ class QueryCore:
         if agg_func == "var_samp":
             return safunc.var_samp, 1
         if agg_func == "count_if":
-            return safunc.count_if, 1
-        if agg_func == "set_agg":
-            return safunc.set_agg, 1
+            return safunc.count_if, None
+        if agg_func == "array_agg":
+            return safunc.array_agg, None
         raise ValueError(f"agg_func {agg_func} is not supported")
 
     def delete_everything(self):

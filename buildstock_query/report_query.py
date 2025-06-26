@@ -647,7 +647,7 @@ class BuildStockReport:
         logger.info("Checking integrity with ts_tables ...")
         raw_ts_report = self._get_ts_report()
         raw_success_report = self.get_success_report(trim_missing_bs=False)
-        if self._bsq.db_schema.structure.unapplicables_have_ts:
+        if self._bsq.db_schema.structure.inapplicables_have_ts:
             bs_dict = raw_success_report[["inapplicable", "success"]].sum(axis=1).to_dict()
         else:
             bs_dict = raw_success_report["success"].to_dict()

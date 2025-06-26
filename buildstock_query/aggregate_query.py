@@ -10,7 +10,7 @@ from buildstock_query.schema.helpers import gather_params
 from pydantic import validate_arguments
 from typing import Union
 from collections.abc import Sequence
-from buildstock_query.schema.utilities import AnyColType
+from buildstock_query.schema.utilities import AnyColType, DBColType
 from pydantic import Field
 
 logging.basicConfig(level=logging.INFO)
@@ -27,31 +27,40 @@ class BuildStockAggregate:
     @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
     def __get_timeseries_bs_up_table(
         self,
-        enduses: Sequence[AnyColType],
+        enduses: Sequence[DBColType],
         upgrade_id: str,
         applied_only: bool | None,
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
-        ts_group_by: Sequence[Union[AnyColType, tuple[str, str]]] = Field(default_factory=list),
+        ts_group_by: Sequence[DBColType] = Field(default_factory=list),
     ):
         if self._bsq.ts_table is None:
             raise ValueError("No timeseries table found in database.")
 
         if upgrade_id == "0":
-            tbljoin = self._bsq.ts_table.join(
+            if self._bsq.up_table is None:  # There are no upgrades so just return the timeseries table as is
+                tbljoin = self._bsq.ts_table.join(
                 self._bsq.bs_table,
                 self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
             )
-            if self._bsq.up_table is None:  # There are no upgrades so just return the timeseries table as is
-                tbljoin = self._bsq._add_restrict(tbljoin, restrict)
             else:
-                tbljoin = self._bsq._add_restrict(tbljoin, [[self._bsq._ts_upgrade_col, upgrade_id], *restrict])
+                tbljoin = self._bsq.ts_table.join(
+                self._bsq.bs_table,
+                sa.and_(
+                    self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
+                    self._bsq._ts_upgrade_col == upgrade_id,
+                    *self._bsq._get_restrict_clauses(restrict, bs_only=True),
+                ),
+            )
             return self._bsq.ts_table, self._bsq.ts_table, tbljoin
 
         ts = self._bsq.ts_table
         base = self._bsq.bs_table
-        sa_ts_cols = [ts.c[self._bsq.building_id_column_name], ts.c[self._bsq.timestamp_column_name], *ts_group_by]
-        enduse_cols = [enduse for enduse in enduses if enduse not in sa_ts_cols]
-        sa_ts_cols.extend(enduse_cols)
+        must_have_col_names = [self._bsq.building_id_column_name, self._bsq.timestamp_column_name]
+        must_have_cols = [ts.c[col_name] for col_name in must_have_col_names]
+        group_cols = [group for group in ts_group_by if group.name not in must_have_col_names]
+        group_col_names = [g.name for g in group_cols]
+        enduse_cols = [enduse for enduse in enduses if enduse.name not in must_have_col_names + group_col_names]
+        sa_ts_cols = must_have_cols + group_cols + enduse_cols
         ucol = self._bsq._ts_upgrade_col
 
         ts_b = self._bsq._add_restrict(sa.select(sa_ts_cols), [[ucol, "0"], *restrict]).alias("ts_b")
@@ -121,7 +130,9 @@ class BuildStockAggregate:
         total_weight = self._bsq._get_weight(weights)
         agg_func, agg_weight = self._bsq._get_agg_func_and_weight(weights, params.agg_func)
         enduse_selection = [
-            agg_func(enduse * agg_weight).label(self._bsq._simple_label(enduse.name, params.agg_func))
+            agg_func(enduse if agg_weight is None else enduse * agg_weight).label(
+                self._bsq._simple_label(enduse.name, params.agg_func)
+            )
             for enduse in enduse_cols
         ]
         if params.get_quartiles:
@@ -236,7 +247,9 @@ class BuildStockAggregate:
         total_weight = self._bsq._get_weight(params.weights)
         agg_func, agg_weight = self._bsq._get_agg_func_and_weight(params.weights, params.agg_func)
         enduse_selection = [
-            agg_func(enduse * agg_weight).label(self._bsq._simple_label(enduse.name, params.agg_func))
+            agg_func(enduse if agg_weight is None else enduse * agg_weight).label(
+                self._bsq._simple_label(enduse.name, params.agg_func)
+            )
             for enduse in enduses_cols
         ]
         group_by = list(params.group_by)
@@ -510,20 +523,27 @@ class BuildStockAggregate:
 
             if params.include_baseline:
                 query_cols.append(
-                    agg_func(baseline_col * agg_weight).label(
+                    agg_func(baseline_col if agg_weight is None else baseline_col * agg_weight).label(
                         f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline"
                     )
                 )
             if params.include_upgrade:
                 suffix = "__upgrade" if params.include_savings or params.include_baseline else ""
                 query_cols.append(
-                    agg_func(upgrade_col * agg_weight).label(
+                    agg_func(upgrade_col if agg_weight is None else upgrade_col * agg_weight).label(
                         f"{self._bsq._simple_label(col.name, params.agg_func)}{suffix}"
                     )
                 )
+                if params.get_nonzero_count and params.annual_only:
+                    # Nonzero count is only valid for annual queries
+                    query_cols.append(
+                        safunc.sum(sa.case((safunc.coalesce(upgrade_col, 0) != 0, 1), else_=0) * total_weight).label(
+                            f"{self._bsq._simple_label(upgrade_col.name)}__nonzero_units_count"
+                        )
+                    )
             if params.include_savings:
                 query_cols.append(
-                    agg_func(savings_col * agg_weight).label(
+                    agg_func(savings_col if agg_weight is None else savings_col * agg_weight).label(
                         f"{self._bsq._simple_label(col.name, params.agg_func)}__savings"
                     )
                 )
@@ -563,15 +583,15 @@ class BuildStockAggregate:
             ]
         elif params.timestamp_grouping_func:
             colname = self._bsq.timestamp_column_name
-            # sa.func.dis
+            bldg_id_col = bs_tbl.c[self._bsq.building_id_column_name]
             grouping_metrics_selection = [
-                safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column)).label("sample_count"),
+                safunc.count(sa.func.distinct(bldg_id_col)).label("sample_count"),
                 (
-                    safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column))
+                    safunc.count(sa.func.distinct(bldg_id_col))
                     * safunc.sum(total_weight)
                     / safunc.sum(1)
                 ).label("units_count"),
-                (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.ts_bldgid_column))).label("rows_per_sample"),
+                (safunc.sum(1) / safunc.count(sa.func.distinct(bldg_id_col))).label("rows_per_sample"),
             ]
             sim_info = self._bsq._get_simulation_info()
             time_col = bs_tbl.c[self._bsq.timestamp_column_name]
@@ -622,8 +642,10 @@ class BuildStockAggregate:
         if params.annual_only:
             query = query.where(self._bsq._bs_successful_condition)
         query = self._bsq._add_restrict(query, params.restrict)
+        query = self._bsq._add_avoid(query, params.avoid, bs_only=params.annual_only)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
+        query = query.limit(params.limit) if params.limit else query
 
         compiled_query = self._bsq._compile(query)
         if params.unload_to:

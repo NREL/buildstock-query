@@ -25,7 +25,7 @@ fuel_totals = ["out.electricity.total.energy_consumption",
 [completion_values]
 success = "true"
 fail = ""
-unapplicable = "false"
+inapplicable = "false"
 
 [structure]
-unapplicables_have_ts = "true"
+inapplicables_have_ts = "true"

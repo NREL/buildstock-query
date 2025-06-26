@@ -168,14 +168,15 @@ class BuildStockSavings:
         elif params.timestamp_grouping_func:
             colname = self._bsq.timestamp_column_name
             # sa.func.dis
+            bldg_id_col = ts_b.c[self._bsq.building_id_column_name]
             grouping_metrics_selection = [
-                safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column)).label("sample_count"),
+                safunc.count(sa.func.distinct(bldg_id_col)).label("sample_count"),
                 (
-                    safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))
+                    safunc.count(sa.func.distinct(bldg_id_col))
                     * safunc.sum(total_weight)
                     / safunc.sum(1)
                 ).label("units_count"),
-                (safunc.sum(1) / safunc.count(sa.func.distinct(self._bsq.bs_bldgid_column))).label("rows_per_sample"),
+                (safunc.sum(1) / safunc.count(sa.func.distinct(bldg_id_col))).label("rows_per_sample"),
             ]
             sim_info = self._bsq._get_simulation_info()
             time_col = ts_b.c[self._bsq.timestamp_column_name]

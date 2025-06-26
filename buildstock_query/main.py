@@ -88,12 +88,12 @@ class BuildStockQuery(QueryCore):
             athena_query_reuse=athena_query_reuse,
         )
         self._run_params = self.params.get_run_params()
+        super(BuildStockQuery, self).__init__(params=self._run_params)
         from buildstock_query.report_query import BuildStockReport
         from buildstock_query.aggregate_query import BuildStockAggregate
         from buildstock_query.savings_query import BuildStockSavings
         from buildstock_query.utility_query import BuildStockUtility
 
-        super().__init__(params=self._run_params)
         #: `buildstock_query.report_query.BuildStockReport` object to perform report queries
         self.report: BuildStockReport = BuildStockReport(self)
         #: `buildstock_query.aggregate_query.BuildStockAggregate` object to perform aggregate queries
@@ -711,10 +711,10 @@ class BuildStockQuery(QueryCore):
                 bs_restrict.append([self._get_gcol(col), restrict_vals])
         return bs_restrict, ts_restrict
 
-    def _split_group_by(self, processed_group_by):
+    def _split_group_by(self, processed_group_by: list[DBColType]):
         # Some cols like "state" might be available in both ts and bs table
-        ts_group_by = []  # restrict to apply to baseline table
-        bs_group_by = []  # restrict to apply to timeseries table
+        ts_group_by: list[DBColType] = []  # restrict to apply to baseline table
+        bs_group_by: list[DBColType] = []  # restrict to apply to timeseries table
         for g in processed_group_by:
             if self.ts_table is not None and g.name in self.ts_table.columns:
                 ts_group_by.append(g)
@@ -749,7 +749,7 @@ class BuildStockQuery(QueryCore):
                 new_group_by.append(col)
         return new_group_by
 
-    def _process_groupby_cols(self, group_by, annual_only=False):
+    def _process_groupby_cols(self, group_by, annual_only=False) -> list[DBColType]:
         if not group_by:
             return []
         tables = [self.bs_table, self.up_table]
