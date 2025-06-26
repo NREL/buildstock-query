@@ -84,7 +84,7 @@ class Query(BaseQuery):
         if include_baseline and values.get("upgrade_id") == "0":
             raise ValueError("include_baseline cannot be set when upgrade_id is '0'")
         return include_baseline
-    
+
     @root_validator
     def check_nonzero_vs_annual(cls, values):
         if values.get("get_nonzero_count") and not values.get("annual_only"):

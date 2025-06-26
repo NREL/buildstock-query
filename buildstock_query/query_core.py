@@ -1035,7 +1035,7 @@ class QueryCore:
             candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
         else:
             candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
-        
+
         for col_str, criteria in restrict:
             col = self._get_column(col_str, candidate_tables=candidate_tables)
             if isinstance(criteria, (list, tuple)):

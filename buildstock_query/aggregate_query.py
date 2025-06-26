@@ -39,18 +39,18 @@ class BuildStockAggregate:
         if upgrade_id == "0":
             if self._bsq.up_table is None:  # There are no upgrades so just return the timeseries table as is
                 tbljoin = self._bsq.ts_table.join(
-                self._bsq.bs_table,
-                self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
-            )
+                    self._bsq.bs_table,
+                    self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
+                )
             else:
                 tbljoin = self._bsq.ts_table.join(
-                self._bsq.bs_table,
-                sa.and_(
-                    self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
-                    self._bsq._ts_upgrade_col == upgrade_id,
-                    *self._bsq._get_restrict_clauses(restrict, bs_only=True),
-                ),
-            )
+                    self._bsq.bs_table,
+                    sa.and_(
+                        self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
+                        self._bsq._ts_upgrade_col == upgrade_id,
+                        *self._bsq._get_restrict_clauses(restrict, bs_only=True),
+                    ),
+                )
             return self._bsq.ts_table, self._bsq.ts_table, tbljoin
 
         ts = self._bsq.ts_table
