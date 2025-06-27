@@ -221,7 +221,7 @@ def test_get_buildings_by_county(temp_history_file: str):
     assert_query_equal(query, expected_query)
 
 
-def test_calc_you_bill(temp_history_file: str):
+def test_calc_tou_bill(temp_history_file: str):
     my_athena = BuildStockQuery(
         workgroup="eulp",
         db_name="buildstock_testing",
@@ -239,23 +239,23 @@ def test_calc_you_bill(temp_history_file: str):
 
     my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 15 * 60, "second")  # type: ignore
     my_athena._get_rows_per_building = lambda: 8760  # type: ignore
-    query = my_athena.utility.calculate_you_bill(
+    query = my_athena.utility.calculate_tou_bill(
         rate_map=rate_map, meter_col="fuel use: electricity: total", get_query_only=True
     )
 
     expected_query = """
-    SELECT date_trunc('month', date_add('second', -900, res_n250_hrly_v1_timeseries.time)) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__YOU__dollars"
+    SELECT date_trunc('month', date_add('second', -900, res_n250_hrly_v1_timeseries.time)) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars"
  FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id GROUP BY 1 ORDER BY 1
     """  # noqa: E501
 
     assert_query_equal(query, expected_query)
 
-    query2 = my_athena.utility.calculate_you_bill(
+    query2 = my_athena.utility.calculate_tou_bill(
         rate_map=rate_map, meter_col="fuel use: electricity: total", collapse_ts=True, get_query_only=True
     )
 
     expected_query2 = """
-SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__YOU__dollars"
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(date_add('second', -900, res_n250_hrly_v1_timeseries.time)), CAST(day_of_week(date_add('second', -900, res_n250_hrly_v1_timeseries.time)) IN (6, 7) AS INTEGER), hour(date_add('second', -900, res_n250_hrly_v1_timeseries.time)))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars"
  FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
     """  # noqa: E501
 
@@ -263,29 +263,29 @@ SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_exist
 
     my_athena._get_simulation_info = lambda: SimInfo(2012, 15 * 60, 0, "second")  # type: ignore
     my_athena._get_rows_per_building = lambda: 8760  # type: ignore
-    query3 = my_athena.utility.calculate_you_bill(
+    query3 = my_athena.utility.calculate_tou_bill(
         rate_map=rate_map, meter_col="fuel use: electricity: total", get_query_only=True
     )
 
     expected_query3 = """
-    SELECT date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__YOU__dollars"
+    SELECT date_trunc('month', res_n250_hrly_v1_timeseries.time) AS time, count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS sample_count, (count(distinct(res_n250_hrly_v1_timeseries.building_id)) * sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight")) / sum(1) AS units_count, sum(1) / count(distinct(res_n250_hrly_v1_timeseries.building_id)) AS rows_per_sample, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars"
  FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id GROUP BY 1 ORDER BY 1
     """  # noqa: E501
 
     assert_query_equal(query3, expected_query3)
 
-    query4 = my_athena.utility.calculate_you_bill(
+    query4 = my_athena.utility.calculate_tou_bill(
         rate_map=rate_map, meter_col="fuel use: electricity: total", collapse_ts=True, get_query_only=True
     )
 
     expected_query4 = """
-SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__YOU__dollars"
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars"
  FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
     """  # noqa: E501
 
     assert_query_equal(query4, expected_query4)
 
-    query5 = my_athena.utility.calculate_you_bill(
+    query5 = my_athena.utility.calculate_tou_bill(
         rate_map=rate_map,
         meter_col=["fuel use: electricity: total", "end use: electricity: cooling"],
         collapse_ts=True,
@@ -293,7 +293,7 @@ SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_exist
     )
 
     expected_query5 = """
-SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__YOU__dollars", sum(((res_n250_hrly_v1_timeseries."end use: electricity: cooling" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "end use: electricity: cooling__YOU__dollars"
+SELECT sum(1) / 8760 AS sample_count, sum(res_n250_hrly_v1_baseline."build_existing_model.sample_weight" / 8760) AS units_count, sum(((res_n250_hrly_v1_timeseries."fuel use: electricity: total" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "fuel use: electricity: total__TOU__dollars", sum(((res_n250_hrly_v1_timeseries."end use: electricity: cooling" * MAP(ARRAY[(1, 1, 0), (1, 1, 1), (1, 0, 0), (1, 0, 1)], ARRAY[0.1, 0.1, 0.1, 0.1])[(month(res_n250_hrly_v1_timeseries.time), CAST(day_of_week(res_n250_hrly_v1_timeseries.time) IN (6, 7) AS INTEGER), hour(res_n250_hrly_v1_timeseries.time))]) / 100) * res_n250_hrly_v1_baseline."build_existing_model.sample_weight") AS "end use: electricity: cooling__TOU__dollars"
 FROM res_n250_hrly_v1_timeseries JOIN res_n250_hrly_v1_baseline ON res_n250_hrly_v1_baseline.building_id = res_n250_hrly_v1_timeseries.building_id
     """  # noqa: E501
 
