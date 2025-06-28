@@ -13,7 +13,6 @@ from buildstock_query.helpers import read_csv
 from pydantic import Field, BaseModel, ValidationError
 
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

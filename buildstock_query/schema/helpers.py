@@ -1,6 +1,7 @@
 from functools import wraps
 from pydantic import BaseModel
 
+
 def gather_params(querycls: type[BaseModel]):
     def _accept_query(func):
         @wraps(func)
