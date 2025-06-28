@@ -8,9 +8,10 @@ from sqlalchemy.sql import functions as safunc
 from collections import defaultdict
 from buildstock_query.schema.query_params import UtilityTSQuery, TSQuery
 from buildstock_query.schema.helpers import gather_params
-from buildstock_query.schema.utilities import AnyColType, AnyTableType, MappedColumn
+from buildstock_query.schema.utilities import AnyColType, AnyTableType, MappedColumn, validate_arguments
 from buildstock_query.helpers import read_csv
-from pydantic import Field, BaseModel, ValidationError, validate_arguments
+from pydantic import Field, BaseModel, ValidationError
+
 
 
 logging.basicConfig(level=logging.INFO)
@@ -176,7 +177,7 @@ class BuildStockUtility:
             params=params,
         )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def aggregate_unit_counts_by_eiaid(
         self,
         *,
@@ -214,7 +215,7 @@ class BuildStockUtility:
         )
         return result
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def aggregate_annual_by_eiaid(
         self,
         enduses: Sequence[AnyColType],
@@ -249,7 +250,7 @@ class BuildStockUtility:
         )
         return result
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_filtered_results_csv_by_eiaid(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns a portion of the results csvs, which belongs to given list of utilities
@@ -272,7 +273,7 @@ class BuildStockUtility:
         res = self._bsq.execute(query)
         return res
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_eiaids(self, restrict: Optional[List[Tuple[str, List]]] = None) -> list[str]:
         """
         Returns the list of eiaids
@@ -300,7 +301,7 @@ class BuildStockUtility:
         self._cache["eiaids"] = list(annual_agg["eiaid"].to_numpy(dtype=str).tolist())
         return self._cache["eiaids"]
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_buildings_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of buildings belonging to the given list of utilities.
@@ -324,7 +325,7 @@ class BuildStockUtility:
         res = self._bsq.execute(query)
         return res
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_locations_by_eiaids(self, eiaids: List[str], get_query_only: bool = False):
         """
         Returns the list of locations/counties (depends on mapping version) belonging to a given list of utilities.
@@ -374,7 +375,7 @@ class BuildStockUtility:
         rate_map = full_rate.set_index(["month", "weekend", "hour"])["rate"].to_dict()
         return rate_map
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def calculate_tou_bill(
         self,
         *,

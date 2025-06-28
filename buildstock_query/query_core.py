@@ -36,8 +36,8 @@ from buildstock_query.schema.utilities import (
     MappedColumn,
     SALabel,
     DBTableType,
+    validate_arguments
 )
-from pydantic import validate_arguments
 import hashlib
 import toml
 
@@ -134,7 +134,7 @@ class QueryCore:
         self._batch_query_id = 0
         db_schema_file = os.path.join(os.path.dirname(__file__), "db_schema", f"{params.db_schema}.toml")
         db_schema_dict = toml.load(db_schema_file)
-        self.db_schema = DBSchema.parse_obj(db_schema_dict)
+        self.db_schema = DBSchema.model_validate(db_schema_dict)
         self.db_col_name = self.db_schema.column_names
         self.timestamp_column_name = self.db_col_name.timestamp
         self.building_id_column_name = self.db_col_name.building_id
@@ -241,7 +241,7 @@ class QueryCore:
     @typing.overload
     def _get_table(self, table_name: AnyTableType, missing_ok: Literal[False] = False) -> sa.Table: ...
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def _get_table(self, table_name: AnyTableType, missing_ok: bool = False) -> Optional[DBTableType]:
         if not isinstance(table_name, str):
             return table_name  # already a table
@@ -255,7 +255,7 @@ class QueryCore:
             else:
                 raise
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def _get_column(
         self, column_name: AnyColType, candidate_tables: Sequence[AnyTableType | None] | None = None
     ) -> DBColType:
@@ -362,7 +362,7 @@ class QueryCore:
         )
         return engine
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def delete_table(self, table_name: str):
         """
         Function to delete athena table.
@@ -376,7 +376,7 @@ class QueryCore:
         else:
             raise QueryException(f"Deleting it failed. Reason: {reason}")
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def add_table(
         self, table_name: str, table_df: pd.DataFrame, s3_bucket: str, s3_prefix: str, override: bool = False
     ):
@@ -456,7 +456,7 @@ class QueryCore:
         else:
             raise QueryException(f"Failed to create the table. Reason: {reason}")
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def execute_raw(self, query, db: Optional[str] = None, run_async: bool = False):
         """
         Directly executes the supplied query in Athena.
@@ -521,7 +521,7 @@ class QueryCore:
         run_async: Literal[True],
     ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def execute(
         self, query, run_async: bool = False
     ) -> Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
@@ -579,7 +579,7 @@ class QueryCore:
         for count in self._batch_query_status_map.keys():
             print(f"Query {count}: {self.get_batch_query_report(count)}\n")
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def stop_batch_query(self, batch_id: int) -> None:
         """
         Stops all the queries running under a batch query
@@ -595,7 +595,7 @@ class QueryCore:
         for exec_id in self._batch_query_status_map[batch_id]["submitted_execution_ids"]:
             self.stop_query(exec_id)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_failed_queries(self, batch_id: int) -> tuple[Sequence[ExeId], Sequence[str]]:
         """_summary_
 
@@ -616,7 +616,7 @@ class QueryCore:
                     failed_queries.append(stats["submitted_queries"][i])
         return failed_query_ids, failed_queries
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def print_failed_query_errors(self, batch_id: int) -> None:
         """Print the error messages for all queries that failed in batch query.
 
@@ -630,7 +630,7 @@ class QueryCore:
                 f"\nError: {self.get_query_error(exe_id)}\n"
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_ids_for_failed_queries(self, batch_id: int) -> Sequence[str]:
         """Returns the list of execution ids for failed queries in batch query.
 
@@ -647,7 +647,7 @@ class QueryCore:
                 failed_ids.append(exe_id)
         return failed_ids
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_batch_query_report(self, batch_id: int) -> BatchQueryReportMap:
         """
         Returns the status of the queries running under a batch query.
@@ -991,7 +991,7 @@ class QueryCore:
         """
         return self._aws_athena.stop_query_execution(QueryExecutionId=execution_id)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments
     def get_cols(self, table: AnyTableType, fuel_type=None) -> Sequence[DBColType]:
         """
         Returns the columns of for a particular table.

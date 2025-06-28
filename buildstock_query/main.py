@@ -8,13 +8,14 @@ import re
 from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
 import pandas as pd
-from pydantic import validate_arguments, Field
+from pydantic import Field
 from typing import Optional, Literal
 from typing_extensions import assert_never
 import typing
 from datetime import datetime
 from buildstock_query.schema.run_params import BSQParams
 from buildstock_query.schema.utilities import DBColType, SALabel, AnyColType, AnyTableType
+from buildstock_query.schema.utilities import validate_arguments
 from buildstock_query.schema.utilities import MappedColumn
 from buildstock_query.schema.query_params import Query
 
@@ -35,7 +36,7 @@ class SimInfo:
 
 
 class BuildStockQuery(QueryCore):
-    @validate_arguments(config=dict(smart_union=True))
+    @validate_arguments
     def __init__(
         self,
         workgroup: str,
@@ -213,7 +214,7 @@ class BuildStockQuery(QueryCore):
         else:
             raise ValueError("Not all buildings have same number of rows.")
 
-    @validate_arguments(config=dict(smart_union=True))
+    @validate_arguments
     def get_distinct_vals(
         self, column: str, table_name: Optional[str], get_query_only: bool = False
     ) -> Union[str, pd.Series]:
@@ -236,7 +237,7 @@ class BuildStockQuery(QueryCore):
         r = self.execute(query, run_async=False)
         return r[column]
 
-    @validate_arguments(config=dict(smart_union=True))
+    @validate_arguments
     def get_distinct_count(
         self, column: str, table_name: Optional[str] = None, get_query_only: bool = False
     ) -> Union[pd.DataFrame, str]:
@@ -285,7 +286,7 @@ class BuildStockQuery(QueryCore):
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
     ) -> Union[str, pd.DataFrame]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_results_csv(
         self,
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
@@ -396,7 +397,7 @@ class BuildStockQuery(QueryCore):
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
     ) -> Union[pd.DataFrame, str]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_upgrades_csv(
         self,
         *,
@@ -527,7 +528,7 @@ class BuildStockQuery(QueryCore):
         get_query_only: bool,
     ) -> Union[pd.DataFrame, str]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_building_ids(
         self,
         restrict: Sequence[tuple[AnyColType, Union[str, int, Sequence[Union[int, str]]]]] = Field(default_factory=list),
@@ -558,7 +559,7 @@ class BuildStockQuery(QueryCore):
     @typing.overload
     def _get_simulation_info(self, get_query_only: Literal[True]) -> str: ...
 
-    @validate_arguments(config=dict(smart_union=True))
+    @validate_arguments
     def _get_simulation_info(self, get_query_only: bool = False) -> Union[str, SimInfo]:
         # find the simulation time interval
         query0 = sa.select([self.ts_bldgid_column, self._ts_upgrade_col]).limit(1)  # get a building id and upgrade
@@ -788,7 +789,7 @@ class BuildStockQuery(QueryCore):
         self, location_col: str, locations: list[str], get_query_only: bool
     ) -> Union[str, pd.DataFrame]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_buildings_by_locations(
         self, location_col: str, locations: list[str], get_query_only: bool = False
     ) -> Union[str, pd.DataFrame]:

@@ -7,10 +7,9 @@ from buildstock_query import main
 from buildstock_query.schema.query_params import BaseQuery, TSQuery, Query
 import pandas as pd
 from buildstock_query.schema.helpers import gather_params
-from pydantic import validate_arguments
 from typing import Union
 from collections.abc import Sequence
-from buildstock_query.schema.utilities import AnyColType, DBColType
+from buildstock_query.schema.utilities import AnyColType, DBColType, validate_arguments
 from pydantic import Field
 
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +23,7 @@ class BuildStockAggregate:
     def __init__(self, buildstock_query: "main.BuildStockQuery") -> None:
         self._bsq = buildstock_query
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def __get_timeseries_bs_up_table(
         self,
         enduses: Sequence[DBColType],
@@ -84,7 +83,7 @@ class BuildStockAggregate:
             ).join(base, ts_b.c[self._bsq.building_id_column_name] == base.c[self._bsq.building_id_column_name])
         return ts_b, ts_u, tbljoin
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def __get_annual_bs_up_table(self, upgrade_id: str, applied_only: bool | None):
         if upgrade_id == "0":
             return self._bsq.bs_table, self._bsq.bs_table, self._bsq.bs_table
@@ -321,7 +320,7 @@ class BuildStockAggregate:
 
         return self._bsq.execute(query)
 
-    @validate_arguments(config=dict(smart_union=True))
+    @validate_arguments
     def get_building_average_kws_at(
         self,
         *,

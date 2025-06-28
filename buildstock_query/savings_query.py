@@ -1,10 +1,10 @@
 from buildstock_query import main
 from buildstock_query.schema.query_params import SavingsQuery
 from buildstock_query.schema.helpers import gather_params
+from buildstock_query.schema.utilities import validate_arguments
 import pandas as pd
 from sqlalchemy import func as safunc
 import sqlalchemy as sa
-from pydantic import validate_arguments
 from typing import Union
 from collections.abc import Sequence
 from buildstock_query.schema.utilities import AnyColType
@@ -26,7 +26,7 @@ class BuildStockSavings:
         [self._bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def __get_timeseries_bs_up_table(
         self,
         enduses: Sequence[AnyColType],
@@ -64,7 +64,7 @@ class BuildStockSavings:
             ).join(base, ts_b.c[self._bsq.building_id_column_name] == base.c[self._bsq.building_id_column_name])
         return ts_b, ts_u, tbljoin
 
-    @validate_arguments(config={"arbitrary_types_allowed": True, "smart_union": True})
+    @validate_arguments
     def __get_annual_bs_up_table(self, upgrade_id: str, applied_only: bool):
         if self._bsq.up_table is None:
             raise ValueError("No upgrades table found in database.")

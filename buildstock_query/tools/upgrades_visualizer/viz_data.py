@@ -1,10 +1,11 @@
 from buildstock_query import BuildStockQuery, KWH2MBTU
-from pydantic import validate_arguments
+
 import polars as pl
 from buildstock_query.tools.upgrades_visualizer.plot_utils import PlotParams
 from typing import Union
 from typing import Literal
 import datetime
+from buildstock_query.schema.utilities import validate_arguments
 
 num2month = {1: "January", 2: "February", 3: "March", 4: "April",
              5: "May", 6: "June", 7: "July", 8: "August",
@@ -13,7 +14,7 @@ fuels_types = ['electricity', 'natural_gas', 'propane', 'fuel_oil', 'coal', 'woo
 
 
 class VizData:
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def __init__(self, opt_sat_path: str,
                  db_name: str,
                  run: Union[str, tuple[str, str]],

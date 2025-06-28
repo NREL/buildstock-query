@@ -11,8 +11,8 @@ from buildstock_query import main
 import typing
 from typing import Optional, Union, Literal
 from collections.abc import Hashable, Sequence
-from buildstock_query.schema.utilities import AnyColType
-from pydantic import validate_arguments, Field
+from buildstock_query.schema.utilities import AnyColType, validate_arguments
+from pydantic import Field
 from typing_extensions import assert_never
 
 logging.basicConfig(level=logging.INFO)
@@ -96,7 +96,7 @@ class BuildStockReport:
                 change_df[chng_type] = 0
         return change_df
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def print_change_details(
         self,
         upgrade_id: Union[int, str],
@@ -247,7 +247,7 @@ class BuildStockReport:
         ] = "no-chng",
     ) -> Union[list[int], str]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_buildings_by_change(
         self,
         *,
@@ -371,7 +371,7 @@ class BuildStockReport:
         applied_rows = df[simple_names].any(axis=1)  # select only rows with at least one option applied
         return df[applied_rows]
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_options_report(self, trim_missing_bs: bool = True) -> pd.DataFrame:
         """Finds out the number and list of buildings each of the options applied to.
 
@@ -417,7 +417,7 @@ class BuildStockReport:
         full_df = full_df.sort_values(["upgrade", "option"])
         return full_df
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_option_integrity_report(self, yaml_file: str, opt_sat_path: str) -> pd.DataFrame:
         """Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and tabulates the discrepancy.
@@ -448,7 +448,7 @@ class BuildStockReport:
         diff_df = diff_df.join(fail_report)
         return diff_df
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def check_options_integrity(self, yaml_file: str, opt_sat_path: str) -> bool:
         """Checks the upgrade/option spec in the buildstock configuration file against what is actually in the
         simulation result and flags any discrepancy. The verificationa allows for some mismatch since some simulations
@@ -529,7 +529,7 @@ class BuildStockReport:
         self, *, get_query_only: bool, trim_missing_bs: Union[Literal["auto"], bool] = "auto"
     ) -> Union[pd.DataFrame, tuple[str, str, list[str]]]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_success_report(self, trim_missing_bs: Union[Literal["auto"], bool] = "auto", get_query_only: bool = False):
         """Returns a basic report showing number of success and failures for each upgrade along with percentage.
         Additional information regarding number of buildings to which the upgrade applied and whether the enduses
@@ -670,7 +670,7 @@ class BuildStockReport:
             print_r("Different buildings have different number of timeseries rows.")
         return check_pass
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True, smart_union=True))
+    @validate_arguments
     def get_successful_simulation_count(
         self,
         *,
@@ -714,7 +714,7 @@ class BuildStockReport:
         self, *, upgrade_id: Union[str, int], bldg_ids: list[int], include_base_opt: bool
     ) -> list[Union[dict[str, str], set[str]]]: ...
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments
     def get_applied_options(self, upgrade_id: Union[str, int], bldg_ids: list[int], include_base_opt: bool = False):
         """Returns the list of options applied to each buildings for a given upgrade.
 
@@ -759,7 +759,7 @@ class BuildStockReport:
 
         return return_val
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments
     def get_enduses_buildings_map_by_change(
         self, upgrade_id: Union[str, int], change_type: str = "changed", bldg_list: Optional[list[int]] = None
     ) -> dict[str, pd.Index]:
