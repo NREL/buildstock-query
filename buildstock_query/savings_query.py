@@ -92,8 +92,7 @@ class BuildStockSavings:
         return self._bsq.bs_table, self._bsq.up_table, tbljoin
 
     @gather_params(SavingsQuery)
-    @deprecated("This method is deprecated and will be removed in a future version. Please use my_run.query"
-                "with include_savings=True.")
+    @deprecated("Please use my_run.query with include_savings=True.")
     def savings_shape(
         self,
         *,
