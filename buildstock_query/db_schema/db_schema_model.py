@@ -28,12 +28,12 @@ class ColumnNames(BaseModel):
 class CompletionValues(BaseModel):
     success: str
     fail: str
-    unapplicable: str
+    inapplicable: str
 
 
 class Structure(BaseModel):
     # whether the baseline timeseries is copied for unapplicable buildings in an upgrade
-    unapplicables_have_ts: bool
+    inapplicables_have_ts: bool
 
 
 class DBSchema(BaseModel):
