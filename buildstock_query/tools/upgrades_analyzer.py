@@ -15,6 +15,7 @@ from tabulate import tabulate
 from buildstock_query.helpers import read_csv, load_script_defaults, save_script_defaults
 from buildstock_query.file_getter import OpenOrDownload
 from buildstock_query.tools.set_cover import SetCoverSolver
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -771,7 +772,7 @@ class UpgradesAnalyzer:
     def get_minimal_representative_buildings(
         self,
         report_df: pd.DataFrame,
-        existing_bldgs: list | None = None,
+        previous_minimal_bldgs: list | None = None,
         include_never_upgraded=False,
         verbose=False,
         must_cover_chars=None,
@@ -823,7 +824,7 @@ class UpgradesAnalyzer:
                 groups.append(list(group))
 
         solver = SetCoverSolver(groups=groups, verbose=verbose)
-        return solver.find_minimal_set(current_list=existing_bldgs)
+        return solver.find_minimal_set(current_list=previous_minimal_bldgs)
 
     def get_parameter_overlap_report(self, report_df: pd.DataFrame):
         """
@@ -908,6 +909,8 @@ def main():
     parser.add_argument("--buildstock_file", help="Project sample file (buildstock.csv)")
     parser.add_argument("--opt_sat_file", help="Path to option_saturation.csv file")
     parser.add_argument("--output_prefix", help="Output file name prefix", default="")
+    parser.add_argument("--prev_minimal_buildstock_file", help="Previous minimal buildstock file to try to refine",
+                        default=None,)
     args = parser.parse_args()
 
     defaults = load_script_defaults("project_info")
@@ -954,6 +957,17 @@ def main():
         }
     )
     save_script_defaults("project_info", defaults)
+    previous_minimal_bldgs = None
+    if args.prev_minimal_buildstock_file:
+        try:
+            previous_minimal_bldgs_df = pd.read_csv(args.prev_minimal_buildstock_file, dtype=str)
+            previous_minimal_bldgs = previous_minimal_bldgs_df["Building"].tolist()
+            print(f"Read {len(previous_minimal_bldgs)} buildings ({previous_minimal_bldgs})"
+                  f" from previous minimal buildstock file: {args.prev_minimal_buildstock_file}")
+            print("I will attempt to preserve as many of these buildings as possible in the new minimal buildstock.")
+        except Exception:
+            print(f"Failed to read previous minimal buildstock file: {args.prev_minimal_buildstock_file}\n"
+                  f" due to {traceback.format_exc()}\nWill create a brand new one!")
     ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
@@ -982,6 +996,7 @@ def main():
             "electric vehicle ownership",
         ],
         include_never_upgraded=True,
+        previous_minimal_bldgs=previous_minimal_bldgs,
         verbose=True,
     )
     ua.buildstock_df_original.set_index("Building").loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
