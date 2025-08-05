@@ -769,6 +769,18 @@ class UpgradesAnalyzer:
         with open(file_path, "w") as file:
             file.write(all_report)
 
+    def get_characteristics(self, *, max_cardinality: int, min_cardinality: int):
+        """Get all characteristics with cardinality between min_cardinality and max_cardinality.
+        Used in get_minimal_representative_buildings to ensure coverage for all characteristics
+        that have reasonable cardinality (for example - try to cover all heating fuels (cardinality=7)
+        but not all counties (cardinality=3140)).
+        """
+        characteristics = []
+        for col in self.buildstock_df.columns.to_list():
+            if min_cardinality <= self.buildstock_df[col].unique().size <= max_cardinality:
+                characteristics.append(col)
+        return characteristics
+
     def get_minimal_representative_buildings(
         self,
         report_df: pd.DataFrame,
@@ -909,8 +921,9 @@ def main():
     parser.add_argument("--buildstock_file", help="Project sample file (buildstock.csv)")
     parser.add_argument("--opt_sat_file", help="Path to option_saturation.csv file")
     parser.add_argument("--output_prefix", help="Output file name prefix", default="")
-    parser.add_argument("--prev_minimal_buildstock_file", help="Previous minimal buildstock file to try to refine",
-                        default=None,)
+    parser.add_argument(
+        "--prev_minimal_buildstock_file", help="Previous minimal buildstock file to try to refine", default=None
+    )
     args = parser.parse_args()
 
     defaults = load_script_defaults("project_info")
@@ -962,12 +975,16 @@ def main():
         try:
             previous_minimal_bldgs_df = pd.read_csv(args.prev_minimal_buildstock_file, dtype=str)
             previous_minimal_bldgs = previous_minimal_bldgs_df["Building"].tolist()
-            print(f"Read {len(previous_minimal_bldgs)} buildings ({previous_minimal_bldgs})"
-                  f" from previous minimal buildstock file: {args.prev_minimal_buildstock_file}")
+            print(
+                f"Read {len(previous_minimal_bldgs)} buildings ({previous_minimal_bldgs})"
+                f" from previous minimal buildstock file: {args.prev_minimal_buildstock_file}"
+            )
             print("I will attempt to preserve as many of these buildings as possible in the new minimal buildstock.")
         except Exception:
-            print(f"Failed to read previous minimal buildstock file: {args.prev_minimal_buildstock_file}\n"
-                  f" due to {traceback.format_exc()}\nWill create a brand new one!")
+            print(
+                f"Failed to read previous minimal buildstock file: {args.prev_minimal_buildstock_file}\n"
+                f" due to {traceback.format_exc()}\nWill create a brand new one!"
+            )
     ua = UpgradesAnalyzer(yaml_file=yaml_file, buildstock=buildstock_file, opt_sat_file=opt_sat_file)
     report_df = ua.get_report()
     folder_path = Path.cwd()
@@ -984,22 +1001,22 @@ def main():
         print("All good! No parameter applies multiple times in the same upgrade.")
 
     buildstock_name = folder_path / f"{output_prefix}minimal_buildstock.csv"
+    must_cover_chars = [
+        "census division",
+        "vintage",
+        "geometry building type recs",
+        "heating fuel",
+    ]
+    additional_chars = ua.get_characteristics(min_cardinality=2, max_cardinality=10)
+    must_cover_chars = must_cover_chars + [char for char in additional_chars if char not in must_cover_chars]
     minimal_bldgs = ua.get_minimal_representative_buildings(
         report_df,
-        must_cover_chars=[
-            "census division",
-            "vintage",
-            "geometry building type recs",
-            "heating fuel",
-            "vacancy status",
-            "has pv",
-            "electric vehicle ownership",
-        ],
+        must_cover_chars=must_cover_chars,
         include_never_upgraded=True,
         previous_minimal_bldgs=previous_minimal_bldgs,
         verbose=True,
     )
-    ua.buildstock_df_original.set_index("Building").loc[list(sorted(minimal_bldgs))].to_csv(buildstock_name)
+    ua.buildstock_df_original.set_index("Building").loc[list(minimal_bldgs)].to_csv(buildstock_name)
     report_df.drop(columns=["applicable_buildings"]).to_csv(csv_name, index=False)
     ua.save_detailed_report_all(str(txt_name))
     print(f"Saved  {csv_name} and {txt_name} inside {os.getcwd()}")
