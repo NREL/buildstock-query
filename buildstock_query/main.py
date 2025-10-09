@@ -45,6 +45,7 @@ class BuildStockQuery(QueryCore):
                  execution_history: Optional[str] = None,
                  skip_reports: bool = False,
                  athena_query_reuse: bool = True,
+                 metadata_table_suffix: Optional[str] = None,
                  **kwargs,
                  ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
@@ -84,7 +85,8 @@ class BuildStockQuery(QueryCore):
             sample_weight_override=sample_weight_override,
             region_name=region_name,
             execution_history=execution_history,
-            athena_query_reuse=athena_query_reuse
+            athena_query_reuse=athena_query_reuse,
+            metadata_table_suffix=metadata_table_suffix,
         )
         self._run_params = self.params.get_run_params()
         from buildstock_query.report_query import BuildStockReport

@@ -126,6 +126,7 @@ class QueryCore:
         self.sample_weight = params.sample_weight_override if params.sample_weight_override is not None else \
             self.db_col_name.sample_weight
         self.table_name = params.table_name
+        self.metadata_table_suffix = params.metadata_table_suffix
         self.cache_folder = pathlib.Path(params.cache_folder)
         self.athena_query_reuse = params.athena_query_reuse
         os.makedirs(self.cache_folder, exist_ok=True)
@@ -193,7 +194,7 @@ class QueryCore:
         logger.info(f"{len(self._query_cache)} queries cache saved to {pickle_path}")
 
     def _initialize_tables(self):
-        self.bs_table, self.ts_table, self.up_table = self._get_tables(self.table_name)
+        self.bs_table, self.ts_table, self.up_table = self._get_tables(self.table_name, self.metadata_table_suffix)
 
         self.bs_bldgid_column = self.bs_table.c[self.building_id_column_name]
         if self.ts_table is not None:
@@ -265,13 +266,24 @@ class QueryCore:
                 f"Using {valid_tables[0].name}")
         return valid_tables[0].c[column_name]
 
-    def _get_tables(self, table_name: Union[str, tuple[str, Optional[str], Optional[str]]]):
+    def _get_tables(self, table_name: Union[str, tuple[str, Optional[str], Optional[str]]], metadata_table_suffix: Optional[str]):
         self._engine = self._create_athena_engine(region_name=self.region_name, database=self.db_name,
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
-            baseline_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
+            #if metadata_table_suffix: #TODO cahnge to baseline not TS table
+            #    ts_table = self._get_table(f'{table_name}{metadata_table_suffix}', missing_ok=True)
+            #else:
+            #    ts_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
+
             ts_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
+            # use specified metadata_table_suffix if provided, else use default baseline suffix
+            if metadata_table_suffix:
+                baseline_table = self._get_table(f'{table_name}{metadata_table_suffix}')
+            else:
+                baseline_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
+
+            baseline_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.baseline}')
             if self.db_schema.table_suffix.upgrades == self.db_schema.table_suffix.baseline:
                 upgrade_table = sa.select(baseline_table).where(
                     sa.cast(baseline_table.c['upgrade'], sa.String) != '0').alias('upgrade')

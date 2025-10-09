@@ -14,6 +14,7 @@ class RunParams(BaseModel):
     execution_history: Optional[str] = None
     cache_folder: str = '.bsq_cache'
     athena_query_reuse: bool = True
+    metadata_table_suffix: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
