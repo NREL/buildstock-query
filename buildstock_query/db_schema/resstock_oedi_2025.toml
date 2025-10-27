@@ -1,7 +1,7 @@
 [table_suffix]
-baseline = "_md_national_vu"
-timeseries = "_ts_by_state_vu"
-upgrades = "_md_national_vu"
+baseline = "md_national_parquet"
+timeseries = "_ts_by_state"
+upgrades = "md_national_parquet"
 
 [column_prefix]
 characteristics = "in."
