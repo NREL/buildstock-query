@@ -42,7 +42,7 @@ class BuildStockReport:
     def _get_bs_success_report(self, get_query_only: bool) -> Union[DataFrame, str]: ...
 
     def _get_bs_success_report(self, get_query_only: bool = False):
-        bs_query = sa.select([self._bsq._bs_completed_status_col, safunc.count().label("count")])
+        bs_query = sa.select(*[self._bsq._bs_completed_status_col, safunc.count().label("count")])
         bs_query = bs_query.group_by(sa.text("1"))
         if get_query_only:
             return self._bsq._compile(bs_query)
@@ -72,7 +72,7 @@ class BuildStockReport:
         queries: list[str] = []
         chng_types = ["no-chng", "bad-chng", "ok-chng", "true-bad-chng", "true-ok-chng", "null", "any"]
         for ch_type in chng_types:
-            up_query = sa.select([self._bsq.up_table.c["upgrade"], safunc.count().label("change")])
+            up_query = sa.select(*[self._bsq.up_table.c["upgrade"], safunc.count().label("change")])
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
             conditions = self._get_change_conditions(change_type=ch_type)
             up_query = up_query.where(
@@ -131,7 +131,7 @@ class BuildStockReport:
     ):
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
-        up_query = sa.select([self._bsq.up_bldgid_column])
+        up_query = sa.select(*[self._bsq.up_bldgid_column])
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
             up_query = up_query.where(
@@ -260,7 +260,7 @@ class BuildStockReport:
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
         up_query = sa.select(
-            [self._bsq.bs_bldgid_column, self._bsq._bs_completed_status_col, self._bsq._up_completed_status_col]
+            *[self._bsq.bs_bldgid_column, self._bsq._bs_completed_status_col, self._bsq._up_completed_status_col]
         )
         up_query = up_query.join(self._bsq.up_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
 
@@ -305,7 +305,7 @@ class BuildStockReport:
         if self._bsq.up_table is None:
             raise ValueError("No upgrade table is available .")
         up_query = sa.select(
-            [self._bsq.up_table.c["upgrade"], self._bsq._up_completed_status_col, safunc.count().label("count")]
+            *[self._bsq.up_table.c["upgrade"], self._bsq._up_completed_status_col, safunc.count().label("count")]
         )
         if trim_missing_bs:
             up_query = up_query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
@@ -350,10 +350,11 @@ class BuildStockReport:
             if c.name.startswith("upgrade_costs.option_") and c.name.endswith("name")
         ]
         query = sa.select(
-            [self._bsq.up_table.c["upgrade"]]
-            + opt_name_cols
-            + [safunc.count().label("success")]
-            + [safunc.array_agg(self._bsq.up_bldgid_column)]
+            *[self._bsq.up_table.c["upgrade"],
+              *opt_name_cols,
+              safunc.count().label("success"),
+              safunc.array_agg(self._bsq.up_bldgid_column)
+            ]
         )
         if trim_missing_bs:
             query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
@@ -626,7 +627,7 @@ class BuildStockReport:
             raise ValueError("No upgrade table is available .")
 
         ts_query = sa.select(
-            [self._bsq.ts_table.c["upgrade"], safunc.count(self._bsq.ts_bldgid_column.distinct()).label("count")]
+            *[self._bsq.ts_table.c["upgrade"], safunc.count(self._bsq.ts_bldgid_column.distinct()).label("count")]
         )
         ts_query = ts_query.group_by(sa.text("1"))
         ts_query = ts_query.order_by(sa.text("1"))
