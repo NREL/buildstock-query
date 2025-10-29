@@ -1,5 +1,5 @@
 from pydantic import ConfigDict, BaseModel, Field
-from typing import Optional, Union, Callable
+from typing import Optional, Union
 from collections.abc import Sequence
 from typing import Literal
 from buildstock_query.schema.utilities import AnyTableType, AnyColType
