@@ -1,6 +1,6 @@
 from typing import Optional, Union
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 
 class RunParams(BaseModel):
@@ -14,14 +14,11 @@ class RunParams(BaseModel):
     execution_history: Optional[str] = None
     cache_folder: str = '.bsq_cache'
     athena_query_reuse: bool = True
-
-    class Config:
-        arbitrary_types_allowed = True
-        smart_union = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class BSQParams(RunParams):
     skip_reports: bool = False
 
     def get_run_params(self):
-        return RunParams.parse_obj(self.dict(include=set(RunParams.__fields__.keys())))
+        return RunParams.model_validate(self.model_dump(include=set(RunParams.model_fields.keys())))
