@@ -1030,3 +1030,30 @@ class TestBuildStockQuery:
         # Values should be valid
         assert (df["fuel_use__electricity__total__kwh"] >= 0).all()
         assert df["fuel_use__electricity__total__kwh"].notna().all()
+
+    def test_savings_shape_with_timestamp_grouping(self, bsq: BuildStockQuery):
+        ts_enduses = ["fuel_use__electricity__total__kwh"]
+        group_by = ["geometry_building_type_recs"]
+        df1 = bsq.savings.savings_shape(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            group_by=group_by,
+            timestamp_grouping_func="hour",
+            get_query_only=False,
+            annual_only=False,
+            sort=True,
+        )
+        df2 = bsq.query(
+            upgrade_id="1",
+            enduses=ts_enduses,
+            group_by=group_by,
+            annual_only=False,
+            include_baseline=True,
+            include_savings=True,
+            include_upgrade=False,
+            applied_only=False,
+            timestamp_grouping_func="hour",
+            get_query_only=False,
+            sort=True,
+        )
+        pd.testing.assert_frame_equal(df1, df2)
