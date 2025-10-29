@@ -117,15 +117,15 @@ class TestBuildStockQuery:
         pd.testing.assert_frame_equal(df1, df2)
     
     def test_timeseries_tx_agg_vs_query_upg1(self, bsq: BuildStockQuery):
-        df1_query = bsq.agg.aggregate_timeseries(
+        df1 = bsq.agg.aggregate_timeseries(
             enduses=["fuel_use__electricity__total__kwh"],
             restrict=[("build_existing_model.state", ["TX"])],
             timestamp_grouping_func="month",
             group_by=["geometry_building_type_recs", "build_existing_model.state"],
-            get_query_only=True,
+            get_query_only=False,
             upgrade_id="1",
         )
-        df2_query = bsq.query(
+        df2 = bsq.query(
             annual_only=False,
             timestamp_grouping_func="month",
             enduses=["fuel_use__electricity__total__kwh"],
@@ -135,13 +135,9 @@ class TestBuildStockQuery:
                 "build_existing_model.state",
                 "time",
             ],
-            get_query_only=True,
+            get_query_only=False,
             upgrade_id="1"
         )
-        print(f"Query1: {df1_query}")
-        print(f"Query2: {df2_query}")
-        df1 = bsq.execute(df1_query)
-        df2 = bsq.execute(df2_query)
         pd.testing.assert_frame_equal(df1, df2)
 
     def test_peak_electricity_per_building_vs_query(self, bsq: BuildStockQuery):

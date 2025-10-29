@@ -149,7 +149,7 @@ class BuildStockSavings:
             if params.get_quartiles:
                 query_cols.extend(
                     [
-                        sa.func.approx_percentile(savings_col, [0, 0.02, 0.25, 0.5, 0.75, 0.98, 1]).label(
+                        sa.func.approx_percentile(savings_col,  [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
                             f"{self._bsq._simple_label(col.name)}__savings__quartiles"
                         )
                     ]
