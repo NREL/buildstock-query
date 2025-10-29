@@ -28,6 +28,7 @@ setup(
         "toml",
         "requests",
         "sqlglot",
+        "filelock"
     ],
     extras_require={
         "dev": [
