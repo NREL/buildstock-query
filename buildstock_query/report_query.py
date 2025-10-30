@@ -353,8 +353,7 @@ class BuildStockReport:
             *[self._bsq.up_table.c["upgrade"],
               *opt_name_cols,
               safunc.count().label("success"),
-              safunc.array_agg(self._bsq.up_bldgid_column)
-            ]
+              safunc.array_agg(self._bsq.up_bldgid_column)]
         )
         if trim_missing_bs:
             query = query.join(self._bsq.bs_table, self._bsq.bs_bldgid_column == self._bsq.up_bldgid_column)
