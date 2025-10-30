@@ -501,33 +501,37 @@ class BuildStockAggregate:
             bs_tbl, up_tbl, tbljoin, group_by_selection = self.__get_timeseries_bs_up_table(
                 enduse_cols, upgrade_id, params.applied_only, ts_restrict, group_by_selection
             )
+
+        def get_col(tbl, col):  # column could be MappedColumn not available in tbl
+            return tbl.c[col.name] if col.name in tbl.c else col
+
         query_cols = []
         for col in enduse_cols:
             if params.annual_only:
-                baseline_col = bs_tbl.c[col.name]
+                baseline_col = get_col(bs_tbl, col)
                 if upgrade_id != "0":
                     # "and not params.include_savings" is added to restore the behavior of savings_shape query.
                     # Can be removed once savings_shape is removed.
                     if params.applied_only and not params.include_savings:
-                        upgrade_col = up_tbl.c[col.name]
+                        upgrade_col = get_col(up_tbl, col)
                     else:
                         upgrade_col = sa.case(
-                            (self._bsq._get_success_condition(up_tbl), up_tbl.c[col.name]), else_=bs_tbl.c[col.name]
+                            (self._bsq._get_success_condition(up_tbl), get_col(up_tbl, col)), else_=baseline_col
                         )
                 else:
                     upgrade_col = baseline_col
                 savings_col = safunc.coalesce(baseline_col, 0) - safunc.coalesce(upgrade_col, 0)
             else:
-                baseline_col = bs_tbl.c[col.name]
+                baseline_col = get_col(bs_tbl, col)
                 if upgrade_id != "0":
                     # "and not params.include_savings" is added to restore the behavior of savings_shape query.
                     # Can be removed once savings_shape is removed.
                     if params.applied_only and not params.include_savings:
-                        upgrade_col = up_tbl.c[col.name]
+                        upgrade_col = get_col(up_tbl, col)
                     else:
                         upgrade_col = sa.case(
-                            (up_tbl.c[self._bsq.building_id_column_name] == None, bs_tbl.c[col.name]),  # noqa: E711
-                            else_=up_tbl.c[col.name],
+                            (up_tbl.c[self._bsq.building_id_column_name] == None, baseline_col),  # noqa: E711
+                            else_=get_col(up_tbl, col),
                         )
                 else:
                     upgrade_col = baseline_col

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from typing import Generator
 from buildstock_query import BuildStockQuery
+from buildstock_query.schema.utilities import MappedColumn
 
 @pytest.fixture(scope="module")
 def bsq() -> Generator[BuildStockQuery, None, None]:  # pylint: disable=invalid-name
@@ -1057,3 +1058,66 @@ class TestBuildStockQuery:
             sort=True,
         )
         pd.testing.assert_frame_equal(df1, df2)
+
+    def test_mapped_column_with_query(self, bsq: BuildStockQuery):
+        """Test that MappedColumn works with both aggregate_annual and query methods."""
+        # Create a MappedColumn that maps building types to simplified categories
+        building_type_map = {
+            "Mobile Home": "MH",
+            "Single-Family Detached": "SF",
+            "Single-Family Attached": "SF",
+            "Multi-Family with 2 - 4 Units": "MF",
+            "Multi-Family with 5+ Units": "MF",
+        }
+        bldg_col = bsq._get_column("build_existing_model.geometry_building_type_recs")
+        simple_bldg_col = MappedColumn(
+            bsq=bsq,
+            name="simple_bldg_type",
+            mapping_dict=building_type_map,
+            key=bldg_col,
+        )
+
+        # Test that aggregate_annual works with MappedColumn
+        df1 = bsq.agg.aggregate_annual(
+            enduses=["fuel_use_electricity_total_m_btu"],
+            group_by=[simple_bldg_col],
+            get_query_only=False,
+        )
+        assert not df1.empty
+        assert "simple_bldg_type" in df1.columns
+
+        # Test that query() works with MappedColumn (the previously broken case)
+        df2 = bsq.query(
+            enduses=["fuel_use_electricity_total_m_btu"],
+            group_by=[simple_bldg_col],
+            get_query_only=False,
+        )
+        assert not df2.empty
+        assert "simple_bldg_type" in df2.columns
+
+        # Results should be identical
+        pd.testing.assert_frame_equal(df1, df2)
+        assert set(df2['simple_bldg_type'].unique()) == {'SF', 'MF', 'MH'}
+
+    def test_mapped_column_with_query_and_groupby(self, bsq: BuildStockQuery):
+        """Test that MappedColumn works with query() when using group_by."""
+        # Create a MappedColumn for dryer CO2 impact
+        usage_weight = {"High": 1.2, 
+                    "Medium": 1,
+                    "Low": 0.8 ,
+                    "None": 0}
+        bldg_col = bsq._get_column('build_existing_model.usage_level')
+        impact_col = MappedColumn(bsq=bsq, name='usage_weight', mapping_dict=usage_weight,
+                                    key=bldg_col)
+        df1 = bsq.query(enduses=[impact_col],get_query_only=False)
+        assert not df1.empty
+        assert "usage_weight" in df1.columns
+
+        df2 = bsq.query(
+            enduses=[impact_col],
+            get_query_only=False,
+        )
+        assert not df2.empty
+        assert "usage_weight" in df2.columns
+        pd.testing.assert_frame_equal(df1, df2)
+        assert df2['usage_weight'].sum() > 0

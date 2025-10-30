@@ -428,6 +428,7 @@ class BuildStockReport:
             pd.DataFrame: The report dataframe.
         """
         ua_df = self._bsq.get_upgrades_analyzer(yaml_file=yaml_file, opt_sat_file=opt_sat_path).get_report()
+        ua_df['upgrade'] = ua_df['upgrade'].map(str)
         ua_df = ua_df.groupby(["upgrade", "option"]).aggregate(
             {"applicable_to": "sum", "applicable_buildings": lambda x: reduce(set.union, x)}
         )
@@ -795,18 +796,24 @@ class BuildStockReport:
         up_csv = up_csv[end_use_cols].rename(columns=clean_column)
         bs_csv = bs_csv[end_use_cols].rename(columns=clean_column)
 
+        up_csv = up_csv.astype('float64', errors='ignore')
+        bs_csv = bs_csv.astype('float64', errors='ignore')
+
         pure_enduses = {get_pure_enduse(c) for c in up_csv.columns}
 
         def get_all_fuel_enduses(df, end_use):
             return [col for col in df.columns if col.endswith(end_use)]
 
         def add_all_fuel_cols(df):
+            # Collect all new columns first to avoid fragmentation
+            new_cols = {}
             for end_use in pure_enduses:
-                df[f"all_fuel_{end_use}"] = df[get_all_fuel_enduses(df, end_use)].sum(axis=1)
-            return df
+                new_cols[f"all_fuel_{end_use}"] = df[get_all_fuel_enduses(df, end_use)].sum(axis=1)
+            # Add all columns at once
+            return pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
-        add_all_fuel_cols(up_csv)
-        add_all_fuel_cols(bs_csv)
+        up_csv = add_all_fuel_cols(up_csv)
+        bs_csv = add_all_fuel_cols(bs_csv)
 
         diff = up_csv - bs_csv
         enduses_df = diff.transpose()
