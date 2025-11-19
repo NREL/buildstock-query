@@ -109,7 +109,6 @@ class BuildStockQuery(QueryCore):
 
         if not skip_reports:
             logger.info("Getting Success counts...")
-            print(self.report.get_success_report())
             if self.ts_table is not None:
                 self.report.check_ts_bs_integrity()
             self.save_cache()

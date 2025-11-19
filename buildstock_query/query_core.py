@@ -271,10 +271,6 @@ class QueryCore:
                                                   workgroup=self.workgroup)
         self._meta = sa.MetaData(bind=self._engine)
         if isinstance(table_name, str):
-            #if metadata_table_suffix: #TODO cahnge to baseline not TS table
-            #    ts_table = self._get_table(f'{table_name}{metadata_table_suffix}', missing_ok=True)
-            #else:
-            #    ts_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
 
             ts_table = self._get_table(f'{table_name}{self.db_schema.table_suffix.timeseries}', missing_ok=True)
             # use specified metadata_table_suffix if provided, else use default baseline suffix
