@@ -188,7 +188,7 @@ class BuildStockUtility:
         Returns the counts of the number of dwelling units, grouping by eiaid and other additional group_by columns if
         provided.
         Args:
-            eiaid_list: The list of utility ids (EIAID) to aggregate for. If not provided, all the eiaids will be used.
+            eiaid_list: Optional list of utility ids (EIAID) to aggregate for. If not provided, all the eiaids will be used.
             group_by: Additional columns to group by
             mapping_version: Version of eiaid mapping to use. After the spatial refactor upgrade, version two
                              should be used

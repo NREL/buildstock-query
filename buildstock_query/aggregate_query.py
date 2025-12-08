@@ -157,6 +157,14 @@ class BuildStockAggregate:
                 )
                 for enduse in enduse_cols
             ]
+            enduse_selection += [
+                sa.func.approx_percentile(enduse, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).filter(
+                    enduse != 0
+                ).label(
+                    f"{self._bsq._simple_label(enduse.name)}__nonzero_quartiles"
+                )
+                for enduse in enduse_cols
+            ]
 
         if params.get_nonzero_count:
             enduse_selection += [
@@ -571,16 +579,37 @@ class BuildStockAggregate:
                             f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline__quartiles"
                         )
                     )
+                    query_cols.append(
+                        sa.func.approx_percentile(baseline_col, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).filter(
+                            baseline_col != 0
+                        ).label(
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__baseline__nonzero_quartiles"
+                        )
+                    )
                 if params.include_upgrade:
                     query_cols.append(
                         sa.func.approx_percentile(upgrade_col, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
                             f"{self._bsq._simple_label(col.name, params.agg_func)}__upgrade__quartiles"
                         )
                     )
+                    query_cols.append(
+                        sa.func.approx_percentile(upgrade_col, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).filter(
+                            upgrade_col != 0
+                        ).label(
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__upgrade__nonzero_quartiles"
+                        )
+                    )
                 if params.include_savings:
                     query_cols.append(
                         sa.func.approx_percentile(savings_col, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).label(
                             f"{self._bsq._simple_label(col.name, params.agg_func)}__savings__quartiles"
+                        )
+                    )
+                    query_cols.append(
+                        sa.func.approx_percentile(savings_col, [0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1]).filter(
+                            savings_col != 0
+                        ).label(
+                            f"{self._bsq._simple_label(col.name, params.agg_func)}__savings__nonzero_quartiles"
                         )
                     )
 

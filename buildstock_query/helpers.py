@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 from typing import Literal, TYPE_CHECKING
 from filelock import FileLock
-
+import polars as pl
 if TYPE_CHECKING:
     from buildstock_query.schema.utilities import MappedColumn  # noqa: F401
 
@@ -17,11 +17,19 @@ if TYPE_CHECKING:
 KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
 
-
 class CachedFutureDf(Future):
-    def __init__(self, df: pd.DataFrame, *args, **kwargs) -> None:
+    def __init__(self, df: pd.DataFrame | pl.DataFrame, df_backend: Literal["pandas", "polars"] = "pandas", *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.df = df
+        if df_backend == "polars":
+            if isinstance(df, pd.DataFrame):
+                self.df = pl.from_pandas(df)
+            else:
+                self.df = df.clone()
+        else:
+            if isinstance(df, pl.DataFrame):
+                self.df = df.to_pandas()
+            else:
+                self.df = df.copy()
         self.set_result(self.df)
 
     def running(self) -> Literal[False]:
@@ -36,7 +44,7 @@ class CachedFutureDf(Future):
     def result(self, timeout=None) -> pd.DataFrame:
         return self.df
 
-    def as_pandas(self) -> pd.DataFrame:
+    def as_df(self) -> pd.DataFrame:
         return self.df
 
 
@@ -60,7 +68,21 @@ class AthenaFutureDf:
         return self.future.result()
 
     def as_pandas(self) -> pd.DataFrame:
-        return self.future.as_pandas()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
+        df = self.future.as_df()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
+        if isinstance(df, pd.DataFrame):
+            return df
+        else:
+            return df.to_pandas()
+
+    def as_polars(self) -> pl.DataFrame:
+        df = self.future.as_df()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
+        if isinstance(df, pl.DataFrame):
+            return df
+        else:
+            return pl.from_pandas(df)
+
+    def as_df(self) -> pd.DataFrame | pl.DataFrame:
+        return self.future.as_df()
 
 
 class COLOR:

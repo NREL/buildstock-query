@@ -7,7 +7,9 @@ from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 from pyathena.pandas.async_cursor import AsyncPandasCursor
+from pyathena.arrow.async_cursor import AsyncArrowCursor
 from pyathena.pandas.cursor import PandasCursor
+from pyathena.arrow.cursor import ArrowCursor
 import os
 from typing import Union, Optional, Literal, Callable
 from collections.abc import Sequence
@@ -40,6 +42,7 @@ from buildstock_query.schema.utilities import (
 )
 import hashlib
 import toml
+import polars as pl
 
 urllib3.disable_warnings()
 
@@ -62,6 +65,7 @@ class BatchQueryStatusMap(TypedDict):
     submitted_execution_ids: list[ExeId]
     submitted_queries: list[str]
     queries_futures: list[Union[CachedFutureDf, AthenaFutureDf]]
+    max_threads: Optional[int]
 
 
 class BatchQueryReportMap(TypedDict):
@@ -104,20 +108,34 @@ class QueryCore:
         self.run_params = params
         self.workgroup = params.workgroup
         self.buildstock_type = params.buildstock_type
-        self._query_cache: dict[str, pd.DataFrame] = {}  # {"query": query_result_df} to cache queries
+        self._query_cache: dict[str, pd.DataFrame | pl.DataFrame] = {}  # {"query": query_result_df} to cache queries
         self._session_queries: set[str] = set()  # Set of all queries that is run in current session.
 
         self._aws_s3 = boto3.client("s3")
         self._aws_athena = boto3.client("athena", region_name=params.region_name)
         self._aws_glue = boto3.client("glue", region_name=params.region_name)
-        self._conn = Connection(
+        self._pl_conn = Connection(
+            work_group=params.workgroup,
+            region_name=params.region_name,
+            cursor_class=ArrowCursor,
+            schema_name=params.db_name,
+            config=Config(max_pool_connections=20),
+        )
+        self._pl_async_conn = Connection(
+            work_group=params.workgroup,
+            region_name=params.region_name,
+            cursor_class=AsyncArrowCursor,
+            schema_name=params.db_name,
+            config=Config(max_pool_connections=20),
+        )
+        self._pd_conn = Connection(
             work_group=params.workgroup,
             region_name=params.region_name,
             cursor_class=PandasCursor,
             schema_name=params.db_name,
             config=Config(max_pool_connections=20),
         )
-        self._async_conn = Connection(
+        self._pd_async_conn = Connection(
             work_group=params.workgroup,
             region_name=params.region_name,
             cursor_class=AsyncPandasCursor,
@@ -175,7 +193,7 @@ class QueryCore:
         pickle_path = pathlib.Path(path) if path else self._get_cache_file_path()
         before_count = len(self._query_cache)
         saved_cache = load_pickle(pickle_path)
-        logger.info(f"{len(saved_cache)} queries cache read from {path}.")
+        logger.info(f"{len(saved_cache)} queries cache read from {pickle_path}.")
         self._query_cache.update(saved_cache)
         self.last_saved_queries = set(saved_cache)
         after_count = len(self._query_cache)
@@ -511,7 +529,42 @@ class QueryCore:
         return compiled_query
 
     @typing.overload
-    def execute(self, query, *, run_async: Literal[False] = False) -> pd.DataFrame: ...
+    def _get_db_cursor(self, run_async: Literal[False], df_backend: Literal["pandas"]) -> PandasCursor: ...
+
+    @typing.overload
+    def _get_db_cursor(self, run_async: Literal[False], df_backend: Literal["polars"]) -> ArrowCursor: ...
+
+    @typing.overload
+    def _get_db_cursor(self, run_async: Literal[True], df_backend: Literal["pandas"]) -> AsyncPandasCursor: ...
+
+    @typing.overload
+    def _get_db_cursor(self, run_async: Literal[True], df_backend: Literal["polars"]) -> AsyncArrowCursor: ...
+
+    @typing.overload
+    def _get_db_cursor(
+        self, run_async: Literal[True], df_backend: Literal["pandas", "polars"]
+    ) -> Union[AsyncPandasCursor, AsyncArrowCursor]: ...
+
+    @typing.overload
+    def _get_db_cursor(
+        self, run_async: Literal[False], df_backend: Literal["pandas", "polars"]
+    ) -> Union[PandasCursor, ArrowCursor]: ...
+
+    def _get_db_cursor(self, run_async: bool = False, df_backend: Literal["pandas", "polars"] = "pandas"):
+        if run_async:
+            return self._pl_async_conn.cursor() if df_backend == "polars" else self._pd_async_conn.cursor()
+        else:
+            return self._pl_conn.cursor() if df_backend == "polars" else self._pd_conn.cursor()
+
+    @typing.overload
+    def execute(
+        self, query, *, run_async: Literal[False] = False, df_backend: Literal["pandas"] = "pandas"
+    ) -> pd.DataFrame: ...
+
+    @typing.overload
+    def execute(
+        self, query, *, run_async: Literal[False] = False, df_backend: Literal["polars"]
+    ) -> pl.DataFrame: ...
 
     @typing.overload
     def execute(
@@ -519,12 +572,23 @@ class QueryCore:
         query,
         *,
         run_async: Literal[True],
+        df_backend: Literal["pandas"] = "pandas",
+    ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]: ...
+
+    @typing.overload
+    def execute(
+        self,
+        query,
+        *,
+        run_async: Literal[True],
+        df_backend: Literal["polars"],
     ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]: ...
 
     @validate_arguments
     def execute(
-        self, query, run_async: bool = False
-    ) -> Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
+        self, query, run_async: bool = False,
+        df_backend: Literal["pandas", "polars"] = "pandas"
+    ) -> Union[pd.DataFrame, pl.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
         """
         Executes a query
         Args:
@@ -541,30 +605,37 @@ class QueryCore:
 
         self._session_queries.add(query)
         if run_async:
+            cursor = self._get_db_cursor(run_async=True, df_backend=df_backend)
             if query in self._query_cache:
-                return "CACHED", CachedFutureDf(self._query_cache[query].copy())
+                return "CACHED", CachedFutureDf(self._query_cache[query], df_backend=df_backend)
             # in case of asynchronous run, you get the execution id and futures object
-            exe_id, result_future = self._async_conn.cursor().execute(
+            exe_id, result_future = cursor.execute(
                 query, result_reuse_enable=self.athena_query_reuse, result_reuse_minutes=60 * 24 * 7, na_values=[""]
             )  # type: ignore
             exe_id = ExeId(exe_id)
 
-            def get_pandas(future):
+            def get_df(future):
                 res = future.result()
                 if res.state != "SUCCEEDED":
                     raise OperationalError(f"{res.state}: {res.state_change_reason}")
                 if query in self._query_cache:
-                    return self._query_cache[query]
-                return res.as_pandas()
+                    return CachedFutureDf(self._query_cache[query], df_backend=df_backend).df
+                if df_backend == "pandas":
+                    return res.as_pandas()
+                else:
+                    return pl.from_arrow(res.as_arrow())
 
-            result_future.as_pandas = types.MethodType(get_pandas, result_future)
-            result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_pandas()}))
+            result_future.as_df = types.MethodType(get_df, result_future)
+            result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_df()}))
             self._save_execution_id(exe_id)
             return exe_id, AthenaFutureDf(result_future)
         else:
-            if query not in self._query_cache:
+            if query in self._query_cache:
+                return CachedFutureDf(self._query_cache[query], df_backend=df_backend).df
+            if df_backend == "pandas":
+                cursor = self._get_db_cursor(run_async=False, df_backend="pandas")
                 self._query_cache[query] = (
-                    self._conn.cursor()
+                    cursor
                     .execute(
                         query,
                         result_reuse_enable=self.athena_query_reuse,
@@ -572,7 +643,21 @@ class QueryCore:
                     )
                     .as_pandas()
                 )
-            return self._query_cache[query].copy()
+            else:
+                cursor = self._get_db_cursor(run_async=False, df_backend="polars")
+                self._query_cache[query] = (
+                    pl.from_arrow(
+                    cursor
+                    .execute(
+                        query,
+                        result_reuse_enable=self.athena_query_reuse,
+                        result_reuse_minutes=60 * 24 * 7,
+                    )
+                    .as_arrow()
+                    )
+                )
+            return self._query_cache[query]
+
 
     def print_all_batch_query_status(self) -> None:
         """Prints the status of all batch queries."""
@@ -761,7 +846,8 @@ class QueryCore:
         if report["failed"] > 0:
             logger.warning(f"{report['failed']} queries failed. Redoing them")
             failed_ids, failed_queries = self.get_failed_queries(batch_id)
-            new_batch_id = self.submit_batch_query(failed_queries)
+            original_max_threads = self._batch_query_status_map.get(batch_id, {}).get("max_threads")
+            new_batch_id = self.submit_batch_query(failed_queries, max_threads=original_max_threads)
             new_exe_ids = self._batch_query_status_map[new_batch_id]["submitted_execution_ids"]
 
             self.wait_for_batch_query(new_batch_id)
@@ -780,7 +866,7 @@ class QueryCore:
             raise ValueError("No query was submitted successfully")
         res_df_array: list[pd.DataFrame] = []
         for index, exe_id in enumerate(query_exe_ids):
-            df = query_futures[index].as_pandas().copy()
+            df = query_futures[index].as_df()
             if combine:
                 if len(df) > 0:
                     df["query_id"] = index
@@ -794,22 +880,26 @@ class QueryCore:
         return pd.concat(res_df_array)
 
     @validate_arguments
-    def submit_batch_query(self, queries: Sequence[str]):
+    def submit_batch_query(self, queries: Sequence[str], *, max_threads: Optional[int] = None):
         """
         Submit multiple related queries
         Args:
             queries: List of queries to submit. Setting `get_query_only` flag while making calls to aggregation
                     functions is easiest way to obtain queries.
+            max_threads: Maximum number of queries to have running concurrently. Defaults to None (no limit).
         Returns:
             An integer representing the batch_query id. The id can be used with other batch_query functions.
         """
         queries = list(queries)
+        if max_threads is not None and max_threads < 1:
+            raise ValueError("max_threads must be a positive integer.")
+        max_threads = max_threads or len(queries)
         to_submit_ids = list(range(len(queries)))
         id_list = list(to_submit_ids)  # make a copy
         submitted_ids: list[int] = []
         submitted_execution_ids: list[ExeId] = []
         submitted_queries: list[str] = []
-        queries_futures: list = []
+        queries_futures: list[Union[CachedFutureDf, AthenaFutureDf]] = []
         self._batch_query_id += 1
         batch_query_id = self._batch_query_id
         self._batch_query_status_map[batch_query_id] = {
@@ -819,10 +909,16 @@ class QueryCore:
             "submitted_execution_ids": submitted_execution_ids,
             "submitted_queries": submitted_queries,
             "queries_futures": queries_futures,
+            "max_threads": max_threads,
         }
+
+        def running_queries_count() -> int:
+            return sum(1 for future in queries_futures if not future.done())
 
         def run_queries():
             while to_submit_ids:
+                while running_queries_count() >= max_threads:
+                    time.sleep(5)
                 current_id = to_submit_ids[0]  # get the first one
                 current_query = queries[0]
                 try:
@@ -1019,13 +1115,11 @@ class QueryCore:
             tbl = self._get_table(table)
             return [col for col in tbl.columns]
 
-    def _simple_label(self, label: str, agg_func: Optional[Union[Callable, str]] = None):
-        label = label.removeprefix(self.db_schema.column_prefix.characteristics)
-        label = label.removeprefix(self.db_schema.column_prefix.output)
-
-        if callable(agg_func):
-            label += f"__{agg_func.__name__}"
-        elif isinstance(agg_func, str) and agg_func != "sum":
+    def _simple_label(self, label: str, agg_func: Optional[str] = None):
+        if not self.run_params.keep_column_prefix:
+            label = label.removeprefix(self.db_schema.column_prefix.characteristics)
+            label = label.removeprefix(self.db_schema.column_prefix.output)
+        if agg_func and agg_func != "sum":
             label += f"__{agg_func}"
         return label
 
@@ -1035,7 +1129,7 @@ class QueryCore:
             candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
         else:
             candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
-
+        # candidate_tables += list(self._tables.values())
         for col_str, criteria in restrict:
             col = self._get_column(col_str, candidate_tables=candidate_tables)
             if isinstance(criteria, (list, tuple)):
