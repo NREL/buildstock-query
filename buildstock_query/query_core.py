@@ -7,9 +7,7 @@ from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 from pyathena.pandas.async_cursor import AsyncPandasCursor
-from pyathena.arrow.async_cursor import AsyncArrowCursor
 from pyathena.pandas.cursor import PandasCursor
-from pyathena.arrow.cursor import ArrowCursor
 import os
 from typing import Union, Optional, Literal, Callable
 from collections.abc import Sequence
@@ -42,7 +40,6 @@ from buildstock_query.schema.utilities import (
 )
 import hashlib
 import toml
-import polars as pl
 
 urllib3.disable_warnings()
 
@@ -108,34 +105,13 @@ class QueryCore:
         self.run_params = params
         self.workgroup = params.workgroup
         self.buildstock_type = params.buildstock_type
-        self._query_cache: dict[str, pd.DataFrame | pl.DataFrame] = {}  # {"query": query_result_df} to cache queries
+        self._query_cache: dict[str, pd.DataFrame] = {}  # {"query": query_result_df} to cache queries
         self._session_queries: set[str] = set()  # Set of all queries that is run in current session.
 
         self._aws_s3 = boto3.client("s3")
         self._aws_athena = boto3.client("athena", region_name=params.region_name)
         self._aws_glue = boto3.client("glue", region_name=params.region_name)
-        self._pl_conn = Connection(
-            work_group=params.workgroup,
-            region_name=params.region_name,
-            cursor_class=ArrowCursor,
-            schema_name=params.db_name,
-            config=Config(max_pool_connections=20),
-        )
-        self._pl_async_conn = Connection(
-            work_group=params.workgroup,
-            region_name=params.region_name,
-            cursor_class=AsyncArrowCursor,
-            schema_name=params.db_name,
-            config=Config(max_pool_connections=20),
-        )
-        self._pd_conn = Connection(
-            work_group=params.workgroup,
-            region_name=params.region_name,
-            cursor_class=PandasCursor,
-            schema_name=params.db_name,
-            config=Config(max_pool_connections=20),
-        )
-        self._pd_async_conn = Connection(
+        self._async_conn = Connection(
             work_group=params.workgroup,
             region_name=params.region_name,
             cursor_class=AsyncPandasCursor,
@@ -528,43 +504,33 @@ class QueryCore:
         compiled_query = CustomCompiler(AthenaDialect(), query).process(query, literal_binds=True)
         return compiled_query
 
-    @typing.overload
-    def _get_db_cursor(self, run_async: Literal[False], df_backend: Literal["pandas"]) -> PandasCursor: ...
+    def _get_unload_result(self, execution_id, query_hash: str) -> pd.DataFrame:
+        t = time.time()
+        tick = 0
+        timeout_minutes = 30
+        while time.time() - t < timeout_minutes * 60:
+            stat = self.get_query_status(execution_id)
+            if (stat.upper() == "SUCCEEDED" 
+                or stat.upper() == "FAILED" and "HIVE_PATH_ALREADY_EXISTS" in self.get_query_error(execution_id)):
+                s3_path = f"s3://resstock-core/athena_unload_results/{query_hash}/"
+                try:
+                    df = pd.read_parquet(s3_path)
+                except FileNotFoundError:  # empty result
+                    df = pd.DataFrame()
+                return df
+            elif stat.upper() == "FAILED":
+                error = self.get_query_error(execution_id)
+                raise QueryException(error)
+            else:
+                tick += 1
+                if tick >= 30:
+                    logger.info(f"Query is {stat}")
+                    tick = 0
+                time.sleep(1)
+        raise TimeoutError("Query failed to complete within 30 mins.")
 
     @typing.overload
-    def _get_db_cursor(self, run_async: Literal[False], df_backend: Literal["polars"]) -> ArrowCursor: ...
-
-    @typing.overload
-    def _get_db_cursor(self, run_async: Literal[True], df_backend: Literal["pandas"]) -> AsyncPandasCursor: ...
-
-    @typing.overload
-    def _get_db_cursor(self, run_async: Literal[True], df_backend: Literal["polars"]) -> AsyncArrowCursor: ...
-
-    @typing.overload
-    def _get_db_cursor(
-        self, run_async: Literal[True], df_backend: Literal["pandas", "polars"]
-    ) -> Union[AsyncPandasCursor, AsyncArrowCursor]: ...
-
-    @typing.overload
-    def _get_db_cursor(
-        self, run_async: Literal[False], df_backend: Literal["pandas", "polars"]
-    ) -> Union[PandasCursor, ArrowCursor]: ...
-
-    def _get_db_cursor(self, run_async: bool = False, df_backend: Literal["pandas", "polars"] = "pandas"):
-        if run_async:
-            return self._pl_async_conn.cursor() if df_backend == "polars" else self._pd_async_conn.cursor()
-        else:
-            return self._pl_conn.cursor() if df_backend == "polars" else self._pd_conn.cursor()
-
-    @typing.overload
-    def execute(
-        self, query, *, run_async: Literal[False] = False, df_backend: Literal["pandas"] = "pandas"
-    ) -> pd.DataFrame: ...
-
-    @typing.overload
-    def execute(
-        self, query, *, run_async: Literal[False] = False, df_backend: Literal["polars"]
-    ) -> pl.DataFrame: ...
+    def execute(self, query, *, run_async: Literal[False] = False) -> pd.DataFrame: ...
 
     @typing.overload
     def execute(
@@ -572,23 +538,12 @@ class QueryCore:
         query,
         *,
         run_async: Literal[True],
-        df_backend: Literal["pandas"] = "pandas",
-    ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]: ...
-
-    @typing.overload
-    def execute(
-        self,
-        query,
-        *,
-        run_async: Literal[True],
-        df_backend: Literal["polars"],
     ) -> Union[tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]: ...
 
     @validate_arguments
     def execute(
         self, query, run_async: bool = False,
-        df_backend: Literal["pandas", "polars"] = "pandas"
-    ) -> Union[pd.DataFrame, pl.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
+    ) -> Union[pd.DataFrame, tuple[Literal["CACHED"], CachedFutureDf], tuple[ExeId, AthenaFutureDf]]:
         """
         Executes a query
         Args:
@@ -603,60 +558,36 @@ class QueryCore:
         if not isinstance(query, str):
             query = self._compile(query)
 
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+        if not query.startswith("UNLOAD"):
+            query = (
+                f"UNLOAD ({query}) \n TO 's3://resstock-core/athena_unload_results/{query_hash}' \n WITH (format = 'PARQUET')"
+            )
         self._session_queries.add(query)
-        if run_async:
-            cursor = self._get_db_cursor(run_async=True, df_backend=df_backend)
+
+        if query in self._query_cache:
+            if run_async:
+                return "CACHED", CachedFutureDf(self._query_cache[query].copy())
+            return self._query_cache[query].copy()
+
+        exe_id, result_future = self._async_conn.cursor().execute(
+            query, result_reuse_enable=self.athena_query_reuse, result_reuse_minutes=60 * 24 * 7, na_values=[""]
+        )  # type: ignore
+        exe_id = ExeId(exe_id)
+
+        def get_df(future):
             if query in self._query_cache:
-                return "CACHED", CachedFutureDf(self._query_cache[query], df_backend=df_backend)
-            # in case of asynchronous run, you get the execution id and futures object
-            exe_id, result_future = cursor.execute(
-                query, result_reuse_enable=self.athena_query_reuse, result_reuse_minutes=60 * 24 * 7, na_values=[""]
-            )  # type: ignore
-            exe_id = ExeId(exe_id)
+                return self._query_cache[query].copy()
+            return self._get_unload_result(exe_id, query_hash)
 
-            def get_df(future):
-                res = future.result()
-                if res.state != "SUCCEEDED":
-                    raise OperationalError(f"{res.state}: {res.state_change_reason}")
-                if query in self._query_cache:
-                    return CachedFutureDf(self._query_cache[query], df_backend=df_backend).df
-                if df_backend == "pandas":
-                    return res.as_pandas()
-                else:
-                    return pl.from_arrow(res.as_arrow())
-
+        if run_async:
             result_future.as_df = types.MethodType(get_df, result_future)
             result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_df()}))
             self._save_execution_id(exe_id)
             return exe_id, AthenaFutureDf(result_future)
-        else:
-            if query in self._query_cache:
-                return CachedFutureDf(self._query_cache[query], df_backend=df_backend).df
-            if df_backend == "pandas":
-                cursor = self._get_db_cursor(run_async=False, df_backend="pandas")
-                self._query_cache[query] = (
-                    cursor
-                    .execute(
-                        query,
-                        result_reuse_enable=self.athena_query_reuse,
-                        result_reuse_minutes=60 * 24 * 7,
-                    )
-                    .as_pandas()
-                )
-            else:
-                cursor = self._get_db_cursor(run_async=False, df_backend="polars")
-                self._query_cache[query] = (
-                    pl.from_arrow(
-                    cursor
-                    .execute(
-                        query,
-                        result_reuse_enable=self.athena_query_reuse,
-                        result_reuse_minutes=60 * 24 * 7,
-                    )
-                    .as_arrow()
-                    )
-                )
-            return self._query_cache[query]
+
+        self._query_cache[query] = self._get_unload_result(exe_id, query_hash)
+        return self._query_cache[query].copy()
 
 
     def print_all_batch_query_status(self) -> None:
@@ -866,7 +797,7 @@ class QueryCore:
             raise ValueError("No query was submitted successfully")
         res_df_array: list[pd.DataFrame] = []
         for index, exe_id in enumerate(query_exe_ids):
-            df = query_futures[index].as_df()
+            df = query_futures[index].as_pandas()
             if combine:
                 if len(df) > 0:
                     df["query_id"] = index
@@ -964,6 +895,7 @@ class QueryCore:
             pd.DataFrame: Query result as dataframe.
         """
         t = time.time()
+        tick = 0
         while time.time() - t < timeout_minutes * 60:
             stat = self.get_query_status(execution_id)
             if stat.upper() == "SUCCEEDED":
@@ -974,8 +906,11 @@ class QueryCore:
                 error = self.get_query_error(execution_id)
                 raise QueryException(error)
             else:
-                logger.info(f"Query status is {stat}")
-                time.sleep(30)
+                tick += 1
+                if tick >= 30:
+                    logger.info(f"Query is {stat}")
+                    tick = 0
+                time.sleep(1)
 
         raise QueryException(f"Query timed-out. {self.get_query_status(execution_id)}")
 
@@ -997,8 +932,9 @@ class QueryCore:
             path = self.get_query_output_location(query_execution_id)
             bucket = path.split("/")[2]
             key = "/".join(path.split("/")[3:])
-            response = self._aws_s3.get_object(Bucket=bucket, Key=key)
-            df = read_csv(response["Body"])
+            full_path = f"s3://{bucket}/{key}/"
+            #response = self._aws_s3.get_object(Bucket=bucket, Key=key)
+            df = pd.read_parquet(full_path)
             return df
         # If failed, return error message
         elif query_status == "FAILED":

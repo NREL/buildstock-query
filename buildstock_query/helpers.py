@@ -18,18 +18,9 @@ KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
 
 class CachedFutureDf(Future):
-    def __init__(self, df: pd.DataFrame | pl.DataFrame, df_backend: Literal["pandas", "polars"] = "pandas", *args, **kwargs) -> None:
+    def __init__(self, df: pd.DataFrame, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if df_backend == "polars":
-            if isinstance(df, pd.DataFrame):
-                self.df = pl.from_pandas(df)
-            else:
-                self.df = df.clone()
-        else:
-            if isinstance(df, pl.DataFrame):
-                self.df = df.to_pandas()
-            else:
-                self.df = df.copy()
+        self.df = df.copy()
         self.set_result(self.df)
 
     def running(self) -> Literal[False]:
@@ -45,6 +36,9 @@ class CachedFutureDf(Future):
         return self.df
 
     def as_df(self) -> pd.DataFrame:
+        return self.df
+
+    def as_pandas(self) -> pd.DataFrame:
         return self.df
 
 
@@ -69,21 +63,7 @@ class AthenaFutureDf:
 
     def as_pandas(self) -> pd.DataFrame:
         df = self.future.as_df()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
-        if isinstance(df, pd.DataFrame):
-            return df
-        else:
-            return df.to_pandas()
-
-    def as_polars(self) -> pl.DataFrame:
-        df = self.future.as_df()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
-        if isinstance(df, pl.DataFrame):
-            return df
-        else:
-            return pl.from_pandas(df)
-
-    def as_df(self) -> pd.DataFrame | pl.DataFrame:
-        return self.future.as_df()
-
+        return df
 
 class COLOR:
     YELLOW = '\033[93m'

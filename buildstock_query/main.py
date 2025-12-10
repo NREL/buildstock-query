@@ -8,6 +8,7 @@ import re
 from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
 import pandas as pd
+import polars as pl
 from pydantic import Field
 from typing import Optional, Literal
 from typing_extensions import assert_never
@@ -570,7 +571,7 @@ class BuildStockQuery(QueryCore):
             self.ts_bldgid_column == bldg_id
         )
         if self.up_table is not None:
-            query1 = query1.where(self._ts_upgrade_col == upgrade_id)
+            query1 = query1.where(self._ts_upgrade_col == str(upgrade_id))
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)

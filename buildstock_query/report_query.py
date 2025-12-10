@@ -86,6 +86,8 @@ class BuildStockReport:
         change_df: DataFrame = pd.DataFrame()
         for chng_type, query in zip(chng_types, queries):
             df = self._bsq.execute(query)
+            if df.empty:
+                df = pd.DataFrame(columns=["upgrade", "change"])
             df.rename(columns={"change": chng_type}, inplace=True)
             # df['upgrade'] = df['upgrade'].map(int)
             df = df.set_index("upgrade").sort_index()

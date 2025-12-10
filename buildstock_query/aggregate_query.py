@@ -6,6 +6,7 @@ import logging
 from buildstock_query import main
 from buildstock_query.schema.query_params import BaseQuery, TSQuery, Query
 import pandas as pd
+import polars as pl
 from buildstock_query.schema.helpers import gather_params
 from typing import Union
 from collections.abc import Sequence
@@ -52,7 +53,7 @@ class BuildStockAggregate:
                         *self._bsq._get_restrict_clauses(restrict, bs_only=True),
                     ),
                 )
-            return ts, ts, tbljoin, group_by
+            return ts, ts, tbljoin, list(group_by)
 
         # For upgrades, create subqueries with proper joins
         # Split group_by into columns from timeseries vs baseline tables
@@ -486,7 +487,7 @@ class BuildStockAggregate:
         self,
         *,
         params: Query,
-    ) -> Union[pd.DataFrame, str]:
+    ) -> Union[pd.DataFrame, pl.LazyFrame, str]:
         [self._bsq._get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
 
         upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
@@ -671,7 +672,7 @@ class BuildStockAggregate:
         # to match the behavior of savings_shape query. Can be simplified after savings_shape function is removed.
         if params.include_savings:
             if params.annual_only or params.timestamp_grouping_func == "year":
-                query_cols = grouping_metrics_selection + query_cols + group_by_selection
+                query_cols = grouping_metrics_selection + query_cols + list(group_by_selection)
             else:  # time is the first column in this case and needs to be moved to the front to match
                 # the behavior of savings_shape query
                 query_cols = [
@@ -681,7 +682,7 @@ class BuildStockAggregate:
                     *group_by_selection[:-1],
                 ]
         else:
-            query_cols = group_by_selection + grouping_metrics_selection + query_cols
+            query_cols = list(group_by_selection) + grouping_metrics_selection + query_cols
         query = sa.select(*query_cols).select_from(tbljoin)
         query = self._bsq._add_join(query, params.join_list)
         if params.annual_only:

@@ -2,6 +2,7 @@ import buildstock_query.main as main
 import logging
 from typing import List, Any, Optional, Union, Sequence
 import pandas as pd
+import polars as pl
 from buildstock_query.schema.query_params import UtilityTSQuery
 from buildstock_query.schema.utilities import AnyColType, AnyTableType
 import typing
@@ -44,7 +45,8 @@ class BuildStockUtility:
                               collapse_ts: bool = False,
                               timestamp_grouping_func: Optional[Literal["month", "day", "hour"]] = None,
                               query_group_size: int = 20,
-                              limit: Optional[int] = None
+                              limit: Optional[int] = None,
+                              df_backend: Literal["pandas", "polars"] = "pandas"
                               ) -> str:
         ...
 
@@ -64,8 +66,9 @@ class BuildStockUtility:
                               timestamp_grouping_func: Optional[Literal["month", "day", "hour"]] = None,
                               get_query_only: Literal[False] = False,
                               query_group_size: int = 20,
-                              limit: Optional[int] = None
-                              ) -> pd.DataFrame:
+                              limit: Optional[int] = None,
+                              df_backend: Literal["polars"] = "polars"
+                              ) -> pl.DataFrame:
         ...
 
     @typing.overload
@@ -84,8 +87,9 @@ class BuildStockUtility:
                               collapse_ts: bool = False,
                               timestamp_grouping_func: Optional[Literal["month", "day", "hour"]] = None,
                               query_group_size: int = 20,
-                              limit: Optional[int] = None
-                              ) -> Union[str, pd.DataFrame]:
+                              limit: Optional[int] = None,
+                              df_backend: Literal["pandas", "polars"] = "pandas"
+                              ) -> Union[str, pd.DataFrame, pl.DataFrame]:
         """
         Aggregates the timeseries result, grouping by utilities.
         Args:
@@ -107,6 +111,7 @@ class BuildStockUtility:
             query_group_size: The number of eiaids to be grouped together when running athena queries. This should be
                               used as large as possible that doesn't result in query timeout.
             limit: The number of rows to limit the query to.
+            df_backend: The dataframe backend to use. Either "pandas" or "polars".
 
         Returns:
             Pandas dataframe with the aggregated timeseries and the requested enduses grouped by utilities
@@ -116,7 +121,7 @@ class BuildStockUtility:
     @typing.overload
     def aggregate_ts_by_eiaid(self, *,
                               params: UtilityTSQuery,
-                              ) -> Union[str, pd.DataFrame]:
+                              ) -> Union[str, pd.DataFrame, 'pl.DataFrame']:
         ...
 
     @typing.overload
