@@ -8,6 +8,7 @@ import re
 from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
 import pandas as pd
+import polars as pl
 from pydantic import Field
 from typing import Optional, Literal
 from typing_extensions import assert_never
@@ -570,7 +571,7 @@ class BuildStockQuery(QueryCore):
             self.ts_bldgid_column == bldg_id
         )
         if self.up_table is not None:
-            query1 = query1.where(self._ts_upgrade_col == upgrade_id)
+            query1 = query1.where(self._ts_upgrade_col == str(upgrade_id))
         query1 = query1.order_by(self.timestamp_column).limit(2)
         if get_query_only:
             return self._compile(query1)
@@ -645,6 +646,67 @@ class BuildStockQuery(QueryCore):
                     return self._get_column(new_name, tables).label(column)
 
         raise ValueError(f"Invalid column name type {column}: {type(column)}")
+
+    def get_calculated_column(self, column_name: str, column_expr: str, table="baseline" ) -> DBColType:
+        """
+        Creates a calculated column from a column expression string.
+        For example col1 + col2 will be resolved to (col1 + col2), col1 - col2 will be resolved to (col1 - col2)
+        col1*(col2 + col3) will be resolved to (col1 * (col2 + col3)) etc
+        Args:
+            column_name (str): The name to label the calculated column.
+            column_expr (str): The column expression to resolve.
+            table (str): The table to use for column resolution. One of 'baseline', 'upgrade', or 'timeseries'.
+        Returns:
+            DBColType: The calculated column with the specified label.
+        """
+        # Check if column_expr is a simple identifier (no operators)
+        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_.]*$', column_expr.strip()):
+            return self._get_enduse_cols([column_expr.strip()], table=table)[0].label(self._simple_label(column_name))
+
+        import pyparsing as pp
+
+        ident = pp.Word(pp.alphas, pp.alphanums + "_.")
+
+        plus = pp.Literal("+")
+        minus = pp.Literal("-")
+        mult = pp.Literal("*")
+        div = pp.Literal("/")
+
+        expr = pp.infixNotation(
+            ident,
+            [
+            (mult | div, 2, pp.opAssoc.LEFT),
+            (plus | minus, 2, pp.opAssoc.LEFT),
+            ],
+        )
+
+        def parse(tokens):
+            # Handle string tokens (leaf nodes - column identifiers)
+            if isinstance(tokens, str):
+                return self._get_enduse_cols([tokens], table=table)[0]
+
+            if len(tokens) == 1:
+                return parse(tokens[0])
+
+            left = parse(tokens[0])
+            operator = tokens[1]
+            right = parse(tokens[2:])
+
+            if operator == "+":
+                return left + right
+            elif operator == "-":
+                return left - right
+            elif operator == "*":
+                return left * right
+            elif operator == "/":
+                return left / right
+            else:
+                raise ValueError(f"Unknown operator: {operator}")
+
+        parsed_expr = expr.parseString(column_expr, parseAll=True)
+        resolved_col = parse(parsed_expr[0])
+        return resolved_col.label(self._simple_label(column_name))
+
 
     def _get_enduse_cols(self, enduses: Sequence[AnyColType], table="baseline") -> Sequence[DBColType]:
         tbls_dict = {"baseline": self.bs_table, "upgrade": self.up_table, "timeseries": self.ts_table}

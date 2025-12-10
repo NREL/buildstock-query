@@ -15,6 +15,7 @@ class RunParams(BaseModel):
     cache_folder: str = '.bsq_cache'
     athena_query_reuse: bool = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    keep_column_prefix: bool = False
 
 
 class BSQParams(RunParams):

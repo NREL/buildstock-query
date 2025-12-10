@@ -127,8 +127,10 @@ class TestBuildStockQuery:
             enduses=["fuel_use_electricity_total_m_btu"],
             group_by=["geometry_building_type_recs"],
             get_quartiles=True,
-        ).rename({'fuel_use_electricity_total_m_btu__upgrade__quartiles':
-                  'fuel_use_electricity_total_m_btu__quartiles'}, axis=1)
+        ).rename({"fuel_use_electricity_total_m_btu__upgrade__quartiles":
+                  "fuel_use_electricity_total_m_btu__quartiles",
+                  "fuel_use_electricity_total_m_btu__upgrade__nonzero_quartiles":
+                  "fuel_use_electricity_total_m_btu__nonzero_quartiles"}, axis=1)
         pd.testing.assert_frame_equal(df1, df2)
 
     def test_annual_electricity_agg_max_vs_query(self, bsq: BuildStockQuery):
@@ -343,7 +345,10 @@ class TestBuildStockQuery:
             group_by=["geometry_building_type_recs"],
             get_quartiles=True,
             annual_only=False,
-        ).drop(columns=["fuel_use__electricity__total__kwh__baseline__quartiles"])
+        ).drop(columns=["fuel_use__electricity__total__kwh__baseline__quartiles",
+                        "fuel_use__electricity__total__kwh__baseline__nonzero_quartiles",
+                        "fuel_use__electricity__total__kwh__savings__nonzero_quartiles",
+                        ])
         pd.testing.assert_frame_equal(df1, df2)
 
     def test_savings_shape_annual_vs_query(self, bsq: BuildStockQuery):
