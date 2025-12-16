@@ -176,7 +176,7 @@ class VizData:
     def get_values(self,
                    upgrade: str,
                    params: PlotParams,
-                   ) -> pl.LazyFrame:
+                   ) -> pl.DataFrame:
         df = self.upgrade2res[upgrade] if params.resolution == 'annual' else self.upgrade2res_monthly[upgrade]
         if params.filter_bldgs:
             df = df.filter(pl.col('building_id').is_in(set(params.filter_bldgs)))
@@ -190,7 +190,7 @@ class VizData:
         return df.select(other_cols + value_cols)
 
     def get_plotting_df(self, upgrade: str,
-                        params: PlotParams,) -> pl.LazyFrame:
+                        params: PlotParams,) -> pl.DataFrame:
         baseline_df = self.get_values(upgrade='0', params=params)
         baseline_df = baseline_df.select("building_id", "month", pl.col("value").alias("baseline_value"))
         up_df = self.get_values(upgrade=upgrade, params=params)
@@ -271,7 +271,7 @@ class VizData:
 
     def get_plotting_df_all_upgrades(self,
                                      params: PlotParams,
-                                     ) -> pl.LazyFrame:
+                                     ) -> pl.DataFrame:
         df_list = []
         for upgrade in ['0'] + self.available_upgrades:
             df = self.get_plotting_df(upgrade=upgrade, params=params)

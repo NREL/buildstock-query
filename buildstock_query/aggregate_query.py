@@ -6,7 +6,6 @@ import logging
 from buildstock_query import main
 from buildstock_query.schema.query_params import BaseQuery, TSQuery, Query
 import pandas as pd
-import polars as pl
 from buildstock_query.schema.helpers import gather_params
 from typing import Union
 from collections.abc import Sequence
@@ -487,7 +486,7 @@ class BuildStockAggregate:
         self,
         *,
         params: Query,
-    ) -> Union[pd.DataFrame, pl.LazyFrame, str]:
+    ) -> Union[pd.DataFrame, str]:
         [self._bsq._get_table(jl[0]) for jl in params.join_list]  # ingress all tables in join list
 
         upgrade_id = self._bsq._validate_upgrade(params.upgrade_id)
