@@ -8,7 +8,6 @@ import re
 from buildstock_query.tools import UpgradesAnalyzer
 from buildstock_query.query_core import QueryCore
 import pandas as pd
-import polars as pl
 from pydantic import Field
 from typing import Optional, Literal
 from typing_extensions import assert_never
@@ -647,7 +646,7 @@ class BuildStockQuery(QueryCore):
 
         raise ValueError(f"Invalid column name type {column}: {type(column)}")
 
-    def get_calculated_column(self, column_name: str, column_expr: str, table="baseline" ) -> DBColType:
+    def get_calculated_column(self, column_name: str, column_expr: str, table="baseline") -> DBColType:
         """
         Creates a calculated column from a column expression string.
         For example col1 + col2 will be resolved to (col1 + col2), col1 - col2 will be resolved to (col1 - col2)
@@ -675,8 +674,8 @@ class BuildStockQuery(QueryCore):
         expr = pp.infixNotation(
             ident,
             [
-            (mult | div, 2, pp.opAssoc.LEFT),
-            (plus | minus, 2, pp.opAssoc.LEFT),
+                (mult | div, 2, pp.opAssoc.LEFT),
+                (plus | minus, 2, pp.opAssoc.LEFT),
             ],
         )
 
@@ -706,7 +705,6 @@ class BuildStockQuery(QueryCore):
         parsed_expr = expr.parseString(column_expr, parseAll=True)
         resolved_col = parse(parsed_expr[0])
         return resolved_col.label(self._simple_label(column_name))
-
 
     def _get_enduse_cols(self, enduses: Sequence[AnyColType], table="baseline") -> Sequence[DBColType]:
         tbls_dict = {"baseline": self.bs_table, "upgrade": self.up_table, "timeseries": self.ts_table}

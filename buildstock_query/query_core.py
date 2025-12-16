@@ -2,14 +2,13 @@ import boto3
 import contextlib
 import pathlib
 from pyathena.connection import Connection
-from pyathena.error import OperationalError
 from pyathena.sqlalchemy.base import AthenaDialect
 import sqlalchemy as sa
 from sqlalchemy.sql import func as safunc
 from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.pandas.cursor import PandasCursor
 import os
-from typing import Union, Optional, Literal, Callable
+from typing import Union, Optional, Literal
 from collections.abc import Sequence
 import typing
 import time
@@ -511,8 +510,11 @@ class QueryCore:
         timeout_minutes = 30
         while time.time() - t < timeout_minutes * 60:
             stat = self.get_query_status(execution_id)
-            if (stat.upper() == "SUCCEEDED" 
-                or stat.upper() == "FAILED" and "HIVE_PATH_ALREADY_EXISTS" in self.get_query_error(execution_id)):
+            if (
+                stat.upper() == "SUCCEEDED"
+                or stat.upper() == "FAILED"
+                and "HIVE_PATH_ALREADY_EXISTS" in self.get_query_error(execution_id)
+            ):
                 try:
                     df = pd.read_parquet(result_location)
                 except FileNotFoundError:  # empty result
@@ -619,7 +621,6 @@ class QueryCore:
 
         self._query_cache[query] = self._get_unload_result(exe_id, result_location)
         return self._query_cache[query].copy()
-
 
     def print_all_batch_query_status(self) -> None:
         """Prints the status of all batch queries."""
@@ -969,7 +970,6 @@ class QueryCore:
             bucket = path.split("/")[2]
             key = "/".join(path.split("/")[3:])
             full_path = f"s3://{bucket}/{key}/"
-            #response = self._aws_s3.get_object(Bucket=bucket, Key=key)
             df = pd.read_parquet(full_path)
             return df
         # If failed, return error message

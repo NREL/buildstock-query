@@ -9,13 +9,13 @@ from pathlib import Path
 import json
 from typing import Literal, TYPE_CHECKING
 from filelock import FileLock
-import polars as pl
 if TYPE_CHECKING:
     from buildstock_query.schema.utilities import MappedColumn  # noqa: F401
 
 
 KWH2MBTU = 0.003412141633127942
 MBTU2KWH = 293.0710701722222
+
 
 class CachedFutureDf(Future):
     def __init__(self, df: pd.DataFrame, *args, **kwargs) -> None:
@@ -64,6 +64,7 @@ class AthenaFutureDf:
     def as_pandas(self) -> pd.DataFrame:
         df = self.future.as_df()  # type: ignore # mypy doesn't know about AthenaPandasResultSet
         return df
+
 
 class COLOR:
     YELLOW = '\033[93m'
