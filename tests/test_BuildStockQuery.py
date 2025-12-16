@@ -109,7 +109,7 @@ class TestBuildStockQuery:
 
         quartile_column = "fuel_use_electricity_total_m_btu__quartiles"
         assert quartile_column in df.columns
-        quartiles = ast.literal_eval(df[quartile_column].iloc[0])
+        quartiles = df[quartile_column].iloc[0]
         assert hasattr(quartiles, "__len__")
         assert len(quartiles) == 9
 

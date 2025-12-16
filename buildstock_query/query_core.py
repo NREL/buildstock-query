@@ -40,6 +40,7 @@ from buildstock_query.schema.utilities import (
 )
 import hashlib
 import toml
+import uuid
 
 urllib3.disable_warnings()
 
@@ -504,7 +505,7 @@ class QueryCore:
         compiled_query = CustomCompiler(AthenaDialect(), query).process(query, literal_binds=True)
         return compiled_query
 
-    def _get_unload_result(self, execution_id, query_hash: str) -> pd.DataFrame:
+    def _get_unload_result(self, execution_id, result_location: str) -> pd.DataFrame:
         t = time.time()
         tick = 0
         timeout_minutes = 30
@@ -512,9 +513,8 @@ class QueryCore:
             stat = self.get_query_status(execution_id)
             if (stat.upper() == "SUCCEEDED" 
                 or stat.upper() == "FAILED" and "HIVE_PATH_ALREADY_EXISTS" in self.get_query_error(execution_id)):
-                s3_path = f"s3://resstock-core/athena_unload_results/{query_hash}/"
                 try:
-                    df = pd.read_parquet(s3_path)
+                    df = pd.read_parquet(result_location)
                 except FileNotFoundError:  # empty result
                     df = pd.DataFrame()
                 return df
@@ -528,6 +528,25 @@ class QueryCore:
                     tick = 0
                 time.sleep(1)
         raise TimeoutError("Query failed to complete within 30 mins.")
+
+    def _get_query_result_location(self, result_path: str) -> Optional[str]:
+        """Check if the UNLOAD result already exists in S3.
+
+        Args:
+            result_path (str): The S3 path where the UNLOAD result would be stored.
+        Returns:
+            Optional[str]: The S3 path to the result if it exists, otherwise None.
+        """
+        bucket_name, prefix = result_path.replace("s3://", "").split("/", 1)
+        try:
+            response = self._aws_s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix, Delimiter="/")
+            if "CommonPrefixes" in response and response["CommonPrefixes"]:
+                first_folder = response["CommonPrefixes"][0]["Prefix"]
+                return f"s3://{bucket_name}/{first_folder}"
+            return None
+        except ClientError as e:
+            logger.error(f"Error accessing S3: {e}")
+            return None
 
     @typing.overload
     def execute(self, query, *, run_async: Literal[False] = False) -> pd.DataFrame: ...
@@ -558,35 +577,47 @@ class QueryCore:
         if not isinstance(query, str):
             query = self._compile(query)
 
-        query_hash = hashlib.sha256(query.encode()).hexdigest()
-        if not query.startswith("UNLOAD"):
-            query = (
-                f"UNLOAD ({query}) \n TO 's3://resstock-core/athena_unload_results/{query_hash}' \n WITH (format = 'PARQUET')"
-            )
         self._session_queries.add(query)
-
         if query in self._query_cache:
             if run_async:
                 return "CACHED", CachedFutureDf(self._query_cache[query].copy())
             return self._query_cache[query].copy()
 
+        query_hash = hashlib.sha256(query.encode()).hexdigest()
+        result_path = f"s3://resstock-core/bsq_athena_unload_results/{query_hash}"
+        # check if result already exists in s3
+        if (result_location := self._get_query_result_location(result_path)):
+            self._query_cache[query] = pd.read_parquet(result_location)
+            if run_async:
+                return "CACHED", CachedFutureDf(self._query_cache[query].copy())
+            return self._query_cache[query].copy()
+        else:
+            result_location = f"{result_path}/{uuid.uuid4()}/"  # unique path to avoid collision
+
+        if not query.startswith("UNLOAD"):
+            unload_query = (
+                f"UNLOAD ({query}) \n TO '{result_location}' \n WITH (format = 'PARQUET')"
+            )
+        else:
+            unload_query = query
+
         exe_id, result_future = self._async_conn.cursor().execute(
-            query, result_reuse_enable=self.athena_query_reuse, result_reuse_minutes=60 * 24 * 7, na_values=[""]
+            unload_query, result_reuse_enable=self.athena_query_reuse, result_reuse_minutes=60 * 24 * 7, na_values=[""]
         )  # type: ignore
         exe_id = ExeId(exe_id)
 
         def get_df(future):
             if query in self._query_cache:
                 return self._query_cache[query].copy()
-            return self._get_unload_result(exe_id, query_hash)
+            self._query_cache[query] = self._get_unload_result(exe_id, result_location)
+            return self._query_cache[query].copy()
 
         if run_async:
             result_future.as_df = types.MethodType(get_df, result_future)
-            result_future.add_done_callback(lambda f: self._query_cache.update({query: f.as_df()}))
             self._save_execution_id(exe_id)
             return exe_id, AthenaFutureDf(result_future)
 
-        self._query_cache[query] = self._get_unload_result(exe_id, query_hash)
+        self._query_cache[query] = self._get_unload_result(exe_id, result_location)
         return self._query_cache[query].copy()
 
 
@@ -689,7 +720,12 @@ class QueryCore:
             elif completion_stat == "SUCCEEDED":
                 success_count += 1
             elif completion_stat in ["FAILED", "CANCELLED"]:
-                fail_count += 1
+                query_error = self.get_query_error(exe_id)
+                if "HIVE_PATH_ALREADY_EXISTS" in query_error:
+                    # consider it a success - we will read the existing data
+                    success_count += 1
+                else:
+                    fail_count += 1
             else:
                 # for example: QUEUED
                 other += 1
