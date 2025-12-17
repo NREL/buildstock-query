@@ -252,7 +252,8 @@ class QueryCore:
 
     @validate_arguments
     def _get_column(
-        self, column_name: AnyColType, candidate_tables: Sequence[AnyTableType | None] | None = None
+        self, column_name: AnyColType,
+        candidate_tables: Sequence[AnyTableType | None] | None = None,
     ) -> DBColType:
         if isinstance(column_name, SACol):
             return column_name.label(self._simple_label(column_name.name))  # already a col
@@ -273,8 +274,6 @@ class QueryCore:
         for tbl in search_tables:
             if column_name in tbl.columns:
                 valid_tables.append(tbl)
-        if not valid_tables:
-            valid_tables += [table for _, table in self._tables.items() if column_name in table.columns]
         if not valid_tables:
             raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
         if len(valid_tables) > 1:
@@ -586,7 +585,7 @@ class QueryCore:
             return self._query_cache[query].copy()
 
         query_hash = hashlib.sha256(query.encode()).hexdigest()
-        result_path = f"s3://resstock-core/bsq_athena_unload_results/{query_hash}"
+        result_path = f"s3://{self.run_params.query_unload_s3_bucket}/bsq_athena_unload_results/{query_hash}"
         # check if result already exists in s3
         if (result_location := self._get_query_result_location(result_path)):
             self._query_cache[query] = pd.read_parquet(result_location)

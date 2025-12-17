@@ -49,7 +49,7 @@ class BuildStockQuery(QueryCore):
         execution_history: Optional[str] = None,
         skip_reports: bool = False,
         athena_query_reuse: bool = True,
-        **kwargs,
+        query_unload_s3_bucket: str = "resstock-core",
     ) -> None:
         """A class to run Athena queries for BuildStock runs and download results as pandas DataFrame.
 
@@ -76,7 +76,8 @@ class BuildStockQuery(QueryCore):
             athena_query_reuse (bool, optional): When true, Athena will make use of its built-in 7 day query cache.
                 When false, it will not. Defaults to True. One use case to set this to False is when you have modified
                 the underlying s3 data or glue schema and want to make sure you are not using the cached results.
-            kargs: Any other extra keyword argument supported by the QueryCore can be supplied here
+            query_unload_s3_bucket (str, optional): The s3 bucket to use for unloading athena query results.
+                Defaults to 'resstock-core'.
         """
         db_schema = db_schema or f"{buildstock_type}_default"
         self.params = BSQParams(
@@ -89,6 +90,7 @@ class BuildStockQuery(QueryCore):
             region_name=region_name,
             execution_history=execution_history,
             athena_query_reuse=athena_query_reuse,
+            query_unload_s3_bucket=query_unload_s3_bucket,
         )
         self._run_params = self.params.get_run_params()
         super(BuildStockQuery, self).__init__(params=self._run_params)
