@@ -8,7 +8,7 @@ class RunParams(BaseModel):
     db_name: str
     table_name: Union[str, tuple[str, Optional[str], Optional[str]]]
     buildstock_type: Literal["resstock", "comstock"] = 'resstock'
-    db_schema: Optional[str] = None
+    db_schema: Optional[str | dict] = None
     sample_weight_override: Optional[Union[int, float]] = None
     region_name: str = "us-west-2"
     execution_history: Optional[str] = None

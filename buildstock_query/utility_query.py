@@ -202,8 +202,8 @@ class BuildStockUtility:
         group_by = group_by or []
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         group_by = [] if group_by is None else group_by
-        restrict = [("eiaid", eiaid_list)] if eiaid_list else []
         eiaid_col = self._bsq._get_column("eiaid", [eiaid_map_table_name])
+        restrict = [(eiaid_col, eiaid_list)] if eiaid_list else []
         result = self._agg.aggregate_annual(
             enduses=[],
             group_by=[eiaid_col] + group_by,
@@ -237,7 +237,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         group_by = [] if group_by is None else group_by
-        group_by_cols = [self._bsq._get_column(col, [self._bsq.bs_table]) for col in group_by]
+        group_by_cols = self._bsq._process_groupby_cols(group_by, annual_only=True)
         eiaid_col = self._bsq._get_column("eiaid", [eiaid_map_table_name])
         result = self._agg.aggregate_annual(
             enduses=enduses,

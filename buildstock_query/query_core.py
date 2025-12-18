@@ -127,8 +127,11 @@ class QueryCore:
 
         self._batch_query_status_map: dict[int, BatchQueryStatusMap] = {}
         self._batch_query_id = 0
-        db_schema_file = os.path.join(os.path.dirname(__file__), "db_schema", f"{params.db_schema}.toml")
-        db_schema_dict = toml.load(db_schema_file)
+        if isinstance(params.db_schema, dict):
+            db_schema_dict = params.db_schema
+        else:
+            db_schema_file = os.path.join(os.path.dirname(__file__), "db_schema", f"{params.db_schema}.toml")
+            db_schema_dict = toml.load(db_schema_file)
         self.db_schema = DBSchema.model_validate(db_schema_dict)
         self.db_col_name = self.db_schema.column_names
         self.timestamp_column_name = self.db_col_name.timestamp
