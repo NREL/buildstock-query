@@ -61,11 +61,11 @@ class BuildStockQuery(QueryCore):
             say, 'mfm_run', then it must correspond to tables in athena named mfm_run_baseline and optionally
             mfm_run_timeseries and mf_run_upgrades. Or, tuple of three elements can be provided for the table names
             for baseline, timeseries and upgrade. Timeseries and upgrade can be None if no such table exist.
-            db_schema (str | dict, optional): The database structure in Athena is different between ResStock and ComStock run.
-                It is also different between the version in OEDI and default version from BuildStockBatch. This argument
-                controls the assumed schema. Allowed values are 'resstock_default', 'resstock_oedi', 'comstock_default'
-                etc - whatever files exist in db_schema folder. Defaults to 'resstock_default' for resstock and
-                'comstock_default' for comstock. Can also pass a dict obtained from toml.load("db_schema_file.toml").
+            db_schema (str | dict, optional): The database structure in Athena is different between ResStock and
+                ComStock run. It is also different between the version in OEDI and default version from
+                BuildStockBatch. This argument controls the assumed schema. Allowed values are whatever files exist
+                in db_schema folder. Defaults to 'resstock_default' for resstock and 'comstock_default' for comstock.
+                Can also pass a dict obtained from parsing the schema file. eg: toml.load("db_schema_file.toml").
             sample_weight_override (str, optional): Specify a custom sample_weight. Otherwise, the default is 1 for
                 ComStock and uses sample_weight in the run for ResStock.
             region_name (str, optional): the AWS region where the database exists. Defaults to 'us-west-2'.
