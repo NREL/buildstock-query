@@ -266,7 +266,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         query = sa.select("*").select_from(self._bsq.bs_table)
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
         query = query.where(self._bsq._get_column("weight") > 0)
         if get_query_only:
             return self._bsq._compile(query)
@@ -318,7 +318,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         query = sa.select(*[self._bsq.bs_bldgid_column.distinct()])
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
         query = query.where(self._bsq._get_column("weight") > 0)
         if get_query_only:
             return self._bsq._compile(query)
@@ -343,7 +343,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         eiaid_map_table = self._bsq._get_table(eiaid_map_table_name)
         query = sa.select(*[eiaid_map_table.c[map_eiaid_column].distinct()])
-        query = self._bsq._add_restrict(query, [("eiaid", eiaids)])
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
         query = query.where(eiaid_map_table.c["weight"] > 0)
         if get_query_only:
             return self._bsq._compile(query)

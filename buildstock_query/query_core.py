@@ -270,15 +270,13 @@ class QueryCore:
         if candidate_tables is not None:
             search_tables = [self._get_table(table) for table in candidate_tables if table is not None]
         else:
-            search_tables = [
-                self._get_table(tbl) for tbl in [self.bs_table, self.up_table, self.ts_table] if tbl is not None
-            ]
+            search_tables = list(self._tables.values())
         valid_tables = []
         for tbl in search_tables:
             if column_name in tbl.columns:
                 valid_tables.append(tbl)
         if not valid_tables:
-            raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in self._tables.values()]}")
+            raise ValueError(f"Column {column_name} not found in any tables {[t.name for t in search_tables]}")
         if len(valid_tables) > 1:
             logger.warning(
                 f"Column {column_name} found in multiple tables {[t.name for t in valid_tables]}. "
