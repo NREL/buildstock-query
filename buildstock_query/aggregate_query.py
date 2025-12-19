@@ -475,10 +475,10 @@ class BuildStockAggregate:
             lower_vals[enduses] = lower_vals[enduses] * avg_lower_weight + upper_vals[enduses] * avg_upper_weight
             return lower_vals
 
-    def validate_partition_by(self, partition_by: Sequence[str], annual_only: bool = True) -> Sequence[str]:
+    def validate_partition_by(self, partition_by: Sequence[str]) -> Sequence[str]:
         if not partition_by:
             return []
-        [self._bsq._get_gcol(col, annual_only=annual_only) for col in partition_by]  # making sure all entries are valid
+        [self._bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
     @gather_params(Query)

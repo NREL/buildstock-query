@@ -622,7 +622,7 @@ class BuildStockQuery(QueryCore):
             raise ValueError(f"Unknown special column type: {column_type}")
 
     def _get_gcol(
-        self, column: AnyColType, annual_only: bool
+        self, column: AnyColType, annual_only: bool = False
     ) -> DBColType:  # gcol => group by col
         """Get a DB column for the purpose of grouping. If the provided column doesn't exist as is,
         tries to get the column by prepending self._char_prefix."""
