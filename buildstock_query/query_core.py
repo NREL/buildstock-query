@@ -257,6 +257,7 @@ class QueryCore:
     def _get_column(
         self, column_name: AnyColType,
         candidate_tables: Sequence[AnyTableType | None] | None = None,
+        annual_only: bool=False,
     ) -> DBColType:
         if isinstance(column_name, SACol):
             return column_name.label(self._simple_label(column_name.name))  # already a col
@@ -267,10 +268,13 @@ class QueryCore:
         if isinstance(column_name, MappedColumn):
             return sa.literal(column_name).label(self._simple_label(column_name.name))
 
-        if candidate_tables is not None:
-            search_tables = [self._get_table(table) for table in candidate_tables if table is not None]
-        else:
-            search_tables = list(self._tables.values())
+        if not candidate_tables:
+            if annual_only:
+                candidate_tables = (self.bs_table, self.up_table)
+            else:
+                candidate_tables = (self.bs_table, self.up_table, self.ts_table)
+
+        search_tables = [self._get_table(table) for table in candidate_tables if table is not None]
         valid_tables = []
         for tbl in search_tables:
             if column_name in tbl.columns:
@@ -520,7 +524,7 @@ class QueryCore:
                 except FileNotFoundError:  # empty result
                     df = pd.DataFrame()
                 return df
-            elif stat.upper() == "FAILED":
+            elif stat.upper() in ["FAILED", "CANCELLED"]:
                 error = self.get_query_error(execution_id)
                 raise QueryException(error)
             else:
@@ -1095,15 +1099,10 @@ class QueryCore:
             label += f"__{agg_func}"
         return label
 
-    def _get_restrict_clauses(self, restrict, bs_only=False):
+    def _get_restrict_clauses(self, restrict, annual_only=False):
         clauses = []
-        if bs_only:
-            candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
-        else:
-            candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
-        # candidate_tables += list(self._tables.values())
         for col_str, criteria in restrict:
-            col = self._get_column(col_str, candidate_tables=candidate_tables)
+            col = self._get_column(col_str, annual_only=annual_only)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
                     clauses.append(col.in_(criteria))
@@ -1115,23 +1114,19 @@ class QueryCore:
                 clauses.append(col == criteria)
         return clauses
 
-    def _add_restrict(self, query, restrict, *, bs_only=False):
+    def _add_restrict(self, query, restrict, *, annual_only=False):
         if not restrict:
             return query
-        restrict_clauses = self._get_restrict_clauses(restrict, bs_only=bs_only)
+        restrict_clauses = self._get_restrict_clauses(restrict, annual_only=annual_only)
         query = query.where(*restrict_clauses)
         return query
 
-    def _add_avoid(self, query, avoid, *, bs_only=False):
+    def _add_avoid(self, query, avoid, *, annual_only=False):
         if not avoid:
             return query
-        if bs_only:
-            candidate_tables = [tbl for tbl in (self.bs_table, self.up_table) if tbl is not None]
-        else:
-            candidate_tables = [tbl for tbl in (self.ts_table, self.bs_table, self.up_table) if tbl is not None]
         where_clauses = []
         for col_str, criteria in avoid:
-            col = self._get_column(col_str, candidate_tables=candidate_tables)
+            col = self._get_column(col_str, annual_only=annual_only)
             if isinstance(criteria, (list, tuple)):
                 if len(criteria) > 1:
                     where_clauses.append(col.not_in(criteria))
@@ -1182,7 +1177,7 @@ class QueryCore:
                 tbl = self._get_table(weight_col[1])
                 total_weight *= tbl.c[weight_col[0]]
             else:
-                total_weight *= self._get_column(weight_col)
+                total_weight *= self._get_column(weight_col, [self.bs_table])
         return total_weight
 
     def _get_agg_func_and_weight(self, weights, agg_func=None):

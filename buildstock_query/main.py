@@ -308,7 +308,7 @@ class BuildStockQuery(QueryCore):
         """
         restrict = list(restrict) if restrict else []
         query = sa.select("*").select_from(self.bs_table)
-        query = self._add_restrict(query, restrict, bs_only=True)
+        query = self._add_restrict(query, restrict, annual_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -425,7 +425,7 @@ class BuildStockQuery(QueryCore):
                 raise ValueError("This run has no upgrades")
             query = query.where(self.up_table.c["upgrade"] == str(upgrade_id))
 
-        query = self._add_restrict(query, restrict, bs_only=True)
+        query = self._add_restrict(query, restrict, annual_only=True)
         compiled_query = self._compile(query)
         if get_query_only:
             return compiled_query
@@ -551,7 +551,7 @@ class BuildStockQuery(QueryCore):
         """
         restrict = list(restrict) if restrict else []
         query = sa.select(self.bs_bldgid_column)
-        query = self._add_restrict(query, restrict, bs_only=True)
+        query = self._add_restrict(query, restrict, annual_only=True)
         if get_query_only:
             return self._compile(query)
         return self.execute(query)
@@ -622,7 +622,7 @@ class BuildStockQuery(QueryCore):
             raise ValueError(f"Unknown special column type: {column_type}")
 
     def _get_gcol(
-        self, column: AnyColType, tables: Sequence[AnyTableType] | None = None
+        self, column: AnyColType, annual_only: bool
     ) -> DBColType:  # gcol => group by col
         """Get a DB column for the purpose of grouping. If the provided column doesn't exist as is,
         tries to get the column by prepending self._char_prefix."""
@@ -638,14 +638,14 @@ class BuildStockQuery(QueryCore):
 
         if isinstance(column, str):
             try:
-                return self._get_column(column, tables).label(self._simple_label(column))
+                return self._get_column(column, annual_only=annual_only).label(self._simple_label(column))
             except (ValueError, KeyError):
                 if column.startswith(self._char_prefix):
                     new_name = column.removeprefix(self._char_prefix)
-                    return self._get_column(new_name, tables).label(column)
+                    return self._get_column(new_name, annual_only=annual_only).label(column)
                 else:
                     new_name = f"{self._char_prefix}{column}"
-                    return self._get_column(new_name, tables).label(column)
+                    return self._get_column(new_name, annual_only=annual_only).label(column)
 
         raise ValueError(f"Invalid column name type {column}: {type(column)}")
 
@@ -773,7 +773,7 @@ class BuildStockQuery(QueryCore):
             if self.ts_table is not None and col in self.ts_table.columns:  # prioritize ts table
                 ts_restrict.append([self.ts_table.c[col], restrict_vals])
             else:
-                bs_restrict.append([self._get_gcol(col), restrict_vals])
+                bs_restrict.append([self._get_gcol(col, annual_only=True), restrict_vals])
         return bs_restrict, ts_restrict
 
     def _split_group_by(self, processed_group_by: list[DBColType]):
@@ -817,10 +817,7 @@ class BuildStockQuery(QueryCore):
     def _process_groupby_cols(self, group_by, annual_only=False) -> list[DBColType]:
         if not group_by:
             return []
-        tables = [self.bs_table, self.up_table]
-        if not annual_only:
-            tables.insert(0, self.ts_table)
-        return [self._get_gcol(entry, tables) for entry in group_by]
+        return [self._get_gcol(entry, annual_only=annual_only) for entry in group_by]
 
     def _get_simulation_timesteps_count(self):
         # find the simulation time interval
@@ -868,7 +865,7 @@ class BuildStockQuery(QueryCore):
 
         """
         query = sa.select(self.bs_bldgid_column)
-        query = query.where(self._get_column(location_col).in_(locations))
+        query = query.where(self._get_column(location_col, [self.bs_table]).in_(locations))
         query = self._add_order_by(query, [self.bs_bldgid_column])
         if get_query_only:
             return self._compile(query)

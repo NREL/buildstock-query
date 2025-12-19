@@ -204,12 +204,14 @@ class BuildStockUtility:
         group_by = [] if group_by is None else group_by
         eiaid_col = self._bsq._get_column("eiaid", [eiaid_map_table_name])
         restrict = [(eiaid_col, eiaid_list)] if eiaid_list else []
-        result = self._agg.aggregate_annual(
+        weight_col = ("weight", eiaid_map_table_name)
+        result = self._bsq.query(
+            annual_only=True,
             enduses=[],
             group_by=[eiaid_col] + group_by,
             sort=True,
             join_list=[(eiaid_map_table_name, map_baseline_column, map_eiaid_column)],
-            weights=["weight"],
+            weights=[weight_col],
             restrict=restrict,
             get_query_only=get_query_only,
         )
@@ -239,11 +241,12 @@ class BuildStockUtility:
         group_by = [] if group_by is None else group_by
         group_by_cols = self._bsq._process_groupby_cols(group_by, annual_only=True)
         eiaid_col = self._bsq._get_column("eiaid", [eiaid_map_table_name])
-        result = self._agg.aggregate_annual(
+        weight_col = ("weight", eiaid_map_table_name)
+        result = self._bsq.query(
             enduses=enduses,
             group_by=[eiaid_col] + group_by_cols,
             join_list=join_list,
-            weights=["weight"],
+            weights=[weight_col],
             sort=True,
             get_query_only=get_query_only,
             get_nonzero_count=get_nonzero_count,
@@ -266,8 +269,8 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         query = sa.select("*").select_from(self._bsq.bs_table)
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
-        query = query.where(self._bsq._get_column("weight") > 0)
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid", [eiaid_map_table_name]), eiaids)])
+        query = query.where(self._bsq._get_column("weight", [eiaid_map_table_name]) > 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -295,8 +298,9 @@ class BuildStockUtility:
             self._cache["eiaids"] = {}
 
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
-        annual_agg = self._agg.aggregate_annual(
-            enduses=[], group_by=[eiaid_col], restrict=restrict, join_list=join_list, weights=["weight"], sort=True
+        weight_col = ("weight", eiaid_map_table_name)
+        annual_agg = self._bsq.query(
+            annual_only=True, enduses=[], group_by=[eiaid_col], restrict=restrict, join_list=join_list, weights=[weight_col], sort=True
         )
         self._cache["eiaids"] = list(annual_agg["eiaid"].to_numpy(dtype=str).tolist())
         return self._cache["eiaids"]
@@ -318,8 +322,8 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         query = sa.select(*[self._bsq.bs_bldgid_column.distinct()])
         query = self._bsq._add_join(query, [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)])
-        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
-        query = query.where(self._bsq._get_column("weight") > 0)
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid", [eiaid_map_table_name]), eiaids)])
+        query = query.where(self._bsq._get_column("weight", [eiaid_map_table_name]) > 0)
         if get_query_only:
             return self._bsq._compile(query)
         res = self._bsq.execute(query)
@@ -343,7 +347,7 @@ class BuildStockUtility:
         eiaid_map_table_name, map_baseline_column, map_eiaid_column = self.get_eiaid_map()
         eiaid_map_table = self._bsq._get_table(eiaid_map_table_name)
         query = sa.select(*[eiaid_map_table.c[map_eiaid_column].distinct()])
-        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid"), eiaids)])
+        query = self._bsq._add_restrict(query, [(self._bsq._get_column("eiaid", [eiaid_map_table_name]), eiaids)])
         query = query.where(eiaid_map_table.c["weight"] > 0)
         if get_query_only:
             return self._bsq._compile(query)
@@ -405,9 +409,9 @@ class BuildStockUtility:
             ] + safunc.coalesce(self._bsq.ts_table.c["end_use__electricity__pv__kwh"], 0)
         elif isinstance(meter_col, tuple):
             for col in meter_col:
-                TOU_enduse[f"{col}__TOU"] = self._bsq._get_column(col)
+                TOU_enduse[f"{col}__TOU"] = self._bsq._get_column(col, [self._bsq.ts_table])
         else:
-            TOU_enduse[f"{meter_col}__TOU"] = self._bsq._get_column(meter_col)
+            TOU_enduse[f"{meter_col}__TOU"] = self._bsq._get_column(meter_col, [self._bsq.ts_table])
 
         month_col, is_weekend_col, hour_col = (
             self._bsq._get_special_column(col) for col in ("month", "is_weekend", "hour")

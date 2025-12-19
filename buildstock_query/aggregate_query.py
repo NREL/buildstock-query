@@ -49,7 +49,7 @@ class BuildStockAggregate:
                     sa.and_(
                         self._bsq.bs_bldgid_column == self._bsq.ts_bldgid_column,
                         ucol == upgrade_id,
-                        *self._bsq._get_restrict_clauses(restrict, bs_only=True),
+                        *self._bsq._get_restrict_clauses(restrict, annual_only=True),
                     ),
                 )
             return ts, ts, tbljoin, list(group_by)
@@ -475,10 +475,10 @@ class BuildStockAggregate:
             lower_vals[enduses] = lower_vals[enduses] * avg_lower_weight + upper_vals[enduses] * avg_upper_weight
             return lower_vals
 
-    def validate_partition_by(self, partition_by: Sequence[str]):
+    def validate_partition_by(self, partition_by: Sequence[str], annual_only: bool = True) -> Sequence[str]:
         if not partition_by:
             return []
-        [self._bsq._get_gcol(col) for col in partition_by]  # making sure all entries are valid
+        [self._bsq._get_gcol(col, annual_only=annual_only) for col in partition_by]  # making sure all entries are valid
         return partition_by
 
     @gather_params(Query)
@@ -687,7 +687,7 @@ class BuildStockAggregate:
         if params.annual_only:
             query = query.where(self._bsq._bs_successful_condition)
         query = self._bsq._add_restrict(query, params.restrict)
-        query = self._bsq._add_avoid(query, params.avoid, bs_only=params.annual_only)
+        query = self._bsq._add_avoid(query, params.avoid, annual_only=params.annual_only)
         query = self._bsq._add_group_by(query, group_by_selection)
         query = self._bsq._add_order_by(query, group_by_selection if params.sort else [])
         query = query.limit(params.limit) if params.limit else query
