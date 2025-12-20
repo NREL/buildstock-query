@@ -300,7 +300,8 @@ class BuildStockUtility:
         join_list = [(eiaid_map_table_name, map_baseline_column, map_eiaid_column)]
         weight_col = ("weight", eiaid_map_table_name)
         annual_agg = self._bsq.query(
-            annual_only=True, enduses=[], group_by=[eiaid_col], restrict=restrict, join_list=join_list, weights=[weight_col], sort=True
+            annual_only=True, enduses=[], group_by=[eiaid_col], restrict=restrict, join_list=join_list,
+            weights=[weight_col], sort=True
         )
         self._cache["eiaids"] = list(annual_agg["eiaid"].to_numpy(dtype=str).tolist())
         return self._cache["eiaids"]

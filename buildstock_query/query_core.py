@@ -257,7 +257,7 @@ class QueryCore:
     def _get_column(
         self, column_name: AnyColType,
         candidate_tables: Sequence[AnyTableType | None] | None = None,
-        annual_only: bool=False,
+        annual_only: bool = False,
     ) -> DBColType:
         if isinstance(column_name, SACol):
             return column_name.label(self._simple_label(column_name.name))  # already a col
