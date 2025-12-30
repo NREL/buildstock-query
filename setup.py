@@ -16,7 +16,7 @@ setup(
         "polars",
         "pyarrow >= 14.0.1",
         # "s3fs[boto3] >= 2022.8.2",
-        "pyathena == 3.0.6",
+        "pyathena >= 3.19.0",
         "SQLAlchemy == 1.4.46",
         "sqlalchemy2-stubs",
         "pandas-stubs",
