@@ -36,6 +36,22 @@ class _RunParamsStub:
         self.region_name = region_name
 
 
+class _MotoQueryCore(QueryCore):
+    def _create_pa_s3_filesystem(self) -> _pafs.S3FileSystem:
+        session = boto3.Session(region_name=self.run_params.region_name)
+        credentials = session.get_credentials()
+        assert credentials is not None
+        frozen = credentials.get_frozen_credentials()
+        return _pafs.S3FileSystem(
+            access_key=frozen.access_key,
+            secret_key=frozen.secret_key,
+            session_token=frozen.token,
+            region=self.run_params.region_name,
+            endpoint_override=self._endpoint,  # type: ignore[attr-defined]
+            scheme="http",
+        )
+
+
 @pytest.fixture
 def moto_s3():
     """Start a real moto S3 server and configure boto3 env credentials.
@@ -105,16 +121,16 @@ class TestReadS3Parquet:
         key = "data/foo.parquet"
 
         boto3.client("s3", endpoint_url=endpoint, region_name=region).create_bucket(Bucket=bucket)
-        fs = _make_s3fs(endpoint, region)
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         _put_parquet(
             boto3.client("s3", endpoint_url=endpoint, region_name=region),
             bucket, key, df,
         )
 
-        qc = QueryCore.__new__(QueryCore)
+        qc = QueryCore.__new__(_MotoQueryCore)
         qc.run_params = _RunParamsStub(region)
-        qc._pa_s3fs = fs
+        qc._endpoint = endpoint
+        qc._pa_s3fs = qc._create_pa_s3_filesystem()
 
         result = qc._read_s3_parquet(f"s3://{bucket}/{key}")
 
