@@ -317,6 +317,7 @@ class QueryCore:
             pass
         except Exception:
             logger.warning("View reflection fallback failed for '%s'.", table_name, exc_info=True)
+            raise
 
         if missing_ok:
             logger.warning(f"No {table_name} table is present.")

@@ -991,12 +991,7 @@ class BuildStockQuery(QueryCore):
     def _up_completed_status_col(self):
         if self.up_table is None:
             raise ValueError("No upgrades table")
-        if not isinstance(self.up_table.c[self.db_schema.column_names.completed_status].type, sqltypes.String):
-            return sa.cast(self.up_table.c[self.db_schema.column_names.completed_status], sa.String).label(
-                "completed_status"
-            )
-        else:
-            return self.up_table.c[self.db_schema.column_names.completed_status]
+        return self._get_completed_status_col(self.up_table)
 
     @property
     def _bs_successful_condition(self):
@@ -1025,7 +1020,10 @@ class BuildStockQuery(QueryCore):
     def _get_completed_status_col(self, table: AnyTableType):
         col_name = self.db_schema.column_names.completed_status
         if col_name not in table.c.keys():
-            return sa.literal(self.db_schema.completion_values.success).label("completed_status")
+            return sa.case(
+                (table.c[self.building_id_column_name].is_(None), None),
+                else_=self.db_schema.completion_values.success,
+            ).label("completed_status")
         if not isinstance(table.c[col_name].type, sqltypes.String):
             return sa.cast(table.c[col_name], sa.String).label("completed_status")
         return table.c[col_name]
