@@ -288,7 +288,9 @@ class QueryCore:
 
         # A failed autoload may have registered an empty Table in MetaData;
         # reuse that object if present, otherwise create a fresh one.
-        tbl = self._meta.tables.get(table_name) or sa.Table(table_name, self._meta)
+        tbl = self._meta.tables.get(table_name)
+        if tbl is None:
+            tbl = sa.Table(table_name, self._meta)
         existing = set(tbl.c.keys())
         for col_name, type_str in rows:
             if col_name not in existing:
@@ -301,7 +303,12 @@ class QueryCore:
             return table_name  # already a table
 
         try:
-            return self._tables.setdefault(table_name, sa.Table(table_name, self._meta, autoload_with=self._engine))
+            tbl = self._tables.get(table_name)
+            if tbl is None:
+                tbl = sa.Table(table_name, self._meta, autoload_with=self._engine)
+            if tbl.c:
+                self._tables[table_name] = tbl
+                return tbl
         except sa.exc.NoSuchTableError:  # type: ignore
             pass
 
